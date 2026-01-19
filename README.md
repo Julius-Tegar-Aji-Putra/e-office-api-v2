@@ -2,29 +2,29 @@
 
 > RESTful API untuk sistem E-Office dengan arsitektur modular berbasis feature/subsystem. Dibangun menggunakan Hono, TypeScript, Prisma ORM, dan Bun.
 
-## 📋 Table of Contents
+## 📋 Daftar Isi
 
 - [Tech Stack](#-tech-stack)
 - [Persiapan Database](#-persiapan-database)
 - [Instalasi & Setup Project](#-instalasi--setup-project)
-- [Project Structure](#-project-structure)
-- [API Documentation](#-api-documentation)
-- [Development Conventions](#-development-conventions)
+- [Struktur Project](#-struktur-project)
+- [Dokumentasi API](#-dokumentasi-api)
+- [Konvensi Development](#-konvensi-development)
 - [Best Practices](#-best-practices)
 
 ---
 
 ## 🛠 Tech Stack
 
-- **Runtime**: [Bun](https://bun.sh/) - Fast all-in-one JavaScript runtime
-- **Web Framework**: [Hono](https://hono.dev/) - Ultra-fast, lightweight web framework
+- **Runtime**: [Bun](https://bun.sh/) - JavaScript runtime yang cepat dan lengkap
+- **Web Framework**: [Hono](https://hono.dev/) - Web framework yang ultra-cepat dan ringan
 - **Database**: [PostgreSQL](https://www.postgresql.org/) (via Docker)
-- **ORM**: [Prisma](https://www.prisma.io/) - Next-generation TypeScript ORM
+- **ORM**: [Prisma](https://www.prisma.io/) - TypeScript ORM generasi terbaru
 - **Authentication**: JWT (JSON Web Tokens)
 - **Authorization**: [Casbin](https://casbin.org/) - Role-based access control (RBAC)
-- **File Storage**: [MinIO](https://min.io/) - S3-compatible object storage
-- **Validation**: [Zod](https://zod.dev/) - TypeScript-first schema validation
-- **Code Quality**: [Biome](https://biomejs.dev/) - Fast linter & formatter
+- **File Storage**: [MinIO](https://min.io/) - Object storage kompatibel S3
+- **Validation**: [Zod](https://zod.dev/) - Schema validation berbasis TypeScript
+- **Code Quality**: [Biome](https://biomejs.dev/) - Linter & formatter yang cepat
 - **Language**: TypeScript
 
 
@@ -34,10 +34,10 @@
 
 **⚠️ PENTING: Database harus sudah running sebelum menjalankan aplikasi!**
 
-### Prerequisites
+### Prasyarat
 
-- [Docker](https://www.docker.com/get-started) & [Docker Compose](https://docs.docker.com/compose/install/) terinstall
-- [Bun](https://bun.sh/) terinstall (`curl -fsSL https://bun.sh/install | bash`)
+- [Docker](https://www.docker.com/get-started) & [Docker Compose](https://docs.docker.com/compose/install/) sudah terinstall
+- [Bun](https://bun.sh/) sudah terinstall (`curl -fsSL https://bun.sh/install | bash`)
 - Git
 
 ### 1. Menyalakan Database via Docker Compose
@@ -57,15 +57,15 @@ docker-compose -f docker-compose.dev.yml up -d
 - `up`: Start services
 - `-d`: Detached mode (background)
 
-**Verify services running:**
+**Verifikasi services yang berjalan:**
 
 ```bash
-# Check running containers
+# Cek container yang sedang berjalan
 docker ps
 
-# Expected output:
-# - PostgreSQL on port 5432
-# - MinIO on port 9000 (API) and 9001 (Console)
+# Output yang diharapkan:
+# - PostgreSQL di port 5432
+# - MinIO di port 9000 (API) dan 9001 (Console)
 ```
 
 ### 2. Setup Environment Variables (.env)
@@ -106,7 +106,7 @@ FRONTEND_URL=http://localhost:3000
 - Ganti `JWT_SECRET` dengan random string yang kuat (min 32 karakter)
 - Jangan commit file `.env` ke Git (sudah ada di `.gitignore`)
 
-**Generate Secure JWT Secret:**
+**Generate JWT Secret yang Aman:**
 
 ```bash
 # Linux/Mac
@@ -116,7 +116,7 @@ openssl rand -base64 32
 [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
 ```
 
-### 3. Stop Database Services
+### 3. Menghentikan Database Services
 
 Ketika selesai development:
 
@@ -142,7 +142,7 @@ cd e-office-api-v2
 bun install
 ```
 
-**Note**: Project ini menggunakan **Bun** sebagai package manager dan runtime. Jangan gunakan npm atau yarn untuk consistency.
+**Catatan**: Project ini menggunakan **Bun** sebagai package manager dan runtime. Jangan gunakan npm atau yarn untuk konsistensi.
 
 ---
 
@@ -150,9 +150,9 @@ bun install
 
 Setelah database Docker running dan `.env` sudah di-setup, jalankan workflow berikut **SECARA BERURUTAN**:
 
-#### Step 1: Generate Prisma Client
+#### Langkah 1: Generate Prisma Client
 
-Prisma Client adalah auto-generated query builder yang type-safe. Harus di-generate setiap kali schema berubah.
+Prisma Client adalah query builder yang auto-generated dan type-safe. Harus di-generate setiap kali schema berubah.
 
 ```bash
 bunx prisma generate
@@ -163,38 +163,38 @@ bunx prisma generate
 ✔ Generated Prisma Client to ./node_modules/@prisma/client
 ```
 
-**Kapan harus run lagi?**
+**Kapan harus dijalankan lagi?**
 - Setelah git pull yang mengubah `prisma/schema.prisma`
 - Setelah menambah/mengubah model di schema
 - Setelah fresh install dependencies
 
 ---
 
-#### Step 2: Migrasi Database
+#### Langkah 2: Migrasi Database
 
 Migration akan membuat/update tabel di database berdasarkan Prisma schema.
 
 ```bash
-# Development: Create migration dan apply ke DB
+# Development: Buat migration dan apply ke DB
 bunx prisma migrate dev --name init
 
-# Alternative: Apply existing migrations only
+# Alternatif: Hanya apply existing migrations
 bunx prisma migrate deploy
 ```
 
 **Penjelasan:**
-- `migrate dev`: Development mode - generate SQL migration file + apply ke DB
-- `--name init`: Nama migration (bisa diganti, misal: `add_user_table`)
-- `migrate deploy`: Production mode - hanya apply existing migrations
+- `migrate dev`: Mode development - generate file SQL migration + apply ke DB
+- `--name init`: Nama migration (bisa diganti, contoh: `add_user_table`)
+- `migrate deploy`: Mode production - hanya apply existing migrations
 
-**Expected Output:**
+**Output yang Diharapkan:**
 ```
 ✔ Applying migration `20251217165014_init`
 ✔ Generated Prisma Client
 Database schema updated successfully!
 ```
 
-**Prisma Migration Files:**
+**File Prisma Migration:**
 ```
 prisma/migrations/
 ├── migration_lock.toml
@@ -204,7 +204,7 @@ prisma/migrations/
 
 ---
 
-#### Step 3: Seeding Data Awal (Optional tapi Recommended)
+#### Langkah 3: Seeding Data Awal (Opsional tapi Direkomendasikan)
 
 Seeding mengisi database dengan data awal (admin user, roles, sample data, dll).
 
@@ -213,11 +213,11 @@ bunx prisma db seed
 ```
 
 **⚠️ Catatan:**
-- Seed configuration ada di `package.json` → `prisma.seed`
-- Seed script ada di `src/db/seed.ts` atau `prisma/seed.ts`
+- Konfigurasi seed ada di `package.json` → `prisma.seed`
+- Script seed ada di `src/db/seed.ts` atau `prisma/seed.ts`
 - Berguna untuk development agar ada data untuk testing
 
-**Expected Output:**
+**Output yang Diharapkan:**
 ```
 🌱 Seeding database...
 ✅ Created admin user
@@ -227,9 +227,9 @@ bunx prisma db seed
 
 ---
 
-#### Step 4: Verify Database Setup
+#### Langkah 4: Verifikasi Setup Database
 
-Buka Prisma Studio untuk verify data:
+Buka Prisma Studio untuk memverifikasi data:
 
 ```bash
 bunx prisma studio
@@ -244,14 +244,14 @@ Akan membuka browser di `http://localhost:5555` dengan GUI untuk explore databas
 Setelah semua setup selesai, jalankan server:
 
 ```bash
-# Development mode (with hot reload)
+# Mode development (dengan hot reload)
 bun dev
 
-# Alternative: Production mode
+# Alternatif: Mode production
 bun run start
 ```
 
-**Expected Output:**
+**Output yang Diharapkan:**
 ```
 🚀 Server running on http://localhost:3001
 ✅ Database connected
@@ -262,40 +262,40 @@ Server akan berjalan di **http://localhost:3001**
 
 ---
 
-### 4. Quick Start Summary (Cheat Sheet)
+### 4. Ringkasan Quick Start (Cheat Sheet)
 
 Untuk setup dari awal:
 
 ```bash
-# 1. Start database
+# 1. Jalankan database
 docker-compose -f docker-compose.dev.yml up -d
 
 # 2. Setup environment
 cp .env.example .env
-# Edit .env dengan config yang sesuai
+# Edit .env dengan konfigurasi yang sesuai
 
 # 3. Install dependencies
 bun install
 
-# 4. Database workflow (BERURUTAN!)
+# 4. Workflow database (BERURUTAN!)
 bunx prisma generate          # Generate Prisma Client
 bunx prisma migrate dev       # Apply migrations
-bunx prisma db seed          # Seed initial data
+bunx prisma db seed          # Seed data awal
 
-# 5. Start server
+# 5. Jalankan server
 bun dev
 ```
 
 **Troubleshooting:**
-- Jika error `P1001` (can't reach database): Pastikan Docker services running
-- Jika error `P3009` (migration failed): Check DATABASE_URL di `.env`
-- Jika error TypeScript: Run `bunx prisma generate` lagi
+- Jika error `P1001` (can't reach database): Pastikan Docker services sedang berjalan
+- Jika error `P3009` (migration failed): Cek DATABASE_URL di `.env`
+- Jika error TypeScript: Jalankan `bunx prisma generate` lagi
 
 ---
 
-## 📁 Project Structure
+## 📁 Struktur Project
 
-Proyek ini menggunakan **Feature-Based Modular Architecture** yang memisahkan kode berdasarkan domain bisnis/fitur.
+Proyek ini menggunakan **Arsitektur Modular Berbasis Fitur** yang memisahkan kode berdasarkan domain bisnis/fitur.
 
 ```
 e-office-api-v2/
@@ -367,7 +367,7 @@ e-office-api-v2/
 
 ---
 
-### 🔴 Shared Folder (ZONA MERAH) - Critical Explanation
+### 🔴 Shared Folder (ZONA MERAH) - Penjelasan Penting
 
 Folder `src/shared/` adalah **ZONA MERAH** yang berisi kode generic dan reusable di seluruh aplikasi.
 
@@ -432,13 +432,13 @@ shared/
 
 ---
 
-### 🟢 Modules Folder (Feature-Based Architecture)
+### 🟢 Modules Folder (Arsitektur Berbasis Fitur)
 
 Folder `src/modules/` adalah **inti aplikasi** yang berisi business logic per feature/subsystem.
 
-**Philosophy**: Setiap module adalah **self-contained unit** yang handle satu domain bisnis spesifik.
+**Filosofi**: Setiap module adalah **unit yang mandiri** yang menangani satu domain bisnis spesifik.
 
-#### Available Modules:
+#### Module yang Tersedia:
 
 ```
 modules/
@@ -450,19 +450,19 @@ modules/
 └── legalisasi/              # ✅ Legalisasi & Archiving
 ```
 
-#### Module Structure (Setiap module memiliki struktur yang sama):
+#### Struktur Module (Setiap module memiliki struktur yang sama):
 
 ```
-modules/[module-name]/
+modules/[nama-module]/
 ├── [module].controller.ts       # HTTP Request/Response Handler
 ├── [module].service.ts          # Business Logic Layer
 ├── [module].repository.ts       # Database Access Layer (Prisma)
-├── [module].route.ts            # Route Definitions (Hono Router)
+├── [module].route.ts            # Definisi Route (Hono Router)
 ├── [module].validation.ts       # Zod Validation Schemas
-└── [module].types.ts            # Module-specific TypeScript Types
+└── [module].types.ts            # TypeScript Types Spesifik Module
 ```
 
-**Example: Submission Module**
+**Contoh: Submission Module**
 ```
 modules/submission/
 ├── submission.controller.ts     # Handle HTTP: GET, POST, PUT, DELETE
@@ -475,9 +475,9 @@ modules/submission/
 
 ---
 
-### 📊 Layered Architecture Pattern (Controller → Service → Repository)
+### 📊 Pola Arsitektur Berlapis (Controller → Service → Repository)
 
-Setiap module mengikuti **3-layer architecture**:
+Setiap module mengikuti **arsitektur 3 lapisan**:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -519,7 +519,7 @@ Setiap module mengikuti **3-layer architecture**:
 
 #### 1️⃣ Controller Layer (`*.controller.ts`)
 
-**Responsibility**: Handle HTTP request/response
+**Tanggung Jawab**: Menangani HTTP request/response
 
 ```typescript
 // submission.controller.ts
@@ -578,7 +578,7 @@ export class SubmissionController {
 
 #### 2️⃣ Service Layer (`*.service.ts`)
 
-**Responsibility**: Business logic & workflow orchestration
+**Tanggung Jawab**: Business logic & orkestrasi workflow
 
 ```typescript
 // submission.service.ts
@@ -648,7 +648,7 @@ export class SubmissionService {
 
 #### 3️⃣ Repository Layer (`*.repository.ts`)
 
-**Responsibility**: Database access only (Prisma queries)
+**Tanggung Jawab**: Akses database saja (query Prisma)
 
 ```typescript
 // submission.repository.ts
@@ -709,9 +709,9 @@ export class SubmissionRepository {
 
 ---
 
-#### 4️⃣ Route Definition (`*.route.ts`)
+#### 4️⃣ Definisi Route (`*.route.ts`)
 
-**Responsibility**: Define HTTP routes & connect to controllers
+**Tanggung Jawab**: Mendefinisikan HTTP routes & menghubungkan ke controller
 
 ```typescript
 // submission.route.ts
@@ -754,9 +754,9 @@ export default submissionRouter;
 
 ---
 
-#### 5️⃣ Validation Schema (`*.validation.ts`)
+#### 5️⃣ Schema Validasi (`*.validation.ts`)
 
-**Responsibility**: Define Zod schemas for input validation
+**Tanggung Jawab**: Mendefinisikan schema Zod untuk validasi input
 
 ```typescript
 // submission.validation.ts
@@ -793,9 +793,9 @@ export type UpdateSubmissionDTO = z.infer<typeof updateSubmissionSchema>;
 
 ---
 
-#### 6️⃣ Types Definition (`*.types.ts`)
+#### 6️⃣ Definisi Types (`*.types.ts`)
 
-**Responsibility**: Module-specific TypeScript types
+**Tanggung Jawab**: TypeScript types spesifik module
 
 ```typescript
 // submission.types.ts
@@ -844,9 +844,9 @@ export interface CreateSubmissionData {
 
 ---
 
-### 🔗 How Layers Work Together (Example Flow)
+### 🔗 Bagaimana Lapisan Bekerja Bersama (Contoh Alur)
 
-**Scenario**: User creates a new submission
+**Skenario**: User membuat submission baru
 
 ```
 1. HTTP POST /api/submission
@@ -878,7 +878,7 @@ export interface CreateSubmissionData {
 
 ---
 
-## 📚 API Documentation
+## 📚 Dokumentasi API
 
 ### Base URL
 
@@ -886,7 +886,7 @@ export interface CreateSubmissionData {
 http://localhost:3001
 ```
 
-### Authentication
+### Autentikasi
 
 Semua protected routes memerlukan **JWT Token** di header:
 
@@ -894,9 +894,9 @@ Semua protected routes memerlukan **JWT Token** di header:
 Authorization: Bearer <your-jwt-token>
 ```
 
-### API Endpoints Overview
+### Ringkasan API Endpoints
 
-#### 🔓 Public Routes (No Auth Required)
+#### 🔓 Public Routes (Tidak Perlu Autentikasi)
 
 ```
 POST   /public/register              # Register user baru
@@ -904,9 +904,9 @@ POST   /public/sign-in               # Login & get JWT token
 GET    /public/auth/sso/callback     # SSO authentication callback
 ```
 
-#### 🔐 Protected Routes (JWT Required)
+#### 🔐 Protected Routes (Memerlukan JWT)
 
-**Submission Management** (`/api/submission`)
+**Manajemen Submission** (`/api/submission`)
 ```
 GET    /api/submission               # List all submissions (with filters)
 POST   /api/submission               # Create new submission
@@ -1010,7 +1010,7 @@ GET    /api/dash/charts              # Get chart data
 
 ---
 
-### Example API Usage
+### Contoh Penggunaan API
 
 #### 1. Login
 
@@ -1041,7 +1041,7 @@ curl -X POST http://localhost:3001/public/sign-in \
 
 ---
 
-#### 2. Create Submission
+#### 2. Membuat Submission
 
 ```bash
 curl -X POST http://localhost:3001/api/submission \
@@ -1072,7 +1072,7 @@ curl -X POST http://localhost:3001/api/submission \
 
 ---
 
-#### 3. List Submissions with Filters
+#### 3. Daftar Submission dengan Filter
 
 ```bash
 curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10" \
@@ -1101,9 +1101,9 @@ curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10
 
 ---
 
-### API Response Format (Standardized)
+### Format Response API (Standar)
 
-**Success Response:**
+**Response Sukses:**
 ```json
 {
   "success": true,
@@ -1111,17 +1111,17 @@ curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10
 }
 ```
 
-**Error Response:**
+**Response Error:**
 ```json
 {
   "success": false,
-  "error": "Error message",
+  "error": "Pesan error",
   "code": "ERROR_CODE",
-  "details": { /* optional additional details */ }
+  "details": { /* detail tambahan opsional */ }
 }
 ```
 
-**Validation Error Response:**
+**Response Error Validasi:**
 ```json
 {
   "success": false,
@@ -1137,25 +1137,25 @@ curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10
 
 ---
 
-### HTTP Status Codes
+### Kode Status HTTP
 
 ```
-200 OK                  - Successful GET, PUT, DELETE
-201 Created             - Successful POST (resource created)
-400 Bad Request         - Invalid input / validation error
-401 Unauthorized        - Missing or invalid JWT token
-403 Forbidden           - Not enough permissions (RBAC)
-404 Not Found           - Resource not found
-409 Conflict            - Resource conflict (e.g., duplicate email)
-422 Unprocessable       - Business logic validation failed
+200 OK                  - GET, PUT, DELETE berhasil
+201 Created             - POST berhasil (resource dibuat)
+400 Bad Request         - Input tidak valid / error validasi
+401 Unauthorized        - JWT token hilang atau tidak valid
+403 Forbidden           - Tidak cukup izin (RBAC)
+404 Not Found           - Resource tidak ditemukan
+409 Conflict            - Konflik resource (misal: email duplikat)
+422 Unprocessable       - Validasi business logic gagal
 500 Internal Error      - Server error
 ```
 
 ---
 
-## 🎯 Development Conventions
+## 🎯 Konvensi Development
 
-### File Naming Conventions
+### Konvensi Penamaan File
 
 ```bash
 ✅ kebab-case for files:          submission.controller.ts, user.service.ts
@@ -1166,9 +1166,9 @@ curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10
 
 ---
 
-### Module Structure Convention
+### Konvensi Struktur Module
 
-**SEMUA module HARUS memiliki 6 files ini:**
+**SEMUA module HARUS memiliki 6 file ini:**
 
 ```
 modules/[module-name]/
@@ -1193,7 +1193,7 @@ modules/notification/
 
 ---
 
-### Dependency Injection Pattern
+### Pola Dependency Injection
 
 **SELALU gunakan constructor injection:**
 
@@ -1220,9 +1220,9 @@ export class SubmissionController {
 
 ---
 
-### Error Handling Convention
+### Konvensi Error Handling
 
-**Use custom error classes:**
+**Gunakan custom error classes:**
 
 ```typescript
 // shared/utils/errors.ts
@@ -1256,9 +1256,9 @@ if (!user) {
 
 ---
 
-### Database Query Convention
+### Konvensi Database Query
 
-**Prisma queries di repository layer ONLY:**
+**Query Prisma HANYA di repository layer:**
 
 ```typescript
 // ✅ GOOD: Query in repository
@@ -1288,9 +1288,9 @@ async getSubmission(id: string) {
 
 ---
 
-### Validation Convention
+### Konvensi Validasi
 
-**Use Zod for all input validation:**
+**Gunakan Zod untuk semua validasi input:**
 
 ```typescript
 // validation.ts
@@ -1318,9 +1318,9 @@ async create(c: Context) {
 
 ---
 
-### Async/Await Convention
+### Konvensi Async/Await
 
-**ALWAYS use async/await, NEVER use .then()/.catch():**
+**SELALU gunakan async/await, JANGAN PERNAH gunakan .then()/.catch():**
 
 ```typescript
 // ✅ GOOD: async/await
@@ -1462,7 +1462,7 @@ function getUser(id: string) {
 
 ## 🧪 Testing
 
-### Run Tests
+### Menjalankan Tests
 
 ```bash
 # Run all tests
@@ -1480,9 +1480,9 @@ bun test --watch
 
 ---
 
-## 🚀 Production Deployment
+## 🚀 Deployment Production
 
-### Build & Deploy with Docker
+### Build & Deploy dengan Docker
 
 ```bash
 # Build production image
@@ -1495,7 +1495,7 @@ docker-compose up -d
 docker-compose logs -f api
 ```
 
-### Manual Deployment
+### Deployment Manual
 
 ```bash
 # Install production dependencies only
@@ -1515,7 +1515,7 @@ NODE_ENV=production bun start
 
 ## 🔧 Troubleshooting
 
-### Common Issues
+### Masalah Umum
 
 **1. Database Connection Error**
 ```
@@ -1588,7 +1588,7 @@ Error: JsonWebTokenError: invalid signature
 
 ---
 
-## 📚 Additional Resources
+## 📚 Sumber Daya Tambahan
 
 - [Hono Documentation](https://hono.dev/)
 - [Prisma Documentation](https://www.prisma.io/docs)
@@ -1598,24 +1598,24 @@ Error: JsonWebTokenError: invalid signature
 
 ---
 
-## 🤝 Contributing
+## 🤝 Kontribusi
 
 1. Fork repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Make changes following conventions
-4. Test thoroughly
-5. Commit: `git commit -m "feat: add your feature"`
-6. Push: `git push origin feature/your-feature`
-7. Create Pull Request
+2. Buat feature branch: `git checkout -b feature/fitur-anda`
+3. Buat perubahan mengikuti konvensi
+4. Test secara menyeluruh
+5. Commit: `git commit -m "feat: tambah fitur anda"`
+6. Push: `git push origin feature/fitur-anda`
+7. Buat Pull Request
 
 ---
 
-## 📝 License
+## 📝 Lisensi
 
-Private - E-Office Development Team
+Private - Tim Pengembangan E-Office
 
 ---
 
-**Happy Coding! 🚀**
+**Selamat Coding! 🚀**
 
-Built with ❤️ using Hono, Prisma, and Bun.
+Dibangun dengan ❤️ menggunakan Hono, Prisma, dan Bun.
