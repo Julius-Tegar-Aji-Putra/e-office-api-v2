@@ -11,7 +11,7 @@ export async function processSignatureFlow(suratHasilId: string, repository: Has
   const signatures = await repository.getSignatureQueue(suratHasilId);
   
   // Check if all signatures are completed
-  const allSigned = signatures.every(sig => sig.status === SIGNATURE_STATUS.SIGNED);
+  const allSigned = signatures.every((sig: any) => sig.status === SIGNATURE_STATUS.SIGNED);
   
   if (allSigned) {
     // All signatures completed, mark document as ready for legalisasi
@@ -27,7 +27,7 @@ export async function processSignatureFlow(suratHasilId: string, repository: Has
   }
   
   // Get next pending signature
-  const nextSigner = signatures.find(sig => sig.status === SIGNATURE_STATUS.PENDING);
+  const nextSigner = signatures.find((sig: any) => sig.status === SIGNATURE_STATUS.PENDING);
   
   if (nextSigner) {
     // TODO: Send notification to next signer

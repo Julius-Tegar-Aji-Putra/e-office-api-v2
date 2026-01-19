@@ -10,6 +10,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { env } from './config/env';
 import { registerRoutes } from './routes';
 import { errorMiddleware } from './shared/middleware/error.middleware';
+import './types'; // Import global type declarations
 
 // Create Hono app instance
 const app = new Hono();

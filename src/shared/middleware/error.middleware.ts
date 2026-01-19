@@ -25,7 +25,7 @@ export const errorMiddleware = (err: Error, c: Context) => {
       error: err.message,
       statusCode: err.statusCode,
       ...(env.NODE_ENV === 'development' && { stack: err.stack }),
-    }, err.statusCode);
+    }, err.statusCode as any);
   }
   
   // Unhandled errors
