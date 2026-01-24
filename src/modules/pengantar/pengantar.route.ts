@@ -15,32 +15,20 @@ import {
   signBodySchema
 } from './pengantar.validation';
 import { ROLES } from '../../shared/constants/roles';
-
-// ============================================================================
-// Type definitions for context
-// ============================================================================
-
-interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-}
-
-interface AuthStore {
-  user: AuthUser;
-}
+import { authGuardPlugin } from '../../middlewares/auth';
+import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
 // Pengantar Routes
 // ============================================================================
 
 export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
+  .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
 
-  .get('/kaprodi-queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/kaprodi-queue', async ({ query, user }) => {
     return pengantarController.getKaprodiQueue(user.id, {
       page: query.page,
       limit: query.limit,
@@ -56,8 +44,7 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .get('/admin-queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/admin-queue', async ({ query, user }) => {
     return pengantarController.getAdminProdiQueue(user.id, {
       page: query.page,
       limit: query.limit,
@@ -73,10 +60,10 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .get('/signature-queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/signature-queue', async ({ query, user }) => {
     // Determine role for signature queue (KAPRODI or KADEP)
-    const signerRole = user.roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    const roles = await getUserRoles(user.id);
+    const signerRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
     return pengantarController.getSignatureQueue(user.id, signerRole, {
       page: query.page,
       limit: query.limit
@@ -94,9 +81,9 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
   // Detail Endpoint
   // ==========================================================================
 
-  .get('/:id', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
-    return pengantarController.getLetterDetail(params.id, user.id, user.roles);
+  .get('/:id', async ({ params, user }) => {
+    const roles = await getUserRoles(user.id);
+    return pengantarController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
@@ -110,8 +97,7 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
   // Action Endpoints
   // ==========================================================================
 
-  .post('/:id/approve', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/approve', async ({ params, body, user }) => {
     return pengantarController.approveSubmission(params.id, body, user.id, ROLES.KAPRODI);
   }, {
     params: letterIdParamSchema,
@@ -123,8 +109,7 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .post('/:id/reject', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/reject', async ({ params, body, user }) => {
     return pengantarController.rejectSubmission(params.id, body, user.id, ROLES.KAPRODI);
   }, {
     params: letterIdParamSchema,
@@ -136,8 +121,7 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .post('/:id/draft', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/draft', async ({ params, body, user }) => {
     return pengantarController.saveDraft(params.id, body, user.id, ROLES.ADMIN_PRODI);
   }, {
     params: letterIdParamSchema,
@@ -149,8 +133,7 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .post('/:id/submit-draft', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/submit-draft', async ({ params, user }) => {
     return pengantarController.submitDraftForSignature(params.id, user.id, ROLES.ADMIN_PRODI);
   }, {
     params: letterIdParamSchema,
@@ -161,10 +144,10 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     }
   })
 
-  .post('/:id/sign', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/sign', async ({ params, body, user }) => {
     // Determine signer role
-    const signerRole = user.roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    const roles = await getUserRoles(user.id);
+    const signerRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
     return pengantarController.signPengantar(params.id, body, user.id, signerRole);
   }, {
     params: letterIdParamSchema,

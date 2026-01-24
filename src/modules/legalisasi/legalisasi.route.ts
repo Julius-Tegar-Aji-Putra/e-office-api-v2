@@ -17,8 +17,10 @@ import {
   tembusanResponseSchema,
   errorResponseSchema
 } from './legalisasi.validation';
+import { authGuardPlugin } from '../../middlewares/auth';
 
-export const legalisasiRoute = new Elysia({ prefix: '/api/legalisasi' })
+export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
+  .use(authGuardPlugin)
   .get(
     '/queue',
     (ctx) => legalisasiController.getQueue(ctx as any),

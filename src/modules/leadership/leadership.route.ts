@@ -16,37 +16,26 @@ import {
   updateDraftBodySchema
 } from './leadership.validation';
 import { PEJABAT_ROLES, SIGNATORY_ROLES } from '../../shared/constants/roles';
-
-// ============================================================================
-// Type definitions for context
-// ============================================================================
-
-interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-}
-
-interface AuthStore {
-  user: AuthUser;
-}
+import { authGuardPlugin } from '../../middlewares/auth';
+import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
 // Leadership Routes
 // ============================================================================
 
 export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
+  .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoint
   // ==========================================================================
 
-  .get('/queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/queue', async ({ query, user }) => {
     // Find active pejabat role
-    const activeRole = user.roles.find(r =>
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r =>
       (PEJABAT_ROLES as readonly string[]).includes(r) ||
       (SIGNATORY_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return leadershipController.getVerificationQueue(activeRole, {
       page: query.page,
@@ -67,9 +56,9 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
   // Detail Endpoint
   // ==========================================================================
 
-  .get('/:id', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
-    return leadershipController.getLetterDetail(params.id, user.id, user.roles);
+  .get('/:id', async ({ params, user }) => {
+    const roles = await getUserRoles(user.id);
+    return leadershipController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
@@ -83,11 +72,11 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
   // Action Endpoints
   // ==========================================================================
 
-  .post('/:id/verify', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r =>
+  .post('/:id/verify', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r =>
       (PEJABAT_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return leadershipController.verifyDocument(params.id, body, user.id, activeRole);
   }, {
@@ -100,11 +89,11 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
     }
   })
 
-  .post('/:id/sign', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r =>
+  .post('/:id/sign', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r =>
       (SIGNATORY_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return leadershipController.signDocument(params.id, body, user.id, activeRole);
   }, {
@@ -117,12 +106,12 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
     }
   })
 
-  .post('/:id/return', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r =>
+  .post('/:id/return', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r =>
       (PEJABAT_ROLES as readonly string[]).includes(r) ||
       (SIGNATORY_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return leadershipController.returnDocument(params.id, body, user.id, activeRole);
   }, {
@@ -139,11 +128,11 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
   // Draft Edit (Supervisor Only)
   // ==========================================================================
 
-  .put('/document/:documentId', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r =>
+  .put('/document/:documentId', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r =>
       ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return leadershipController.updateDraft(params.documentId, body, user.id, activeRole);
   }, {

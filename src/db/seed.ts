@@ -1176,6 +1176,347 @@ async function main() {
   // ====================================================================
   // COMPLETE
   // ====================================================================
+  
+  // ADD MORE SCENARIOS FOR COMPLETE DASHBOARD COVERAGE
+  console.log('\n📬 Creating Additional Scenarios for Dashboard Coverage...');
+  
+  // Additional: Lebih banyak surat untuk Kaprodi review
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Pelatihan Data Science",
+        nama_kegiatan: "Data Science Bootcamp 2026",
+        tanggal_mulai: "2026-04-05",
+        lokasi: "Online"
+      },
+      status: LetterStatus.KAPRODI_REVIEW,
+      currentActiveRole: ROLES.KAPRODI,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf2.id
+    }
+  });
+  
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Magang Industri",
+        nama_kegiatan: "Internship di PT Technology Indonesia",
+        tanggal_mulai: "2026-05-01",
+        tanggal_selesai: "2026-07-31",
+        lokasi: "Jakarta"
+      },
+      status: LetterStatus.SUBMITTED,
+      currentActiveRole: ROLES.KAPRODI,
+      priority: Priority.HIGH,
+      letterTypeId: typeST.id,
+      createdById: mhsIf1.id
+    }
+  });
+  console.log('   ✓ Added more KAPRODI review items');
+  
+  // Additional: Surat untuk Admin Prodi drafting
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Penelitian Lapangan",
+        nama_kegiatan: "Survey Lapangan Skripsi",
+        tanggal_mulai: "2026-03-01",
+        lokasi: "Kabupaten Semarang"
+      },
+      status: LetterStatus.SURAT_PENGANTAR_DRAFT,
+      currentActiveRole: ROLES.ADMIN_PRODI,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf2.id
+    }
+  });
+  console.log('   ✓ Added ADMIN_PRODI drafting items');
+  
+  // Additional: Surat untuk Kadep ttd
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Konferensi IEEE",
+        nama_kegiatan: "IEEE International Conference 2026",
+        tanggal_mulai: "2026-06-15",
+        lokasi: "Malaysia"
+      },
+      status: LetterStatus.SURAT_PENGANTAR_REVIEW,
+      currentActiveRole: ROLES.KADEP,
+      priority: Priority.HIGH,
+      letterTypeId: typeST.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          perihal: "Permohonan Izin Mengikuti Konferensi IEEE",
+          isSigned: false
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added KADEP signature items');
+  
+  // Additional: Surat untuk Wadek 1 (Akademik)
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Pengajuan Cuti Akademik",
+        nama_kegiatan: "Cuti Akademik Semester Genap",
+        tanggal_mulai: "2026-02-01"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.WADEK_1,
+      priority: Priority.NORMAL,
+      letterTypeId: typeSK.id,
+      createdById: mhsIf1.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          nomorSurat: '010/UN7.5.1/PP/2026',
+          isSigned: true
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added WADEK_1 disposition items');
+  
+  // Additional: Surat untuk Wadek 2 (Sumber Daya)
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Pengadaan Alat Lab",
+        nama_kegiatan: "Pengadaan Server Komputer",
+        tanggal_mulai: "2026-03-15"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.WADEK_2,
+      priority: Priority.HIGH,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          nomorSurat: '011/UN7.5.1/PP/2026',
+          isSigned: true
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added WADEK_2 disposition items');
+  
+  // Additional: Surat untuk Manajer TU
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Pengelola Website",
+        nama_kegiatan: "Tim Pengelola Website FSM"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.MANAJER_TU,
+      priority: Priority.NORMAL,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id
+    }
+  });
+  console.log('   ✓ Added MANAJER_TU items');
+  
+  // Additional: Surat untuk Supervisor Akademik
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Panitia Ujian",
+        nama_kegiatan: "Ujian Akhir Semester Genap"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
+      priority: Priority.URGENT,
+      letterTypeId: typeSK.id,
+      createdById: mhsIf1.id
+    }
+  });
+  
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Dosen Wali",
+        nama_kegiatan: "Penetapan Dosen Wali Angkatan 2026"
+      },
+      status: LetterStatus.FAKULTAS_VERIFICATION,
+      currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
+      priority: Priority.HIGH,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_KEPUTUSAN,
+          perihal: "SK Penetapan Dosen Wali",
+          isSigned: false
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added SUPERVISOR_AKADEMIK items');
+  
+  // Additional: Surat untuk Supervisor Sumber Daya
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Tim Inventarisasi",
+        nama_kegiatan: "Inventarisasi Aset 2026"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.SUPERVISOR_SUMBER_DAYA,
+      priority: Priority.NORMAL,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id
+    }
+  });
+  console.log('   ✓ Added SUPERVISOR_SUMBER_DAYA items');
+  
+  // Additional: Surat untuk Staf Akademik drafting
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Yudisium",
+        nama_kegiatan: "Yudisium Periode Februari 2026"
+      },
+      status: LetterStatus.FAKULTAS_DRAFTING,
+      currentActiveRole: ROLES.STAF_AKADEMIK,
+      priority: Priority.URGENT,
+      letterTypeId: typeSK.id,
+      createdById: mhsIf1.id
+    }
+  });
+  
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Penguji Skripsi",
+        nama_kegiatan: "Penetapan Penguji Skripsi Batch 1"
+      },
+      status: LetterStatus.FAKULTAS_DRAFTING,
+      currentActiveRole: ROLES.STAF_AKADEMIK,
+      priority: Priority.HIGH,
+      letterTypeId: typeSkAkademik.id,
+      createdById: mhsIf2.id
+    }
+  });
+  console.log('   ✓ Added STAF_AKADEMIK drafting items');
+  
+  // Additional: Surat untuk Staf Sumber Daya drafting
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Petugas Kebersihan",
+        nama_kegiatan: "Penetapan Petugas Kebersihan 2026"
+      },
+      status: LetterStatus.FAKULTAS_DRAFTING,
+      currentActiveRole: ROLES.STAF_SUMBER_DAYA,
+      priority: Priority.LOW,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id
+    }
+  });
+  console.log('   ✓ Added STAF_SUMBER_DAYA drafting items');
+  
+  // Additional: Lebih banyak surat untuk UPA
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Tim Akreditasi",
+        nama_kegiatan: "Akreditasi Prodi Informatika 2026"
+      },
+      status: LetterStatus.UPA_STAMPING,
+      currentActiveRole: ROLES.UPA,
+      priority: Priority.URGENT,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_KEPUTUSAN,
+          nomorSurat: '050/UN7.5/SK/2026',
+          perihal: "SK Tim Akreditasi Prodi",
+          isSigned: true
+        }
+      }
+    }
+  });
+  
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Panitia Seminar",
+        nama_kegiatan: "Seminar Nasional FSM 2026"
+      },
+      status: LetterStatus.UPA_FINALIZING,
+      currentActiveRole: ROLES.UPA,
+      priority: Priority.HIGH,
+      letterTypeId: typeSK.id,
+      createdById: mhsIf1.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_KEPUTUSAN,
+          nomorSurat: '051/UN7.5/SK/2026',
+          perihal: "SK Panitia Seminar Nasional",
+          isSigned: true
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added UPA processing items');
+  
+  // Additional: Lebih banyak surat COMPLETED untuk history
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Workshop AI",
+        nama_kegiatan: "Workshop Artificial Intelligence",
+        tanggal_mulai: "2026-01-05"
+      },
+      status: LetterStatus.COMPLETED,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf1.id,
+      completedAt: new Date('2026-01-10'),
+      documents: {
+        create: {
+          type: DocumentType.SURAT_TUGAS,
+          nomorSurat: '102/UN7.5/ST/2026',
+          perihal: "Surat Tugas Workshop AI",
+          isSigned: true,
+          fileUrl: 'letters/st-ai-2026.pdf'
+        }
+      }
+    }
+  });
+  
+  await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Pengajuan PKL",
+        nama_kegiatan: "Praktik Kerja Lapangan",
+        tanggal_mulai: "2026-01-02"
+      },
+      status: LetterStatus.COMPLETED,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf2.id,
+      completedAt: new Date('2026-01-08'),
+      documents: {
+        create: {
+          type: DocumentType.SURAT_TUGAS,
+          nomorSurat: '103/UN7.5/ST/2026',
+          perihal: "Surat Tugas PKL",
+          isSigned: true,
+          fileUrl: 'letters/st-pkl-2026.pdf'
+        }
+      }
+    }
+  });
+  console.log('   ✓ Added more COMPLETED items');
+
   console.log('\n' + '━'.repeat(60));
   console.log('🎉 SEEDING COMPLETED SUCCESSFULLY!');
   console.log('━'.repeat(60));
@@ -1185,7 +1526,7 @@ async function main() {
   console.log(`   • Departments: ${departments.length}`);
   console.log(`   • Program Studi: ${programStudi.length}`);
   console.log(`   • Letter Types: 3`);
-  console.log(`   • Sample Letters: 10 (various statuses)`);
+  console.log(`   • Sample Letters: 25+ (covering all roles & statuses)`);
   console.log('\n📝 Test Accounts (password: password1234):');
   console.log('   • superadmin@fsm.undip.ac.id (SUPERADMIN)');
   console.log('   • ahmad.budi@students.undip.ac.id (MAHASISWA)');

@@ -15,12 +15,12 @@ import { auth } from "./lib/auth";
 
 // Import module routes - Only import working modules for now
 import { submissionRoutes } from './modules/submission/submission.route';
-// TODO: Fix TypeScript errors in these modules then uncomment
-// import { pengantarRoutes } from './modules/pengantar/pengantar.route';
-// import { disposisiRoutes } from './modules/disposisi/disposisi.route';
-// import { leadershipRoutes } from './modules/leadership/leadership.route';
-// import { hasilRoutes } from './modules/surat-hasil/hasil.route';
-// import { legalisasiRoutes } from './modules/legalisasi/legalisasi.route';
+import { pengantarRoutes } from './modules/pengantar/pengantar.route';
+import { disposisiRoutes } from './modules/disposisi/disposisi.route';
+import { leadershipRoutes } from './modules/leadership/leadership.route';
+import { hasilRoutes } from './modules/surat-hasil/hasil.route';
+import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
+// TODO: dashRoutes disabled - needs to be updated to match current Prisma schema
 // import dashRoutes from './routes/dash';
 
 export const app = new Elysia()
@@ -90,18 +90,17 @@ export const app = new Elysia()
 		api
 			// Module A: PENGAJUAN
 			.use(submissionRoutes)
-			// TODO: Uncomment after fixing TypeScript errors
 			// Module B: SURAT PENGANTAR
-			// .use(pengantarRoutes)
+			.use(pengantarRoutes)
 			// Module C: DISPOSISI
-			// .use(disposisiRoutes)
+			.use(disposisiRoutes)
 			// Module D: SURAT HASIL
-			// .use(hasilRoutes)
+			.use(hasilRoutes)
 			// Module E: LEADERSHIP
-			// .use(leadershipRoutes)
+			.use(leadershipRoutes)
 			// Module F: LEGALISASI
-			// .use(legalisasiRoutes)
-			// Dashboard Routes
+			.use(legalisasiRoute)
+			// TODO: Dashboard Routes disabled - needs schema update
 			// .use(dashRoutes)
 	)
 

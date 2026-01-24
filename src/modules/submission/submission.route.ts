@@ -13,21 +13,7 @@ import {
   submissionIdParamSchema,
   cancelSubmissionSchema,
 } from './submission.validation';
-import { ROLES } from '../../shared/constants/roles';
-
-// ============================================================================
-// Type definitions for context
-// ============================================================================
-
-interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-}
-
-interface AuthStore {
-  user: AuthUser;
-}
+import { authGuardPlugin } from '../../middlewares/auth';
 
 // ============================================================================
 // Submission Routes
@@ -62,9 +48,9 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   // ==========================================================================
   // Submissions CRUD (Requires Auth)
   // ==========================================================================
+  .use(authGuardPlugin)
 
-  .get('/', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/', async ({ query, user }) => {
     return submissionController.getMySubmissions(user.id, {
       page: query.page,
       limit: query.limit,
@@ -86,9 +72,8 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
-  .get('/:id', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
-    return submissionController.getSubmissionById(params.id, user.id, user.roles);
+  .get('/:id', async ({ params, user }) => {
+    return submissionController.getSubmissionById(params.id, user.id, []);
   }, {
     params: submissionIdParamSchema,
     detail: {
@@ -98,8 +83,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
-  .post('/', async ({ body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/', async ({ body, user }) => {
     return submissionController.createSubmission(user.id, body);
   }, {
     body: createSubmissionSchema,
@@ -110,8 +94,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
-  .put('/:id', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .put('/:id', async ({ params, body, user }) => {
     return submissionController.updateSubmission(params.id, user.id, body);
   }, {
     params: submissionIdParamSchema,
@@ -123,8 +106,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
-  .post('/:id/cancel', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/cancel', async ({ params, body, user }) => {
     return submissionController.cancelSubmission(params.id, user.id, body);
   }, {
     params: submissionIdParamSchema,
@@ -140,8 +122,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   // Attachments
   // ==========================================================================
 
-  .post('/:id/attachments', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/attachments', async ({ params, body, user }) => {
     // Note: File upload should be handled by separate endpoint with multipart
     // This is for registering uploaded file metadata
     return submissionController.addAttachment(
@@ -164,8 +145,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
-  .delete('/:id/attachments/:attachmentId', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
+  .delete('/:id/attachments/:attachmentId', async ({ params, user }) => {
     return submissionController.removeAttachment(params.id, params.attachmentId, user.id);
   }, {
     detail: {

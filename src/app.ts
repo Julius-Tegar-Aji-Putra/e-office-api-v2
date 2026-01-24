@@ -8,8 +8,7 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { env } from './config/env';
-// TODO: Re-enable when routes are fixed
-// import { registerRoutes } from './routes';
+import { routes } from './routes';
 import './types'; // Import global type declarations
 
 // ============================================
@@ -49,9 +48,10 @@ const app = new Elysia()
   // ==========================================
   .use(
     cors({
-      origin: env.NODE_ENV === 'production' 
-        ? ['https://e-office.fti.uajy.ac.id']
-        : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173'],
+      // origin: env.NODE_ENV === 'production' 
+      //   ? ['https://e-office.fti.uajy.ac.id']
+      //   : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173'],
+      origin: true,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -123,12 +123,11 @@ const app = new Elysia()
       error: code,
       message: errorMessage,
     };
-  });
+  })
 
-// ============================================
-// REGISTER ALL ROUTES
-// ============================================
-// TODO: Re-enable when routes are fixed
-// registerRoutes(app);
+  // ==========================================
+  // REGISTER ALL ROUTES
+  // ==========================================
+  .use(routes);
 
 export default app;

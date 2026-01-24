@@ -15,33 +15,22 @@ import {
   submitVerificationBodySchema
 } from './hasil.validation';
 import { STAF_ROLES } from '../../shared/constants/roles';
-
-// ============================================================================
-// Type definitions for context
-// ============================================================================
-
-interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-}
-
-interface AuthStore {
-  user: AuthUser;
-}
+import { authGuardPlugin } from '../../middlewares/auth';
+import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
 // Surat Hasil Routes
 // ============================================================================
 
 export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
+  .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
 
-  .get('/queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
-    return hasilController.getDraftingQueue(user.id, user.roles, {
+  .get('/queue', async ({ query, user }) => {
+    const roles = await getUserRoles(user.id);
+    return hasilController.getDraftingQueue(user.id, roles, {
       page: query.page,
       limit: query.limit,
       search: query.search
@@ -55,8 +44,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     }
   })
 
-  .get('/my-drafts', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/my-drafts', async ({ query, user }) => {
     return hasilController.getMyDraftedLetters(user.id, {
       page: query.page,
       limit: query.limit,
@@ -75,9 +63,9 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   // Detail Endpoint
   // ==========================================================================
 
-  .get('/:id', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
-    return hasilController.getLetterDetail(params.id, user.id, user.roles);
+  .get('/:id', async ({ params, user }) => {
+    const roles = await getUserRoles(user.id);
+    return hasilController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
@@ -91,9 +79,9 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   // Draft Actions
   // ==========================================================================
 
-  .post('/:id/draft', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const staffRole = user.roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || user.roles[0];
+  .post('/:id/draft', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const staffRole = roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
     return hasilController.createDraft(params.id, body, user.id, staffRole);
   }, {
     params: letterIdParamSchema,
@@ -105,9 +93,9 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     }
   })
 
-  .put('/document/:documentId', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const staffRole = user.roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || user.roles[0];
+  .put('/document/:documentId', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const staffRole = roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
     return hasilController.updateDraft(params.documentId, body, user.id, staffRole);
   }, {
     params: documentIdParamSchema,
@@ -123,9 +111,9 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   // Submit for Verification
   // ==========================================================================
 
-  .post('/:id/submit', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const staffRole = user.roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || user.roles[0];
+  .post('/:id/submit', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const staffRole = roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
     return hasilController.submitForVerification(params.id, body, user.id, staffRole);
   }, {
     params: letterIdParamSchema,

@@ -16,8 +16,11 @@ import { hasilRoutes } from './modules/surat-hasil/hasil.route';
 import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
 
 // Import existing routes
-// import dashRoutes from './routes/dash';
+import dashRoutes from './routes/dash';
 import meRoutes from './routes/me';
+
+// Import Better Auth routes
+import betterAuthRoutes from './routes/public/auth';
 
 // Import master routes - disabled for now
 // import masterDepartemenRoutes from './routes/master/departemen';
@@ -29,11 +32,6 @@ import meRoutes from './routes/me';
 // import masterSuratTemplateRoutes from './routes/master/suratTemplate';
 // import masterSuratTypeRoutes from './routes/master/suratType';
 // import masterUserRoutes from './routes/master/user';
-
-// Import public routes
-import publicRegisterRoutes from './routes/public/register';
-import publicSignInRoutes from './routes/public/sign-in';
-// import publicSsoCallbackRoutes from './routes/public/auth/sso/callback';
 
 // ============================================================================
 // ROUTES REGISTRY
@@ -73,8 +71,8 @@ export function createApiRoutes() {
     // =========================================================================
     // DASHBOARD ROUTES
     // =========================================================================
-    // .use(dashRoutes)
-    .use(meRoutes);
+    .group('/dash', (dash) => dash.use(dashRoutes))
+    .group('/me', (me) => me.use(meRoutes));
 
     // =========================================================================
     // MASTER DATA ROUTES - disabled for now
@@ -95,21 +93,14 @@ export function createApiRoutes() {
 
 export function createPublicRoutes() {
   return new Elysia()
-    // Public routes (no auth required)
-    .group('/public', (pub) => 
-      pub
-        .use(publicRegisterRoutes)
-        .use(publicSignInRoutes)
-    );
-    // .use(publicSsoCallbackRoutes);
+    // Better Auth routes (handles sign-up, sign-in, sign-out, etc.)
+    .use(betterAuthRoutes);
 }
 
 // ============================================================================
 // REGISTER ALL ROUTES
 // ============================================================================
 
-export function registerRoutes(app: Elysia) {
-  return app
-    .use(createPublicRoutes())
-    .use(createApiRoutes());
-}
+export const routes = new Elysia()
+  .use(createPublicRoutes())
+  .use(createApiRoutes());

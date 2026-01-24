@@ -1,6 +1,6 @@
-# Backend API E-Office
+# Backend API E-Office ST/SK Dekan
 
-> RESTful API untuk sistem E-Office dengan arsitektur modular berbasis feature/subsystem. Dibangun menggunakan Hono, TypeScript, Prisma ORM, dan Bun.
+> RESTful API untuk sistem E-Office Surat Tugas/Keputusan Dekan dengan arsitektur modular berbasis feature/subsystem. Dibangun menggunakan **Elysia**, TypeScript, Prisma ORM, dan Bun.
 
 ## 📋 Daftar Isi
 
@@ -9,6 +9,7 @@
 - [Instalasi & Setup Project](#-instalasi--setup-project)
 - [Struktur Project](#-struktur-project)
 - [Dokumentasi API](#-dokumentasi-api)
+- [Test Accounts](#-test-accounts)
 - [Konvensi Development](#-konvensi-development)
 - [Best Practices](#-best-practices)
 
@@ -17,13 +18,14 @@
 ## 🛠 Tech Stack
 
 - **Runtime**: [Bun](https://bun.sh/) - JavaScript runtime yang cepat dan lengkap
-- **Web Framework**: [Hono](https://hono.dev/) - Web framework yang ultra-cepat dan ringan
-- **Database**: [PostgreSQL](https://www.postgresql.org/) (via Docker)
+- **Web Framework**: [Elysia](https://elysiajs.com/) - Type-safe web framework untuk Bun
+- **Database**: [PostgreSQL](https://www.postgresql.org/) (via Docker) port `5433`
 - **ORM**: [Prisma](https://www.prisma.io/) - TypeScript ORM generasi terbaru
-- **Authentication**: JWT (JSON Web Tokens)
-- **Authorization**: [Casbin](https://casbin.org/) - Role-based access control (RBAC)
+- **Authentication**: [Better Auth](https://better-auth.com/) - Session-based authentication
+- **Authorization**: Role-based Access Control (RBAC)
 - **File Storage**: [MinIO](https://min.io/) - Object storage kompatibel S3
-- **Validation**: [Zod](https://zod.dev/) - Schema validation berbasis TypeScript
+- **Validation**: Type-safe via Elysia + TypeBox
+- **API Docs**: [Swagger/OpenAPI](http://localhost:3079/docs) via Elysia Swagger plugin
 - **Code Quality**: [Biome](https://biomejs.dev/) - Linter & formatter yang cepat
 - **Language**: TypeScript
 
@@ -81,14 +83,14 @@ cp .env.example .env
 ```env
 # Application
 NODE_ENV=development
-PORT=3001
+PORT=3079
 
-# Database Connection
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/e_office_db?schema=public"
+# Database Connection (Port 5433 untuk development)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/e-office-api-v2?schema=public"
 
-# JWT Authentication
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRES_IN=7d
+# Better Auth Configuration
+BETTER_AUTH_SECRET=your-super-secret-key-change-this-in-production
+BETTER_AUTH_URL=http://localhost:3079
 
 # MinIO Object Storage
 MINIO_ENDPOINT=localhost
@@ -103,10 +105,10 @@ FRONTEND_URL=http://localhost:3000
 ```
 
 **⚠️ Security Notes:**
-- Ganti `JWT_SECRET` dengan random string yang kuat (min 32 karakter)
+- Ganti `BETTER_AUTH_SECRET` dengan random string yang kuat (min 32 karakter)
 - Jangan commit file `.env` ke Git (sudah ada di `.gitignore`)
 
-**Generate JWT Secret yang Aman:**
+**Generate Secret yang Aman:**
 
 ```bash
 # Linux/Mac
@@ -253,12 +255,12 @@ bun run start
 
 **Output yang Diharapkan:**
 ```
-🚀 Server running on http://localhost:3001
+🚀 Server running on http://localhost:3079
+📚 Swagger docs at http://localhost:3079/docs
 ✅ Database connected
-✅ Casbin enforcer loaded
 ```
 
-Server akan berjalan di **http://localhost:3001**
+Server akan berjalan di **http://localhost:3079**
 
 ---
 
@@ -287,9 +289,36 @@ bun dev
 ```
 
 **Troubleshooting:**
-- Jika error `P1001` (can't reach database): Pastikan Docker services sedang berjalan
+- Jika error `P1001` (can't reach database): Pastikan Docker services sedang berjalan di port 5433
 - Jika error `P3009` (migration failed): Cek DATABASE_URL di `.env`
 - Jika error TypeScript: Jalankan `bunx prisma generate` lagi
+- Swagger docs: Buka http://localhost:3079/docs untuk melihat semua endpoints
+
+---
+
+## 👤 Test Accounts
+
+Setelah menjalankan seeder, tersedia akun test untuk semua role. Password default: `password1234`
+
+| Role | Email | Department |
+|------|-------|-----------|
+| SUPERADMIN | superadmin@fsm.undip.ac.id | FSM |
+| MAHASISWA | ahmad.budi@students.undip.ac.id | Informatika |
+| MAHASISWA | dewi.sartika@students.undip.ac.id | Matematika |
+| DOSEN | raden.satrio@lecturer.undip.ac.id | Informatika |
+| KAPRODI | kaprodi.if@undip.ac.id | Informatika |
+| ADMIN_PRODI | admin.prodi.if@undip.ac.id | Informatika |
+| KADEP | kadep.if@undip.ac.id | Informatika |
+| ADMIN_FAKULTAS | admin.fakultas@fsm.undip.ac.id | FSM |
+| DEKAN | dekan@fsm.undip.ac.id | FSM |
+| WADEK_1 | wadek1@fsm.undip.ac.id | FSM |
+| WADEK_2 | wadek2@fsm.undip.ac.id | FSM |
+| MANAJER_TU | manajer.tu@fsm.undip.ac.id | FSM |
+| SUPERVISOR_AKADEMIK | spv.akademik@fsm.undip.ac.id | FSM |
+| SUPERVISOR_SUMBER_DAYA | spv.sumberdaya@fsm.undip.ac.id | FSM |
+| STAF_AKADEMIK | staf.akademik1@fsm.undip.ac.id | FSM |
+| STAF_SUMBER_DAYA | staf.sumberdaya@fsm.undip.ac.id | FSM |
+| UPA | upa@fsm.undip.ac.id | FSM |
 
 ---
 
@@ -305,48 +334,52 @@ e-office-api-v2/
 │   └── prismabox/                   # Prisma utilities
 │
 ├── src/
-│   ├── server.ts                    # Entry point server (start here)
-│   ├── app.ts                       # Hono app instance & global middleware
-│   ├── routes.ts                    # Central route registry
+│   ├── index.ts                     # Entry point
+│   ├── server.ts                    # Elysia app bootstrap & start
+│   ├── app.ts                       # Elysia app instance & global middleware
+│   ├── routes.ts                    # Central route registry (all modules)
 │   ├── config.ts                    # App-wide configuration
 │   ├── types.ts                     # Global type definitions
 │   │
 │   ├── config/                      # Configuration modules
-│   │   ├── env.ts                   # Environment variables validation (Zod)
+│   │   ├── env.ts                   # Environment variables validation
 │   │   ├── database.ts              # Prisma client singleton
-│   │   └── auth.ts                  # JWT & Auth configuration
+│   │   └── auth.ts                  # Better Auth configuration
 │   │
 │   ├── db/                          # Database utilities
 │   │   ├── index.ts                 # Prisma client export
-│   │   └── seed.ts                  # Database seeding script
+│   │   └── seed.ts                  # Database seeding script (25+ scenarios)
 │   │
 │   ├── lib/                         # External library wrappers
-│   │   ├── auth.ts                  # JWT utilities
+│   │   ├── auth.ts                  # Better Auth instance
 │   │   └── casbin.ts                # Casbin RBAC setup
 │   │
 │   ├── middlewares/                 # Global middleware
-│   │   ├── auth.ts                  # JWT verification middleware
-│   │   └── context.ts               # Request context middleware
+│   │   └── auth.ts                  # authGuardPlugin for protected routes
+│   │
+│   ├── generated/                   # Auto-generated code
+│   │   ├── prisma/                  # Prisma Client
+│   │   └── prismabox/               # TypeBox schemas from Prisma
 │   │
 │   ├── shared/                      # 🔴 ZONA MERAH - Shared Resources
 │   │   ├── middleware/              # Reusable middleware
 │   │   ├── utils/                   # Utility functions
-│   │   ├── constants/               # Global constants
+│   │   ├── constants/               # Global constants (roles, status)
 │   │   └── types/                   # Shared TypeScript types
 │   │
 │   ├── modules/                     # 🟢 Feature Modules (Business Logic)
-│   │   ├── submission/              # Pengajuan Surat
-│   │   ├── pengantar/               # Surat Pengantar
-│   │   ├── disposisi/               # Disposisi
-│   │   ├── leadership/              # Verifikasi Pimpinan
-│   │   ├── surat-hasil/             # Surat Hasil & Tanda Tangan
-│   │   └── legalisasi/              # Legalisasi & Distribusi
+│   │   ├── submission/              # Pengajuan Surat (MAHASISWA/DOSEN)
+│   │   ├── pengantar/               # Surat Pengantar (KAPRODI/ADMIN_PRODI)
+│   │   ├── disposisi/               # Disposisi Fakultas (ADMIN_FAKULTAS/Pejabat)
+│   │   ├── leadership/              # Verifikasi & Tanda Tangan Pejabat
+│   │   ├── surat-hasil/             # Drafting SK/ST (Staf)
+│   │   └── legalisasi/              # UPA Numbering, Stamping, Finalize
 │   │
 │   ├── routes/                      # Route handlers
-│   │   ├── dash.ts                  # Dashboard routes
+│   │   ├── dash.ts                  # Dashboard (unified for all roles)
 │   │   ├── me.ts                    # Current user routes
 │   │   ├── master/                  # Master data CRUD routes
-│   │   └── public/                  # Public routes (no auth)
+│   │   └── public/                  # Public routes (auth)
 │   │
 │   └── services/                    # External service integrations
 │       ├── minio.service.ts         # MinIO file storage
@@ -356,7 +389,7 @@ e-office-api-v2/
 ├── casbin/                          # Casbin RBAC configuration
 │   └── model.conf                   # Access control model
 │
-├── docker-compose.dev.yml           # Development services (DB, MinIO)
+├── docker-compose.dev.yml           # Development services (DB port 5433)
 ├── docker-compose.yml               # Production services
 ├── Dockerfile                       # Production container image
 ├── package.json                     # Dependencies & scripts
@@ -993,34 +1026,68 @@ GET    /api/master/surat-template    # List document templates
 POST   /api/master/surat-template    # Create template
 ```
 
-**Current User** (`/api/me`)
+**Current User** (`/me`)
 ```
-GET    /api/me                       # Get current user profile
-PUT    /api/me                       # Update profile
-GET    /api/me/submissions           # Get my submissions
-GET    /api/me/notifications         # Get my notifications
+GET    /me                            # Get current user profile
 ```
 
-**Dashboard** (`/api/dash`)
+**Dashboard** (`/dash`) - Unified dashboard for all roles
 ```
-GET    /api/dash/stats               # Get dashboard statistics
-GET    /api/dash/recent-activity     # Get recent activities
-GET    /api/dash/charts              # Get chart data
+GET    /dash                          # Get unified dashboard (with pagination, filters)
+GET    /dash/statistics               # Get dashboard statistics
+GET    /dash/recent                   # Get recent activities
 ```
+
+Dashboard response includes dynamic columns based on user role:
+- **MAHASISWA/DOSEN**: `judulSurat`, `tipeSurat`, `tanggalSurat`, `status`, `actions`
+- **KAPRODI/ADMIN_PRODI/KADEP**: `namaPengaju`, `judulSurat`, `tipeSurat`, `tanggalSurat`, `status`, `actions`
+- **ADMIN_FAKULTAS** dan lainnya: Full columns
+
+Status display mapping per role (user-friendly labels):
+- `DIPROSES` - Sedang dalam proses
+- `SELESAI` - Sudah selesai/completed
+- `DITOLAK` - Ditolak
+- `MENUNGGU ANDA` - Menunggu action dari user
+- `MENUNGGU DIVERIFIKASI` - Menunggu verifikasi pejabat
+- `DIBUATKAN DRAFT` - Sedang dibuatkan draft
 
 ---
 
 ### Contoh Penggunaan API
 
-#### 1. Login
+#### 1. Login (Better Auth)
 
 ```bash
-curl -X POST http://localhost:3001/public/sign-in \
+curl -X POST http://localhost:3079/api/auth/sign-in/email \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@example.com",
-    "password": "password123"
+    "email": "kaprodi.if@undip.ac.id",
+    "password": "password1234"
   }'
+```
+
+**Response:**
+```json
+{
+  "token": "session-token...",
+  "user": {
+    "id": "uuid",
+    "name": "Kaprodi IF",
+    "email": "kaprodi.if@undip.ac.id",
+    "role": "KAPRODI"
+  }
+}
+```
+
+Session token diberikan via cookie `better-auth.session_token`.
+
+---
+
+#### 2. Get Dashboard
+
+```bash
+curl -X GET "http://localhost:3079/dash?page=1&limit=20" \
+  -H "Cookie: better-auth.session_token=<your-session-token>"
 ```
 
 **Response:**
@@ -1028,73 +1095,32 @@ curl -X POST http://localhost:3001/public/sign-in \
 {
   "success": true,
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "uuid",
-      "name": "Admin User",
-      "email": "admin@example.com",
-      "role": "ADMIN"
-    }
-  }
-}
-```
-
----
-
-#### 2. Membuat Submission
-
-```bash
-curl -X POST http://localhost:3001/api/submission \
-  -H "Authorization: Bearer <your-jwt-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Surat Keputusan Pengangkatan Dosen",
-    "type": "SK",
-    "description": "SK untuk pengangkatan dosen baru",
-    "urgency": "HIGH",
-    "signatories": ["uuid-1", "uuid-2"]
-  }'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "submission-uuid",
-    "title": "Surat Keputusan Pengangkatan Dosen",
-    "type": "SK",
-    "status": "DRAFT",
-    "createdAt": "2026-01-19T10:00:00Z"
-  }
-}
-```
-
----
-
-#### 3. Daftar Submission dengan Filter
-
-```bash
-curl -X GET "http://localhost:3001/api/submission?status=PENDING&page=1&limit=10" \
-  -H "Authorization: Bearer <your-jwt-token>"
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "uuid-1",
-      "title": "...",
-      "status": "PENDING"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 25,
-    "totalPages": 3
+    "columns": ["namaPengaju", "judulSurat", "tipeSurat", "tanggalSurat", "status", "actions"],
+    "items": [
+      {
+        "id": "letter-uuid",
+        "judulSurat": "SK Panitia Seminar Nasional",
+        "tipeSurat": "Surat Keputusan",
+        "namaPengaju": "Ahmad Budi Santoso",
+        "tanggalSurat": "2026-01-20",
+        "status": "KAPRODI_REVIEW",
+        "displayStatus": "MENUNGGU ANDA",
+        "actions": ["view", "approve", "reject"]
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 27,
+      "totalPages": 2
+    },
+    "statistics": {
+      "total": 27,
+      "pending": 17,
+      "completed": 3,
+      "waiting": 2
+    },
+    "userRole": "KAPRODI"
   }
 }
 ```

@@ -16,26 +16,15 @@ import {
   returnBodySchema
 } from './disposisi.validation';
 import { ROLES, PEJABAT_ROLES, FAKULTAS_ROLES } from '../../shared/constants/roles';
-
-// ============================================================================
-// Type definitions for context
-// ============================================================================
-
-interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-}
-
-interface AuthStore {
-  user: AuthUser;
-}
+import { authGuardPlugin } from '../../middlewares/auth';
+import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
 // Disposisi Routes
 // ============================================================================
 
 export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
+  .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
@@ -55,10 +44,10 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     }
   })
 
-  .get('/queue', async ({ query, store }) => {
-    const user = (store as AuthStore).user;
+  .get('/queue', async ({ query, user }) => {
     // Find active faculty role
-    const activeRole = user.roles.find(r => 
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
       (PEJABAT_ROLES as readonly string[]).includes(r) ||
       r === ROLES.ADMIN_FAKULTAS
     ) || ROLES.ADMIN_FAKULTAS;
@@ -93,9 +82,9 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     }
   })
 
-  .get('/:id', async ({ params, store }) => {
-    const user = (store as AuthStore).user;
-    return disposisiController.getLetterDetail(params.id, user.id, user.roles);
+  .get('/:id', async ({ params, user }) => {
+    const roles = await getUserRoles(user.id);
+    return disposisiController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
@@ -109,8 +98,7 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
   // Action Endpoints
   // ==========================================================================
 
-  .post('/:id/categorize', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/categorize', async ({ params, body, user }) => {
     return disposisiController.categorizeAndReceive(
       params.id,
       body,
@@ -127,10 +115,10 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     }
   })
 
-  .post('/:id/forward', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
+  .post('/:id/forward', async ({ params, body, user }) => {
     // Find active role for disposition
-    const activeRole = user.roles.find(r => 
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
       (FAKULTAS_ROLES as readonly string[]).includes(r)
     ) || ROLES.ADMIN_FAKULTAS;
 
@@ -145,11 +133,11 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     }
   })
 
-  .post('/:id/complete', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r => 
+  .post('/:id/complete', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
       (PEJABAT_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return disposisiController.markComplete(params.id, body, user.id, activeRole);
   }, {
@@ -162,11 +150,11 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     }
   })
 
-  .post('/:id/return', async ({ params, body, store }) => {
-    const user = (store as AuthStore).user;
-    const activeRole = user.roles.find(r => 
+  .post('/:id/return', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
       (FAKULTAS_ROLES as readonly string[]).includes(r)
-    ) || user.roles[0];
+    ) || roles[0];
 
     return disposisiController.returnLetter(params.id, body, user.id, activeRole);
   }, {
