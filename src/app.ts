@@ -7,8 +7,10 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
+import { serverTiming } from '@elysiajs/server-timing';
 import { env } from './config/env';
 import { routes } from './routes';
+import { auth } from './lib/auth';
 import './types'; // Import global type declarations
 
 // ============================================
@@ -59,6 +61,11 @@ const app = new Elysia()
   )
 
   // ==========================================
+  // SERVER TIMING
+  // ==========================================
+  .use(serverTiming())
+
+  // ==========================================
   // REQUEST LOGGING (Development)
   // ==========================================
   .onRequest(({ request }) => {
@@ -88,6 +95,12 @@ const app = new Elysia()
     version: '2.0.0',
     environment: env.NODE_ENV,
   }))
+
+  // ==========================================
+  // BETTER AUTH HANDLER
+  // All auth endpoints: /api/auth/*
+  // ==========================================
+  .mount(auth.handler)
 
   // ==========================================
   // 404 HANDLER
@@ -131,3 +144,4 @@ const app = new Elysia()
   .use(routes);
 
 export default app;
+export type App = typeof app;
