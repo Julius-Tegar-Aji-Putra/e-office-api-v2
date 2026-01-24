@@ -21,6 +21,23 @@ import type {
 export type SuratHasilType = 'ST' | 'SK';
 
 /**
+ * Method untuk signing document
+ */
+export type SigningMethod = 'UPLOAD' | 'CANVAS' | 'SAVED';
+
+/**
+ * Roles yang bisa TTD
+ */
+export const SIGNING_ROLES = [
+  'KAPRODI',
+  'KADEP',
+  'DEKAN',
+  'WAKIL_DEKAN_1',
+  'WAKIL_DEKAN_2',
+] as const;
+export type SigningRole = (typeof SIGNING_ROLES)[number];
+
+/**
  * Template fields untuk autofill dari submission
  */
 export interface TemplateField {
@@ -86,6 +103,80 @@ export interface SignerConfig {
   role: string; // Role code
   order: number; // Urutan tanda tangan
   isRequired: boolean;
+}
+
+// ============================================================================
+// Generate Draft Types
+// ============================================================================
+
+/**
+ * DTO untuk generate HTML draft dari template
+ */
+export interface GenerateDraftDTO {
+  letterInstanceId: string;
+  templateId: string;
+  variables: Record<string, string | number | Date>;
+  tembusan?: TembusanItem[];
+}
+
+/**
+ * Item tembusan (bisa manual text atau referensi user)
+ */
+export interface TembusanItem {
+  type: 'TEXT' | 'USER';
+  value: string; // Teks manual atau userId
+  label?: string; // Nama user jika type = USER
+}
+
+/**
+ * Response dari generate draft
+ */
+export interface GenerateDraftResponse {
+  letterInstanceId: string;
+  contentHtml: string;
+  variables: Record<string, unknown>;
+  tembusan: TembusanItem[];
+}
+
+// ============================================================================
+// Signing Types
+// ============================================================================
+
+/**
+ * DTO untuk sign document
+ */
+export interface SignDocumentDTO {
+  letterInstanceId: string;
+  signatureId: string; // DocumentSignature.id yang akan di-sign
+  method: SigningMethod;
+  
+  // Method-specific fields
+  savedSignatureId?: string; // Jika method = SAVED
+  signatureFile?: File; // Jika method = UPLOAD atau CANVAS
+  
+  // Optional: simpan sebagai template
+  saveAsTemplate?: boolean;
+  templateAlias?: string;
+}
+
+/**
+ * Response dari sign document
+ */
+export interface SignDocumentResponse {
+  success: boolean;
+  message: string;
+  signature: {
+    id: string;
+    signerRole: string;
+    signerName: string | null;
+    status: SignatureStatus;
+    signedAt: Date;
+  };
+  // Info template jika saveAsTemplate = true
+  savedTemplate?: {
+    id: string;
+    alias: string | null;
+  };
 }
 
 // ============================================================================

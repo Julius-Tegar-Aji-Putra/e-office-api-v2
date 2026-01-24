@@ -13,7 +13,9 @@ import { pengantarRoutes } from './modules/pengantar/pengantar.route';
 import { disposisiRoutes } from './modules/disposisi/disposisi.route';
 import { leadershipRoutes } from './modules/leadership/leadership.route';
 import { hasilRoutes } from './modules/surat-hasil/hasil.route';
+import { signingRoutes } from './modules/surat-hasil/signing.route';
 import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
+import { signatureRoutes } from './modules/signature/signature.route';
 
 // Import existing routes
 import dashRoutes from './routes/dash';
@@ -62,11 +64,17 @@ export function createApiRoutes() {
     // Module D: SURAT HASIL
     .use(hasilRoutes)
 
+    // Module D.1: SIGNING (Part of Surat Hasil)
+    .group('/api', (api) => api.use(signingRoutes))
+
     // Module E: LEADERSHIP (Verification & Signing)
     .use(leadershipRoutes)
 
     // Module F: LEGALISASI (UPA Finishing)
     .use(legalisasiRoute)
+
+    // Module G: SIGNATURE (Saved Signatures Management)
+    .group('/api', (api) => api.use(signatureRoutes))
 
     // =========================================================================
     // DASHBOARD ROUTES

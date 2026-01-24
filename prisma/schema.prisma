@@ -211,6 +211,7 @@ model SavedSignature {
   type      SignatureType @default(UPLOAD)
   fileUrl   String
   fileName  String
+  alias     String?       // Nama TTD (misal: "TTD Formal", "TTD Resmi")
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -261,7 +262,8 @@ model LetterInstance {
   status            LetterStatus       @default(SUBMITTED)
   currentActiveRole String?
   priority          Priority           @default(NORMAL)
-  signatureConfig   Json?
+  signatureConfig   Json?              // Array koordinat TTD dari frontend: [{ signerId, x, y, page }]
+  contentHtml       String?            @db.Text // HTML hasil generate surat final
   letterTypeId      String
   createdById       String
   submittedAt       DateTime           @default(now())
@@ -304,18 +306,19 @@ model LetterDocument {
 }
 
 model DocumentSignature {
-  id           String         @id @default(cuid())
-  documentId   String
-  signerId     String
-  signerRole   String
-  signerName   String
-  signerNip    String?
-  signatureUrl String?
-  signedAt     DateTime       @default(now())
-  notes        String?
-  order        Int            @default(0)
-  document     LetterDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  signer       User           @relation("SignatureOwner", fields: [signerId], references: [id])
+  id              String           @id @default(cuid())
+  documentId      String
+  signerId        String
+  signerRole      String
+  signerName      String
+  signerNip       String?
+  signatureUrl    String?          // URL gambar TTD final (dari MinIO)
+  status          SignatureStatus  @default(PENDING)
+  signedAt        DateTime?
+  notes           String?
+  order           Int              @default(0)
+  document        LetterDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer          User             @relation("SignatureOwner", fields: [signerId], references: [id])
 
   @@unique([documentId, signerRole])
   @@index([documentId])
@@ -376,6 +379,14 @@ enum SignatureType {
   HANDWRITING
 
   @@map("signature_type")
+}
+
+enum SignatureStatus {
+  PENDING
+  SIGNED
+  REJECTED
+
+  @@map("signature_status")
 }
 
 enum LetterCategory {
