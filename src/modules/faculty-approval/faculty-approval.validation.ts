@@ -1,5 +1,5 @@
 /**
- * Leadership Validation Schemas
+ * Faculty Approval Validation Schemas
  */
 
 import { t } from 'elysia';
@@ -8,7 +8,7 @@ import { t } from 'elysia';
 // QUERY SCHEMAS
 // ============================================================================
 
-export const leadershipQuerySchema = t.Object({
+export const facultyApprovalQuerySchema = t.Object({
   page: t.Optional(t.Numeric({ minimum: 1, default: 1 })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
   status: t.Optional(t.String()),

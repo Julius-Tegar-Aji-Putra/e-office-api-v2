@@ -1,6 +1,7 @@
 /**
- * Pengantar Repository
- * Data access layer untuk modul surat pengantar (Lingkup Departemen)
+ * Department Approval Repository
+ * Data access layer untuk modul department approval (Lingkup Departemen)
+ * Handles: Kaprodi approval, Admin Prodi drafting surat pengantar, TTD flow
  */
 
 import { prisma } from '../../db';
@@ -10,14 +11,14 @@ import { Prisma, LetterStatus, LogAction, DocumentType } from '../../generated/p
 // TYPES
 // ============================================================================
 
-export interface PengantarListParams {
+export interface DepartmentApprovalListParams {
   page?: number;
   limit?: number;
   status?: LetterStatus;
   search?: string;
 }
 
-export interface CreatePengantarDraftInput {
+export interface CreateDepartmentApprovalDraftInput {
   letterInstanceId: string;
   content: Prisma.JsonValue;
   tembusan?: Prisma.JsonValue;
@@ -45,13 +46,13 @@ export interface LogInput {
 // REPOSITORY CLASS
 // ============================================================================
 
-class PengantarRepository {
+class DepartmentApprovalRepository {
   /**
    * Get letters pending Kaprodi approval (status: SUBMITTED)
    */
   async getLettersForKaprodiApproval(
     kaprodiUserId: string,
-    params: PengantarListParams
+    params: DepartmentApprovalListParams
   ) {
     const { page = 1, limit = 10, search } = params;
     const skip = (page - 1) * limit;
@@ -120,7 +121,7 @@ class PengantarRepository {
    */
   async getLettersForAdminProdiDraft(
     adminProdiUserId: string,
-    params: PengantarListParams
+    params: DepartmentApprovalListParams
   ) {
     const { page = 1, limit = 10, search } = params;
     const skip = (page - 1) * limit;
@@ -176,7 +177,7 @@ class PengantarRepository {
   async getLettersForSignature(
     signerUserId: string,
     signerRole: string,
-    params: PengantarListParams
+    params: DepartmentApprovalListParams
   ) {
     const { page = 1, limit = 10 } = params;
     const skip = (page - 1) * limit;
@@ -333,7 +334,7 @@ class PengantarRepository {
    * Admin Prodi creates/updates surat pengantar draft
    */
   async savePengantarDraft(
-    input: CreatePengantarDraftInput,
+    input: CreateDepartmentApprovalDraftInput,
     actorId: string,
     actorRole: string
   ) {
@@ -554,4 +555,4 @@ class PengantarRepository {
   }
 }
 
-export const pengantarRepository = new PengantarRepository();
+export const departmentApprovalRepository = new DepartmentApprovalRepository();

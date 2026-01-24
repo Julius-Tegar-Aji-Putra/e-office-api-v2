@@ -1,10 +1,10 @@
 /**
- * Pengantar Service
- * Business logic untuk modul surat pengantar (Lingkup Departemen)
- * Handles: Kaprodi approval, Admin Prodi drafting, TTD flow
+ * Department Approval Service
+ * Business logic untuk modul department approval (Lingkup Departemen)
+ * Handles: Kaprodi approval, Admin Prodi drafting surat pengantar, TTD flow Kaprodi/Kadep
  */
 
-import { pengantarRepository, PengantarListParams, CreatePengantarDraftInput } from './pengantar.repository';
+import { departmentApprovalRepository, DepartmentApprovalListParams, CreateDepartmentApprovalDraftInput } from './department-approval.repository';
 import { LetterStatus, Prisma } from '../../generated/prisma/client';
 import { ROLES } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
@@ -47,33 +47,33 @@ export interface SignInput {
 // SERVICE CLASS
 // ============================================================================
 
-class PengantarService {
+class DepartmentApprovalService {
   /**
    * Get letters for Kaprodi dashboard (pending approval)
    */
-  async getKaprodiQueue(userId: string, params: PengantarListParams) {
-    return pengantarRepository.getLettersForKaprodiApproval(userId, params);
+  async getKaprodiQueue(userId: string, params: DepartmentApprovalListParams) {
+    return departmentApprovalRepository.getLettersForKaprodiApproval(userId, params);
   }
 
   /**
    * Get letters for Admin Prodi dashboard (pending drafting)
    */
-  async getAdminProdiQueue(userId: string, params: PengantarListParams) {
-    return pengantarRepository.getLettersForAdminProdiDraft(userId, params);
+  async getAdminProdiQueue(userId: string, params: DepartmentApprovalListParams) {
+    return departmentApprovalRepository.getLettersForAdminProdiDraft(userId, params);
   }
 
   /**
    * Get letters pending signature (for Kaprodi/Kadep)
    */
-  async getSignatureQueue(userId: string, role: string, params: PengantarListParams) {
-    return pengantarRepository.getLettersForSignature(userId, role, params);
+  async getSignatureQueue(userId: string, role: string, params: DepartmentApprovalListParams) {
+    return departmentApprovalRepository.getLettersForSignature(userId, role, params);
   }
 
   /**
    * Get letter detail with full context
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
-    const letter = await pengantarRepository.getLetterById(letterId);
+    const letter = await departmentApprovalRepository.getLetterById(letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -95,7 +95,7 @@ class PengantarService {
    * Kaprodi approves submission
    */
   async approveSubmission(input: ApproveInput, userId: string, userRole: string) {
-    const letter = await pengantarRepository.getLetterById(input.letterId);
+    const letter = await departmentApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -109,7 +109,7 @@ class PengantarService {
       throw new AppError('Surat tidak sedang di meja Kaprodi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return pengantarRepository.approveSubmission(
+    return departmentApprovalRepository.approveSubmission(
       input.letterId,
       userId,
       userRole,
@@ -121,7 +121,7 @@ class PengantarService {
    * Kaprodi rejects submission
    */
   async rejectSubmission(input: RejectInput, userId: string, userRole: string) {
-    const letter = await pengantarRepository.getLetterById(input.letterId);
+    const letter = await departmentApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -135,7 +135,7 @@ class PengantarService {
       throw new AppError('Alasan penolakan wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return pengantarRepository.rejectSubmission(
+    return departmentApprovalRepository.rejectSubmission(
       input.letterId,
       userId,
       userRole,
@@ -147,7 +147,7 @@ class PengantarService {
    * Admin Prodi saves draft surat pengantar
    */
   async saveDraft(input: SaveDraftInput, userId: string, userRole: string) {
-    const letter = await pengantarRepository.getLetterById(input.letterId);
+    const letter = await departmentApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -162,21 +162,21 @@ class PengantarService {
       throw new AppError('Minimal satu penandatangan harus dipilih', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const draftInput: CreatePengantarDraftInput = {
+    const draftInput: CreateDepartmentApprovalDraftInput = {
       letterInstanceId: input.letterId,
       content: input.content as Prisma.JsonValue,
       tembusan: input.tembusan,
       signatories: input.signatories
     };
 
-    return pengantarRepository.savePengantarDraft(draftInput, userId, userRole);
+    return departmentApprovalRepository.savePengantarDraft(draftInput, userId, userRole);
   }
 
   /**
    * Admin Prodi submits draft for signature
    */
   async submitForSignature(letterId: string, userId: string, userRole: string) {
-    const letter = await pengantarRepository.getLetterById(letterId);
+    const letter = await departmentApprovalRepository.getLetterById(letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -192,14 +192,14 @@ class PengantarService {
       throw new AppError('Draft surat pengantar belum dibuat', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return pengantarRepository.submitDraftForSignature(letterId, userId, userRole);
+    return departmentApprovalRepository.submitDraftForSignature(letterId, userId, userRole);
   }
 
   /**
    * Sign surat pengantar (Kaprodi/Kadep)
    */
   async signPengantar(input: SignInput, userId: string, userRole: string) {
-    const letter = await pengantarRepository.getLetterById(input.letterId);
+    const letter = await departmentApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -218,7 +218,7 @@ class PengantarService {
       throw new AppError('URL tanda tangan wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return pengantarRepository.signPengantar(
+    return departmentApprovalRepository.signPengantar(
       input.letterId,
       userId,
       userRole,
@@ -233,7 +233,7 @@ class PengantarService {
   // ===========================================================================
 
   private checkAccessPermission(
-    letter: Awaited<ReturnType<typeof pengantarRepository.getLetterById>>,
+    letter: Awaited<ReturnType<typeof departmentApprovalRepository.getLetterById>>,
     userId: string,
     userRoles: string[]
   ): boolean {
@@ -257,7 +257,7 @@ class PengantarService {
   }
 
   private getActionPermissions(
-    letter: Awaited<ReturnType<typeof pengantarRepository.getLetterById>>,
+    letter: Awaited<ReturnType<typeof departmentApprovalRepository.getLetterById>>,
     userRoles: string[]
   ): Record<string, boolean> {
     if (!letter) {
@@ -297,4 +297,4 @@ class PengantarService {
   }
 }
 
-export const pengantarService = new PengantarService();
+export const departmentApprovalService = new DepartmentApprovalService();

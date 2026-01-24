@@ -1,29 +1,29 @@
 /**
- * Leadership Routes (Elysia)
- * Route definition untuk modul verifikasi & tanda tangan pejabat
- * Path prefix: /api/leadership
+ * Faculty Approval Routes (Elysia)
+ * Route definition untuk modul verifikasi & tanda tangan pejabat fakultas
+ * Path prefix: /api/faculty-approval
  */
 
 import { Elysia } from 'elysia';
-import { leadershipController } from './leadership.controller';
+import { facultyApprovalController } from './faculty-approval.controller';
 import {
-  leadershipQuerySchema,
+  facultyApprovalQuerySchema,
   letterIdParamSchema,
   documentIdParamSchema,
   verifyBodySchema,
   signBodySchema,
   returnBodySchema,
   updateDraftBodySchema
-} from './leadership.validation';
+} from './faculty-approval.validation';
 import { PEJABAT_ROLES, SIGNATORY_ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
-// Leadership Routes
+// Faculty Approval Routes
 // ============================================================================
 
-export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
+export const facultyApprovalRoutes = new Elysia({ prefix: '/faculty-approval' })
   .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoint
@@ -37,18 +37,18 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
       (SIGNATORY_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return leadershipController.getVerificationQueue(activeRole, {
+    return facultyApprovalController.getVerificationQueue(activeRole, {
       page: query.page,
       limit: query.limit,
       category: query.category as any,
       search: query.search
     });
   }, {
-    query: leadershipQuerySchema,
+    query: facultyApprovalQuerySchema,
     detail: {
       summary: 'Get verification queue',
       description: 'Mendapatkan antrian verifikasi/tanda tangan untuk pejabat',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   })
 
@@ -58,13 +58,13 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
 
   .get('/:id', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
-    return leadershipController.getLetterDetail(params.id, user.id, roles);
+    return facultyApprovalController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
       summary: 'Get letter detail',
       description: 'Mendapatkan detail surat dengan konteks verifikasi',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   })
 
@@ -78,14 +78,14 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
       (PEJABAT_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return leadershipController.verifyDocument(params.id, body, user.id, activeRole);
+    return facultyApprovalController.verifyDocument(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: verifyBodySchema,
     detail: {
       summary: 'Verify document',
       description: 'Memverifikasi dokumen dan meneruskan ke level berikutnya',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   })
 
@@ -95,14 +95,14 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
       (SIGNATORY_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return leadershipController.signDocument(params.id, body, user.id, activeRole);
+    return facultyApprovalController.signDocument(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: signBodySchema,
     detail: {
       summary: 'Sign document',
       description: 'Menandatangani dokumen SK/ST',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   })
 
@@ -113,14 +113,14 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
       (SIGNATORY_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return leadershipController.returnDocument(params.id, body, user.id, activeRole);
+    return facultyApprovalController.returnDocument(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: returnBodySchema,
     detail: {
       summary: 'Return document',
       description: 'Mengembalikan dokumen ke role sebelumnya',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   })
 
@@ -134,13 +134,13 @@ export const leadershipRoutes = new Elysia({ prefix: '/leadership' })
       ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
     ) || roles[0];
 
-    return leadershipController.updateDraft(params.documentId, body, user.id, activeRole);
+    return facultyApprovalController.updateDraft(params.documentId, body, user.id, activeRole);
   }, {
     params: documentIdParamSchema,
     body: updateDraftBodySchema,
     detail: {
       summary: 'Update draft',
       description: 'Supervisor memperbarui draft dokumen',
-      tags: ['Leadership']
+      tags: ['Faculty Approval']
     }
   });

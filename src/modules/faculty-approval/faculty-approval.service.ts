@@ -1,9 +1,9 @@
 /**
- * Leadership Service
- * Business logic untuk modul verifikasi & tanda tangan pejabat
+ * Faculty Approval Service
+ * Business logic untuk modul verifikasi & tanda tangan pejabat fakultas
  */
 
-import { leadershipRepository, LeadershipListParams, VerifyInput, SignInput, ReturnInput } from './leadership.repository';
+import { facultyApprovalRepository, FacultyApprovalListParams, VerifyInput, SignInput, ReturnInput } from './faculty-approval.repository';
 import { LetterStatus, LetterCategory, Prisma } from '../../generated/prisma/client';
 import {
   ROLES,
@@ -20,19 +20,19 @@ import { HTTP_STATUS } from '../../shared/constants/http';
 // SERVICE CLASS
 // ============================================================================
 
-class LeadershipService {
+class FacultyApprovalService {
   /**
    * Get verification/signing queue
    */
-  async getVerificationQueue(userRole: string, params: LeadershipListParams) {
-    return leadershipRepository.getLettersForVerification(userRole, params);
+  async getVerificationQueue(userRole: string, params: FacultyApprovalListParams) {
+    return facultyApprovalRepository.getLettersForVerification(userRole, params);
   }
 
   /**
    * Get letter detail with verification context
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
-    const letter = await leadershipRepository.getLetterById(letterId);
+    const letter = await facultyApprovalRepository.getLetterById(letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -79,7 +79,7 @@ class LeadershipService {
     userId: string,
     userRole: string
   ) {
-    const letter = await leadershipRepository.getLetterById(input.letterId);
+    const letter = await facultyApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -120,14 +120,14 @@ class LeadershipService {
       nextStatus = LetterStatus.FAKULTAS_SIGNING;
     }
 
-    return leadershipRepository.verifyDocument(input, userId, userRole, nextRole, nextStatus);
+    return facultyApprovalRepository.verifyDocument(input, userId, userRole, nextRole, nextStatus);
   }
 
   /**
    * Sign document
    */
   async signDocument(input: SignInput, userId: string, userRole: string) {
-    const letter = await leadershipRepository.getLetterById(input.letterId);
+    const letter = await facultyApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -206,14 +206,14 @@ class LeadershipService {
       }
     }
 
-    return leadershipRepository.signDocument(input, userId, userRole, nextRole, nextStatus);
+    return facultyApprovalRepository.signDocument(input, userId, userRole, nextRole, nextStatus);
   }
 
   /**
    * Return document to lower role
    */
   async returnDocument(input: ReturnInput, userId: string, userRole: string) {
-    const letter = await leadershipRepository.getLetterById(input.letterId);
+    const letter = await facultyApprovalRepository.getLetterById(input.letterId);
 
     if (!letter) {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
@@ -240,7 +240,7 @@ class LeadershipService {
       throw new AppError('Target pengembalian tidak valid', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return leadershipRepository.returnDocument(input, userId, userRole);
+    return facultyApprovalRepository.returnDocument(input, userId, userRole);
   }
 
   /**
@@ -257,7 +257,7 @@ class LeadershipService {
       throw new AppError('Hanya supervisor yang dapat mengedit draft', HTTP_STATUS.FORBIDDEN);
     }
 
-    return leadershipRepository.updateDraftContent(documentId, content, userId, userRole);
+    return facultyApprovalRepository.updateDraftContent(documentId, content, userId, userRole);
   }
 
   // ===========================================================================
@@ -265,7 +265,7 @@ class LeadershipService {
   // ===========================================================================
 
   private getActionPermissions(
-    letter: Awaited<ReturnType<typeof leadershipRepository.getLetterById>>,
+    letter: Awaited<ReturnType<typeof facultyApprovalRepository.getLetterById>>,
     userRoles: string[]
   ): Record<string, boolean> {
     if (!letter) {
@@ -309,4 +309,4 @@ class LeadershipService {
   }
 }
 
-export const leadershipService = new LeadershipService();
+export const facultyApprovalService = new FacultyApprovalService();

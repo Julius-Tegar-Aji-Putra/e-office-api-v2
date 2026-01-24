@@ -1,7 +1,7 @@
 /**
- * Leadership Types
- * Types untuk modul Leadership (Verifikasi Berjenjang - Surat Keluar)
- * Sesuai Prompting.md Modul E: LEADERSHIP
+ * Faculty Approval Types
+ * Types untuk modul Faculty Approval (Verifikasi Berjenjang - Surat Keluar)
+ * Sesuai Prompting.md Modul E: LEADERSHIP (renamed to FACULTY-APPROVAL)
  */
 
 import type { LetterStatus, LetterCategory, SignatureStatus } from '../../generated/prisma/enums';
@@ -28,7 +28,7 @@ export const VERIFICATION_ROUTES = {
 /**
  * Aksi yang bisa dilakukan pejabat
  */
-export type LeadershipAction = 'VERIFY' | 'SIGN' | 'RETURN';
+export type FacultyApprovalAction = 'VERIFY' | 'SIGN' | 'RETURN';
 
 /**
  * Return targets berdasarkan role
@@ -87,7 +87,7 @@ export interface SelectUmumRouteDTO {
 /**
  * Item di dashboard Pejabat (Surat Keluar yang perlu diverifikasi/ditandatangani)
  */
-export interface LeadershipDashboardItem {
+export interface FacultyApprovalDashboardItem {
   id: string;
   judulSurat: string;
   tipeSurat: string; // ST/SK
@@ -104,7 +104,7 @@ export interface LeadershipDashboardItem {
 /**
  * Detail untuk view verifikasi
  */
-export interface LeadershipDetail {
+export interface FacultyApprovalDetail {
   letterInstance: {
     id: string;
     status: LetterStatus;
@@ -128,7 +128,7 @@ export interface LeadershipDetail {
   } | null;
   signatures: SignatureInfo[];
   verificationHistory: VerificationLogItem[];
-  permissions: LeadershipPermissions;
+  permissions: FacultyApprovalPermissions;
   returnTargets: ReturnTargetOption[];
   routeOptions?: RouteOption[]; // Hanya untuk Manajer TU dengan kategori UMUM
 }
@@ -160,9 +160,9 @@ export interface VerificationLogItem {
 }
 
 /**
- * Permissions untuk leadership view
+ * Permissions untuk faculty approval view
  */
-export interface LeadershipPermissions {
+export interface FacultyApprovalPermissions {
   canVerify: boolean;
   canSign: boolean;
   canReturn: boolean;
@@ -195,9 +195,9 @@ export interface RouteOption {
 // ============================================================================
 
 /**
- * Filter untuk dashboard leadership
+ * Filter untuk dashboard faculty approval
  */
-export interface LeadershipFilter {
+export interface FacultyApprovalFilter {
   category?: LetterCategory;
   needsAction?: boolean;
   search?: string;

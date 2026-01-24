@@ -9,9 +9,9 @@ import { Elysia } from 'elysia';
 
 // Import module routes
 import { submissionRoutes } from './modules/submission/submission.route';
-import { pengantarRoutes } from './modules/pengantar/pengantar.route';
+import { departmentApprovalRoutes } from './modules/department-approval/department-approval.route';
 import { disposisiRoutes } from './modules/disposisi/disposisi.route';
-import { leadershipRoutes } from './modules/leadership/leadership.route';
+import { facultyApprovalRoutes } from './modules/faculty-approval/faculty-approval.route';
 import { hasilRoutes } from './modules/surat-hasil/hasil.route';
 import { signingRoutes } from './modules/surat-hasil/signing.route';
 import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
@@ -55,8 +55,8 @@ export function createApiRoutes() {
     // Module A: PENGAJUAN (Submission)
     .group('/api', (api) => api.use(submissionRoutes))
 
-    // Module B: SURAT PENGANTAR
-    .use(pengantarRoutes)
+    // Module B: DEPARTMENT APPROVAL (formerly: pengantar)
+    .use(departmentApprovalRoutes)
 
     // Module C: DISPOSISI
     .use(disposisiRoutes)
@@ -67,8 +67,8 @@ export function createApiRoutes() {
     // Module D.1: SIGNING (Part of Surat Hasil)
     .group('/api', (api) => api.use(signingRoutes))
 
-    // Module E: LEADERSHIP (Verification & Signing)
-    .use(leadershipRoutes)
+    // Module E: FACULTY APPROVAL (formerly: leadership)
+    .use(facultyApprovalRoutes)
 
     // Module F: LEGALISASI (UPA Finishing)
     .use(legalisasiRoute)

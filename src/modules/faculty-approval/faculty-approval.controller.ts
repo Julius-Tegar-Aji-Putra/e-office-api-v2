@@ -1,10 +1,10 @@
 /**
- * Leadership Controller
- * HTTP handler untuk modul verifikasi & tanda tangan
+ * Faculty Approval Controller
+ * HTTP handler untuk modul verifikasi & tanda tangan pejabat fakultas
  */
 
-import { leadershipService } from './leadership.service';
-import { LeadershipListParams } from './leadership.repository';
+import { facultyApprovalService } from './faculty-approval.service';
+import { FacultyApprovalListParams } from './faculty-approval.repository';
 import { successResponse, errorResponse } from '../../shared/utils/response';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
@@ -13,14 +13,14 @@ import { HTTP_STATUS } from '../../shared/constants/http';
 // CONTROLLER CLASS
 // ============================================================================
 
-class LeadershipController {
+class FacultyApprovalController {
   /**
-   * GET /leadership/queue
+   * GET /faculty-approval/queue
    * Get verification/signing queue
    */
-  async getVerificationQueue(userRole: string, params: LeadershipListParams) {
+  async getVerificationQueue(userRole: string, params: FacultyApprovalListParams) {
     try {
-      const result = await leadershipService.getVerificationQueue(userRole, params);
+      const result = await facultyApprovalService.getVerificationQueue(userRole, params);
       return successResponse('Berhasil mengambil antrian verifikasi', result);
     } catch (error: unknown) {
       const err = error as AppError;
@@ -29,12 +29,12 @@ class LeadershipController {
   }
 
   /**
-   * GET /leadership/:id
+   * GET /faculty-approval/:id
    * Get letter detail with verification context
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
     try {
-      const result = await leadershipService.getLetterDetail(letterId, userId, userRoles);
+      const result = await facultyApprovalService.getLetterDetail(letterId, userId, userRoles);
       return successResponse('Berhasil mengambil detail surat', result);
     } catch (error: unknown) {
       const err = error as AppError;
@@ -43,7 +43,7 @@ class LeadershipController {
   }
 
   /**
-   * POST /leadership/:id/verify
+   * POST /faculty-approval/:id/verify
    * Verify document and forward
    */
   async verifyDocument(
@@ -53,7 +53,7 @@ class LeadershipController {
     userRole: string
   ) {
     try {
-      const result = await leadershipService.verifyDocument(
+      const result = await facultyApprovalService.verifyDocument(
         { letterId, notes: body.notes, nextTargets: body.nextTargets },
         userId,
         userRole
@@ -66,7 +66,7 @@ class LeadershipController {
   }
 
   /**
-   * POST /leadership/:id/sign
+   * POST /faculty-approval/:id/sign
    * Sign document
    */
   async signDocument(
@@ -81,7 +81,7 @@ class LeadershipController {
     userRole: string
   ) {
     try {
-      const result = await leadershipService.signDocument(
+      const result = await facultyApprovalService.signDocument(
         {
           letterId,
           signatureUrl: body.signatureUrl,
@@ -100,7 +100,7 @@ class LeadershipController {
   }
 
   /**
-   * POST /leadership/:id/return
+   * POST /faculty-approval/:id/return
    * Return document to lower role
    */
   async returnDocument(
@@ -110,7 +110,7 @@ class LeadershipController {
     userRole: string
   ) {
     try {
-      const result = await leadershipService.returnDocument(
+      const result = await facultyApprovalService.returnDocument(
         { letterId, targetRole: body.targetRole, reason: body.reason },
         userId,
         userRole
@@ -123,7 +123,7 @@ class LeadershipController {
   }
 
   /**
-   * PUT /leadership/document/:documentId
+   * PUT /faculty-approval/document/:documentId
    * Update draft (Supervisor only)
    */
   async updateDraft(
@@ -133,7 +133,7 @@ class LeadershipController {
     userRole: string
   ) {
     try {
-      const result = await leadershipService.updateDraft(
+      const result = await facultyApprovalService.updateDraft(
         documentId,
         body.content,
         userId,
@@ -147,4 +147,4 @@ class LeadershipController {
   }
 }
 
-export const leadershipController = new LeadershipController();
+export const facultyApprovalController = new FacultyApprovalController();

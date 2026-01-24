@@ -1,62 +1,65 @@
 /**
- * Pengantar Routes (Elysia)
- * Route definition untuk modul surat pengantar
- * Path prefix: /api/pengantar
+ * Department Approval Routes (Elysia)
+ * Route definition untuk modul department approval (persetujuan & TTD di lingkup departemen)
+ * Path prefix: /api/department-approval
+ * 
+ * Flow: Mahasiswa/Dosen Submit -> Kaprodi Approve/Reject -> Admin Prodi Draft Pengantar -> 
+ *       Kaprodi Sign -> Kadep Sign (optional) -> Forward ke Fakultas
  */
 
 import { Elysia } from 'elysia';
-import { pengantarController } from './pengantar.controller';
+import { departmentApprovalController } from './department-approval.controller';
 import {
-  pengantarQuerySchema,
+  departmentApprovalQuerySchema,
   letterIdParamSchema,
   approveBodySchema,
   rejectBodySchema,
   saveDraftBodySchema,
   signBodySchema
-} from './pengantar.validation';
+} from './department-approval.validation';
 import { ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
-// Pengantar Routes
+// Department Approval Routes
 // ============================================================================
 
-export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
+export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approval' })
   .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
 
   .get('/kaprodi-queue', async ({ query, user }) => {
-    return pengantarController.getKaprodiQueue(user.id, {
+    return departmentApprovalController.getKaprodiQueue(user.id, {
       page: query.page,
       limit: query.limit,
       status: query.status as any,
       search: query.search
     });
   }, {
-    query: pengantarQuerySchema,
+    query: departmentApprovalQuerySchema,
     detail: {
       summary: 'Get Kaprodi approval queue',
       description: 'Mendapatkan daftar surat yang menunggu approval Kaprodi',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
   .get('/admin-queue', async ({ query, user }) => {
-    return pengantarController.getAdminProdiQueue(user.id, {
+    return departmentApprovalController.getAdminProdiQueue(user.id, {
       page: query.page,
       limit: query.limit,
       status: query.status as any,
       search: query.search
     });
   }, {
-    query: pengantarQuerySchema,
+    query: departmentApprovalQuerySchema,
     detail: {
       summary: 'Get Admin Prodi drafting queue',
       description: 'Mendapatkan daftar surat yang menunggu drafting Admin Prodi',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
@@ -64,16 +67,16 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     // Determine role for signature queue (KAPRODI or KADEP)
     const roles = await getUserRoles(user.id);
     const signerRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
-    return pengantarController.getSignatureQueue(user.id, signerRole, {
+    return departmentApprovalController.getSignatureQueue(user.id, signerRole, {
       page: query.page,
       limit: query.limit
     });
   }, {
-    query: pengantarQuerySchema,
+    query: departmentApprovalQuerySchema,
     detail: {
       summary: 'Get signature queue',
       description: 'Mendapatkan daftar surat yang menunggu tanda tangan',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
@@ -83,13 +86,13 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
 
   .get('/:id', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
-    return pengantarController.getLetterDetail(params.id, user.id, roles);
+    return departmentApprovalController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
       summary: 'Get letter detail',
-      description: 'Mendapatkan detail surat pengantar beserta permissions',
-      tags: ['Pengantar']
+      description: 'Mendapatkan detail surat beserta permissions untuk department approval',
+      tags: ['Department Approval']
     }
   })
 
@@ -98,49 +101,49 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
   // ==========================================================================
 
   .post('/:id/approve', async ({ params, body, user }) => {
-    return pengantarController.approveSubmission(params.id, body, user.id, ROLES.KAPRODI);
+    return departmentApprovalController.approveSubmission(params.id, body, user.id, ROLES.KAPRODI);
   }, {
     params: letterIdParamSchema,
     body: approveBodySchema,
     detail: {
       summary: 'Approve submission',
       description: 'Kaprodi menyetujui pengajuan surat',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
   .post('/:id/reject', async ({ params, body, user }) => {
-    return pengantarController.rejectSubmission(params.id, body, user.id, ROLES.KAPRODI);
+    return departmentApprovalController.rejectSubmission(params.id, body, user.id, ROLES.KAPRODI);
   }, {
     params: letterIdParamSchema,
     body: rejectBodySchema,
     detail: {
       summary: 'Reject submission',
       description: 'Kaprodi menolak pengajuan surat',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
   .post('/:id/draft', async ({ params, body, user }) => {
-    return pengantarController.saveDraft(params.id, body, user.id, ROLES.ADMIN_PRODI);
+    return departmentApprovalController.saveDraft(params.id, body, user.id, ROLES.ADMIN_PRODI);
   }, {
     params: letterIdParamSchema,
     body: saveDraftBodySchema,
     detail: {
       summary: 'Save draft',
       description: 'Admin Prodi menyimpan draft surat pengantar',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
   .post('/:id/submit-draft', async ({ params, user }) => {
-    return pengantarController.submitDraftForSignature(params.id, user.id, ROLES.ADMIN_PRODI);
+    return departmentApprovalController.submitDraftForSignature(params.id, user.id, ROLES.ADMIN_PRODI);
   }, {
     params: letterIdParamSchema,
     detail: {
       summary: 'Submit draft for signature',
       description: 'Admin Prodi mengajukan draft untuk ditandatangani',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   })
 
@@ -148,13 +151,13 @@ export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
     // Determine signer role
     const roles = await getUserRoles(user.id);
     const signerRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
-    return pengantarController.signPengantar(params.id, body, user.id, signerRole);
+    return departmentApprovalController.signPengantar(params.id, body, user.id, signerRole);
   }, {
     params: letterIdParamSchema,
     body: signBodySchema,
     detail: {
       summary: 'Sign document',
       description: 'Kaprodi/Kadep menandatangani surat pengantar',
-      tags: ['Pengantar']
+      tags: ['Department Approval']
     }
   });

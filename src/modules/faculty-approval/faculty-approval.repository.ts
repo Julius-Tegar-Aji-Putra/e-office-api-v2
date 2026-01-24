@@ -1,6 +1,6 @@
 /**
- * Leadership Repository
- * Data access layer untuk modul verifikasi & tanda tangan pejabat
+ * Faculty Approval Repository
+ * Data access layer untuk modul verifikasi & tanda tangan pejabat fakultas
  */
 
 import { prisma } from '../../db';
@@ -10,7 +10,7 @@ import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '.
 // TYPES
 // ============================================================================
 
-export interface LeadershipListParams {
+export interface FacultyApprovalListParams {
   page?: number;
   limit?: number;
   status?: LetterStatus;
@@ -42,11 +42,11 @@ export interface ReturnInput {
 // REPOSITORY CLASS
 // ============================================================================
 
-class LeadershipRepository {
+class FacultyApprovalRepository {
   /**
    * Get letters for verification/signing (status: FAKULTAS_VERIFICATION or FAKULTAS_SIGNING)
    */
-  async getLettersForVerification(userRole: string, params: LeadershipListParams) {
+  async getLettersForVerification(userRole: string, params: FacultyApprovalListParams) {
     const { page = 1, limit = 10, category, search } = params;
     const skip = (page - 1) * limit;
 
@@ -321,4 +321,4 @@ class LeadershipRepository {
   }
 }
 
-export const leadershipRepository = new LeadershipRepository();
+export const facultyApprovalRepository = new FacultyApprovalRepository();

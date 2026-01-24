@@ -60,8 +60,9 @@ Pastikan `prisma/schema.prisma` mengakomodasi Enum dan Model berikut untuk mendu
     * **Opsi Tanda Tangan**: Checkbox "Butuh Tanda Tangan Ketua Departemen?".
 2.  **State Awal**: Status `SUBMITTED`, Role `KAPRODI`.
 
-### 🟢 MODUL B: PENGANTAR (Approval & Drafting Prodi)
-**Path**: `src/modules/pengantar`
+### 🟢 MODUL B: DEPARTMENT-APPROVAL (Approval & Drafting Prodi)
+**Path**: `src/modules/department-approval`
+**API Prefix**: `/api/department-approval`
 **Aktor**: Ketua Prodi, Admin Prodi, Ketua Departemen
 
 1.  **Ketua Prodi (Approval)**:
@@ -110,8 +111,9 @@ Pastikan `prisma/schema.prisma` mengakomodasi Enum dan Model berikut untuk mendu
     * **Aksi**: "Ajukan Verifikasi".
     * **Logic**: Kunci dokumen. Role -> Supervisor terkait. Status -> `FAKULTAS_VERIFICATION`.
 
-### 🔵 MODUL E: LEADERSHIP (Verifikasi Berjenjang - Surat Keluar)
-**Path**: `src/modules/leadership`
+### 🔵 MODUL E: FACULTY-APPROVAL (Verifikasi Berjenjang - Surat Keluar)
+**Path**: `src/modules/faculty-approval`
+**API Prefix**: `/api/faculty-approval`
 **Aktor**: Supervisor -> Manajer TU -> Wadek -> Dekan
 
 1.  **Jalur Verifikasi (Naik)**:

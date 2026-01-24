@@ -1,11 +1,11 @@
 /**
- * Pengantar Controller
- * HTTP handler untuk modul surat pengantar
+ * Department Approval Controller
+ * HTTP handler untuk modul department approval (approval & signing di lingkup departemen)
  */
 
-import { pengantarService, ApproveInput, RejectInput, SaveDraftInput, SignInput } from './pengantar.service';
+import { departmentApprovalService, ApproveInput, RejectInput, SaveDraftInput, SignInput } from './department-approval.service';
 import { successResponse, errorResponse } from '../../shared/utils/response';
-import { PengantarListParams } from './pengantar.repository';
+import { DepartmentApprovalListParams } from './department-approval.repository';
 
 // Helper to extract error message
 function getErrorMessage(error: unknown): string {
@@ -18,14 +18,14 @@ function getErrorMessage(error: unknown): string {
 // CONTROLLER CLASS
 // ============================================================================
 
-class PengantarController {
+class DepartmentApprovalController {
   /**
-   * GET /pengantar/kaprodi-queue
+   * GET /department-approval/kaprodi-queue
    * Get letters pending Kaprodi approval
    */
-  async getKaprodiQueue(userId: string, params: PengantarListParams) {
+  async getKaprodiQueue(userId: string, params: DepartmentApprovalListParams) {
     try {
-      const result = await pengantarService.getKaprodiQueue(userId, params);
+      const result = await departmentApprovalService.getKaprodiQueue(userId, params);
       return successResponse('Berhasil mengambil daftar surat', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -33,12 +33,12 @@ class PengantarController {
   }
 
   /**
-   * GET /pengantar/admin-queue
+   * GET /department-approval/admin-queue
    * Get letters pending Admin Prodi drafting
    */
-  async getAdminProdiQueue(userId: string, params: PengantarListParams) {
+  async getAdminProdiQueue(userId: string, params: DepartmentApprovalListParams) {
     try {
-      const result = await pengantarService.getAdminProdiQueue(userId, params);
+      const result = await departmentApprovalService.getAdminProdiQueue(userId, params);
       return successResponse('Berhasil mengambil daftar surat', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -46,12 +46,12 @@ class PengantarController {
   }
 
   /**
-   * GET /pengantar/signature-queue
+   * GET /department-approval/signature-queue
    * Get letters pending signature
    */
-  async getSignatureQueue(userId: string, role: string, params: PengantarListParams) {
+  async getSignatureQueue(userId: string, role: string, params: DepartmentApprovalListParams) {
     try {
-      const result = await pengantarService.getSignatureQueue(userId, role, params);
+      const result = await departmentApprovalService.getSignatureQueue(userId, role, params);
       return successResponse('Berhasil mengambil daftar surat', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -59,12 +59,12 @@ class PengantarController {
   }
 
   /**
-   * GET /pengantar/:id
+   * GET /department-approval/:id
    * Get letter detail
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
     try {
-      const result = await pengantarService.getLetterDetail(letterId, userId, userRoles);
+      const result = await departmentApprovalService.getLetterDetail(letterId, userId, userRoles);
       return successResponse('Berhasil mengambil detail surat', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -72,7 +72,7 @@ class PengantarController {
   }
 
   /**
-   * POST /pengantar/:id/approve
+   * POST /department-approval/:id/approve
    * Kaprodi approves submission
    */
   async approveSubmission(
@@ -86,7 +86,7 @@ class PengantarController {
         letterId,
         notes: body.notes
       };
-      const result = await pengantarService.approveSubmission(input, userId, userRole);
+      const result = await departmentApprovalService.approveSubmission(input, userId, userRole);
       return successResponse('Surat berhasil disetujui', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -94,7 +94,7 @@ class PengantarController {
   }
 
   /**
-   * POST /pengantar/:id/reject
+   * POST /department-approval/:id/reject
    * Kaprodi rejects submission
    */
   async rejectSubmission(
@@ -108,7 +108,7 @@ class PengantarController {
         letterId,
         reason: body.reason
       };
-      const result = await pengantarService.rejectSubmission(input, userId, userRole);
+      const result = await departmentApprovalService.rejectSubmission(input, userId, userRole);
       return successResponse('Surat berhasil ditolak', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -116,7 +116,7 @@ class PengantarController {
   }
 
   /**
-   * POST /pengantar/:id/draft
+   * POST /department-approval/:id/draft
    * Admin Prodi saves draft
    */
   async saveDraft(
@@ -141,7 +141,7 @@ class PengantarController {
         tembusan: body.tembusan,
         signatories: body.signatories
       };
-      const result = await pengantarService.saveDraft(input, userId, userRole);
+      const result = await departmentApprovalService.saveDraft(input, userId, userRole);
       return successResponse('Draft berhasil disimpan', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -149,12 +149,12 @@ class PengantarController {
   }
 
   /**
-   * POST /pengantar/:id/submit-draft
+   * POST /department-approval/:id/submit-draft
    * Admin Prodi submits draft for signature
    */
   async submitDraftForSignature(letterId: string, userId: string, userRole: string) {
     try {
-      const result = await pengantarService.submitForSignature(letterId, userId, userRole);
+      const result = await departmentApprovalService.submitForSignature(letterId, userId, userRole);
       return successResponse('Draft berhasil diajukan untuk ditandatangani', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -162,7 +162,7 @@ class PengantarController {
   }
 
   /**
-   * POST /pengantar/:id/sign
+   * POST /department-approval/:id/sign
    * Kaprodi/Kadep signs the document
    */
   async signPengantar(
@@ -182,7 +182,7 @@ class PengantarController {
         signerName: body.signerName,
         signerNip: body.signerNip
       };
-      const result = await pengantarService.signPengantar(input, userId, userRole);
+      const result = await departmentApprovalService.signPengantar(input, userId, userRole);
       return successResponse('Surat berhasil ditandatangani', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -190,4 +190,4 @@ class PengantarController {
   }
 }
 
-export const pengantarController = new PengantarController();
+export const departmentApprovalController = new DepartmentApprovalController();

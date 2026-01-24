@@ -1,7 +1,7 @@
 /**
- * Pengantar Module Types
- * Types untuk modul surat pengantar (Lingkup Departemen)
- * Sesuai Prompting.md Modul B: PENGANTAR
+ * Department Approval Module Types
+ * Types untuk modul persetujuan departemen (Lingkup Departemen)
+ * Sesuai Prompting.md Modul B: PENGANTAR (renamed to DEPARTMENT-APPROVAL)
  */
 
 import type { LetterStatus, DocumentType, LetterCategory } from '../../generated/prisma/enums';
@@ -13,7 +13,7 @@ import type { LetterStatus, DocumentType, LetterCategory } from '../../generated
 /**
  * Konfigurasi penandatangan surat pengantar
  */
-export interface PengantarSignerConfig {
+export interface DepartmentApprovalSignerConfig {
   role: string; // KAPRODI, KADEP
   name: string;
   nip: string;
@@ -26,8 +26,8 @@ export interface PengantarSignerConfig {
 /**
  * Signatories untuk dokumen pengantar
  */
-export interface PengantarSignatories {
-  signers: PengantarSignerConfig[];
+export interface DepartmentApprovalSignatories {
+  signers: DepartmentApprovalSignerConfig[];
   requestedBySubmitter: boolean; // Apakah request TTD Kadep dari pengaju?
 }
 
@@ -54,28 +54,28 @@ export interface RejectSubmissionDTO {
 /**
  * DTO untuk Admin Prodi draft surat pengantar
  */
-export interface CreatePengantarDraftDTO {
+export interface CreateDepartmentApprovalDraftDTO {
   letterInstanceId: string;
   content: unknown; // TipTap JSON content
   tembusan?: string[]; // Array of user IDs
   perihal: string;
-  signatories: PengantarSignatories;
+  signatories: DepartmentApprovalSignatories;
 }
 
 /**
  * DTO untuk update draft pengantar
  */
-export interface UpdatePengantarDraftDTO {
+export interface UpdateDepartmentApprovalDraftDTO {
   content?: unknown;
   tembusan?: string[];
   perihal?: string;
-  signatories?: Partial<PengantarSignatories>;
+  signatories?: Partial<DepartmentApprovalSignatories>;
 }
 
 /**
  * DTO untuk signing surat pengantar
  */
-export interface SignPengantarDTO {
+export interface SignDepartmentApprovalDTO {
   documentId: string;
   signatureUrl: string; // URL to signature image in MinIO
   notes?: string;
@@ -133,7 +133,7 @@ export interface KadepDashboardItem {
 /**
  * Detail surat pengantar
  */
-export interface PengantarDetail {
+export interface DepartmentApprovalDetail {
   id: string;
   type: DocumentType;
   content: unknown | null;
@@ -167,7 +167,7 @@ export interface PengantarDetail {
 /**
  * Permissions untuk view pengantar
  */
-export interface PengantarPermissions {
+export interface DepartmentApprovalPermissions {
   // Kaprodi
   canApprove: boolean;
   canReject: boolean;
@@ -195,7 +195,7 @@ export interface PengantarPermissions {
 /**
  * Filter untuk dashboard queries
  */
-export interface PengantarFilter {
+export interface DepartmentApprovalFilter {
   status?: LetterStatus[];
   needsAction?: boolean;
   search?: string;
@@ -212,7 +212,7 @@ export interface PengantarFilter {
 /**
  * Template surat pengantar
  */
-export interface PengantarTemplate {
+export interface DepartmentApprovalTemplate {
   header: string;
   body: string;
   footer: string;
@@ -222,7 +222,7 @@ export interface PengantarTemplate {
 /**
  * Data untuk generate surat pengantar
  */
-export interface PengantarGenerateData {
+export interface DepartmentApprovalGenerateData {
   nomorSurat?: string;
   tanggalSurat: Date;
   perihal: string;
@@ -231,5 +231,5 @@ export interface PengantarGenerateData {
   isiSurat: string;
   lampiran: string[];
   tembusan: string[];
-  signatories: PengantarSignerConfig[];
+  signatories: DepartmentApprovalSignerConfig[];
 }

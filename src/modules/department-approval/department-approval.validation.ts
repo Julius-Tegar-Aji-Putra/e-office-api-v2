@@ -1,5 +1,5 @@
 /**
- * Pengantar Validation Schemas
+ * Department Approval Validation Schemas
  * Typebox schemas untuk validasi request
  */
 
@@ -9,7 +9,7 @@ import { t } from 'elysia';
 // QUERY SCHEMAS
 // ============================================================================
 
-export const pengantarQuerySchema = t.Object({
+export const departmentApprovalQuerySchema = t.Object({
   page: t.Optional(t.Numeric({ minimum: 1, default: 1 })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
   status: t.Optional(t.String()),
