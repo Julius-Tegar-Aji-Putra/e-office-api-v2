@@ -468,7 +468,12 @@ async function getDashboardPengaju(
     db.letterInstance.findMany({
       where,
       include: {
-        letterType: true,
+        letterType: {
+          select: {
+            code: true,
+            category: true,
+          },
+        },
         documents: { take: 1 },
         createdBy: { select: { id: true, name: true } },
       },
@@ -616,8 +621,19 @@ async function getDashboardDepartemen(
     db.letterInstance.findMany({
       where,
       include: {
-        letterType: true,
-        documents: { take: 1 },
+        letterType: {
+          select: {
+            code: true,
+            category: true,
+          },
+        },
+        documents: {
+          select: {
+            type: true,
+            perihal: true,
+          },
+          take: 1,
+        },
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -727,8 +743,18 @@ async function getDashboardFakultas(
     db.letterInstance.findMany({
       where,
       include: {
-        letterType: true,
-        documents: true,
+        letterType: {
+          select: {
+            code: true,
+            category: true,
+          },
+        },
+        documents: {
+          select: {
+            type: true,
+            perihal: true,
+          },
+        },
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -847,8 +873,19 @@ async function getDashboardUPA(
     db.letterInstance.findMany({
       where,
       include: {
-        letterType: true,
-        documents: true,
+        letterType: {
+          select: {
+            code: true,
+            category: true,
+          },
+        },
+        documents: {
+          select: {
+            type: true,
+            perihal: true,
+            nomorSurat: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip: offset,
@@ -1046,7 +1083,13 @@ export default new Elysia()
       include: {
         letterInstance: {
           include: {
-            letterType: true,
+            letterType: {
+              select: {
+                name: true,
+                code: true,
+                category: true,
+              },
+            },
             documents: { take: 1 },
           },
         },
