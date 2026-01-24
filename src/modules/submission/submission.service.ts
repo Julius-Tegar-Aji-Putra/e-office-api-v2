@@ -8,7 +8,9 @@ import { submissionRepository, SubmissionRepository } from './submission.reposit
 import { ROLES } from '../../shared/constants/roles';
 import { getDisplayStatus, DISPLAY_STATUS } from '../../shared/constants/status-mapping';
 import { ERROR_MESSAGES } from '../../shared/constants/error-messages';
-import type { LetterStatus } from '../../generated/prisma/enums';
+import { minioService, MinioService } from '../../shared/services/minio.service';
+import { prisma } from '../../db';
+import type { LetterStatus, LogAction } from '../../generated/prisma/enums';
 import type {
   CreateSubmissionDTO,
   SubmissionFormData,
@@ -19,6 +21,7 @@ import type {
   SubmissionDetail,
   SubmissionPermissions,
   LetterTypeWithTemplate,
+  AttachmentSummary,
 } from './submission.types';
 
 // ============================================================================
@@ -26,7 +29,10 @@ import type {
 // ============================================================================
 
 export class SubmissionService {
-  constructor(private repository: SubmissionRepository = submissionRepository) {}
+  constructor(
+    private repository: SubmissionRepository = submissionRepository,
+    private minio: MinioService = minioService
+  ) {}
 
   // ============================================================================
   // Letter Types
@@ -139,6 +145,7 @@ export class SubmissionService {
 
   /**
    * Get submission detail by ID
+   * Include signed URLs for attachments
    */
   async getSubmissionById(id: string, viewerRole: string): Promise<SubmissionDetail | null> {
     const submission = await this.repository.findById(id);
@@ -150,6 +157,31 @@ export class SubmissionService {
     // Get rejection reason from logs if any
     const rejectionLog = submission.logs.find(
       (log: any) => log.action === 'REJECT' || log.action === 'RETURN'
+    );
+
+    // Map attachments with signed URLs
+    const attachmentsWithUrls: AttachmentSummary[] = await Promise.all(
+      submission.attachments.map(async (att: any) => {
+        let fileUrl = att.fileUrl;
+        
+        if (att.storagePath) {
+          try {
+            fileUrl = await this.minio.getFileUrl(att.storagePath);
+          } catch (error) {
+            console.error(`Failed to get signed URL for ${att.storagePath}:`, error);
+          }
+        }
+        
+        return {
+          id: att.id,
+          fileName: att.fileName,
+          fileUrl: fileUrl || '',
+          fileSize: att.fileSize,
+          mimeType: att.mimeType,
+          description: att.description,
+          uploadedAt: att.uploadedAt,
+        };
+      })
     );
 
     return {
@@ -186,15 +218,7 @@ export class SubmissionService {
           order: sig.order,
         })),
       })),
-      attachments: submission.attachments.map((att: any) => ({
-        id: att.id,
-        fileName: att.fileName,
-        fileUrl: att.fileUrl,
-        fileSize: att.fileSize,
-        mimeType: att.mimeType,
-        description: att.description,
-        uploadedAt: att.uploadedAt,
-      })),
+      attachments: attachmentsWithUrls,
       logs: submission.logs.map((log: any) => ({
         id: log.id,
         action: log.action,
@@ -212,32 +236,119 @@ export class SubmissionService {
   }
 
   /**
-   * Create new submission
+   * Create new submission with attachments
    * Flow: Mahasiswa/Dosen submit -> Status SUBMITTED -> Role KAPRODI
+   * Uses transaction for atomicity with MinIO rollback on failure
    */
-  async createSubmission(userId: string, dto: CreateSubmissionDTO) {
+  async createSubmission(userId: string, dto: CreateSubmissionDTO, files?: File[]) {
     // Validate letter type exists
     const letterType = await this.repository.getLetterTypeById(dto.letterTypeId);
     if (!letterType) {
       throw new Error(ERROR_MESSAGES.SUBMISSION.INVALID_TYPE);
     }
 
-    // Create submission with initial status
-    const submission = await this.repository.create({
-      letterTypeId: dto.letterTypeId,
-      createdById: userId,
-      submissionValues: dto.formData as unknown as Record<string, unknown>,
-      signatureConfig: dto.signatureConfig as unknown as Record<string, unknown>,
-      status: 'SUBMITTED' as LetterStatus,
-      currentActiveRole: ROLES.KAPRODI, // Goes to Kaprodi for initial review
-    });
+    // Track uploaded files for rollback
+    const uploadedFiles: Array<{ storagePath: string }> = [];
 
-    return {
-      id: submission.id,
-      message: 'Pengajuan berhasil dibuat dan diteruskan ke Ketua Program Studi untuk diverifikasi',
-      status: submission.status,
-      currentActiveRole: ROLES.KAPRODI,
-    };
+    try {
+      // Upload files to MinIO first
+      const attachmentData: Array<{
+        fileName: string;
+        storageName: string;
+        storagePath: string;
+        fileSize: number;
+        mimeType: string;
+        uploadedById: string;
+      }> = [];
+
+      if (files && files.length > 0) {
+        for (const file of files) {
+          const buffer = Buffer.from(await file.arrayBuffer());
+          const uploadResult = await this.minio.uploadFile(
+            buffer,
+            file.name,
+            file.type,
+            'submissions'
+          );
+
+          uploadedFiles.push({ storagePath: uploadResult.path });
+
+          attachmentData.push({
+            fileName: file.name,
+            storageName: uploadResult.storageName,
+            storagePath: uploadResult.path,
+            fileSize: file.size,
+            mimeType: file.type,
+            uploadedById: userId,
+          });
+        }
+      }
+
+      // Create submission with attachments in transaction
+      const submission = await prisma.$transaction(async (tx) => {
+        // Create letter instance
+        const letterInstance = await tx.letterInstance.create({
+          data: {
+            letterTypeId: dto.letterTypeId,
+            createdById: userId,
+            submissionValues: dto.formData as object,
+            signatureConfig: dto.signatureConfig as object,
+            status: 'SUBMITTED' as LetterStatus,
+            currentActiveRole: ROLES.KAPRODI,
+          },
+        });
+
+        // Create attachments if any
+        if (attachmentData.length > 0) {
+          await tx.letterAttachment.createMany({
+            data: attachmentData.map((att) => ({
+              letterInstanceId: letterInstance.id,
+              fileName: att.fileName,
+              storageName: att.storageName,
+              storagePath: att.storagePath,
+              fileSize: att.fileSize,
+              mimeType: att.mimeType,
+              uploadedById: att.uploadedById,
+            })),
+          });
+        }
+
+        // Create initial log
+        await tx.letterLog.create({
+          data: {
+            letterInstanceId: letterInstance.id,
+            actorId: userId,
+            actorRole: 'PENGAJU',
+            action: 'SUBMIT' as LogAction,
+            toStatus: 'SUBMITTED' as LetterStatus,
+            notes: `Pengajuan surat baru${attachmentData.length > 0 ? ` dengan ${attachmentData.length} lampiran` : ''}`,
+          },
+        });
+
+        return letterInstance;
+      });
+
+      return {
+        id: submission.id,
+        message: 'Pengajuan berhasil dibuat dan diteruskan ke Ketua Program Studi untuk diverifikasi',
+        status: submission.status,
+        currentActiveRole: ROLES.KAPRODI,
+        attachmentCount: attachmentData.length,
+      };
+    } catch (error) {
+      // Rollback: Delete uploaded files from MinIO if transaction failed
+      if (uploadedFiles.length > 0) {
+        console.log('Rolling back MinIO uploads...');
+        for (const file of uploadedFiles) {
+          try {
+            await this.minio.deleteFile(file.storagePath);
+          } catch (deleteError) {
+            console.error(`Failed to delete file during rollback: ${file.storagePath}`, deleteError);
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -323,12 +434,12 @@ export class SubmissionService {
   // ============================================================================
 
   /**
-   * Add attachment to submission
+   * Add attachment to submission with MinIO upload
    */
   async addAttachment(
     letterInstanceId: string,
     userId: string,
-    file: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string },
+    file: File,
     description?: string
   ) {
     // Verify ownership
@@ -337,21 +448,52 @@ export class SubmissionService {
       throw new Error(ERROR_MESSAGES.AUTH.UNAUTHORIZED);
     }
 
+    // Check submission status allows adding attachments
+    const submission = await this.repository.findById(letterInstanceId);
+    if (!submission) {
+      throw new Error(ERROR_MESSAGES.SUBMISSION.NOT_FOUND);
+    }
+
+    if (!this.canEditSubmission(submission.status)) {
+      throw new Error('Tidak dapat menambah lampiran pada status saat ini');
+    }
+
+    // Upload to MinIO
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const uploadResult = await this.minio.uploadFile(
+      buffer,
+      file.name,
+      file.type,
+      'submissions'
+    );
+
+    // Save to database
     const attachment = await this.repository.addAttachment({
       letterInstanceId,
-      fileName: file.fileName,
-      fileUrl: file.fileUrl,
-      fileSize: file.fileSize,
-      mimeType: file.mimeType,
+      fileName: file.name,
+      storageName: uploadResult.storageName,
+      storagePath: uploadResult.path,
+      fileSize: file.size,
+      mimeType: file.type,
       description,
       uploadedById: userId,
     });
 
-    return attachment;
+    // Get signed URL for response
+    const fileUrl = await this.minio.getFileUrl(uploadResult.path);
+
+    return {
+      id: attachment.id,
+      fileName: attachment.fileName,
+      fileUrl,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+      uploadedAt: attachment.uploadedAt,
+    };
   }
 
   /**
-   * Remove attachment
+   * Remove attachment with MinIO deletion
    */
   async removeAttachment(attachmentId: string, letterInstanceId: string, userId: string) {
     // Verify ownership
@@ -360,9 +502,63 @@ export class SubmissionService {
       throw new Error(ERROR_MESSAGES.AUTH.UNAUTHORIZED);
     }
 
+    // Check submission status allows removing attachments
+    const submission = await this.repository.findById(letterInstanceId);
+    if (!submission) {
+      throw new Error(ERROR_MESSAGES.SUBMISSION.NOT_FOUND);
+    }
+
+    if (!this.canEditSubmission(submission.status)) {
+      throw new Error('Tidak dapat menghapus lampiran pada status saat ini');
+    }
+
+    // Get attachment details for MinIO deletion
+    const attachment = await this.repository.getAttachmentById(attachmentId);
+    if (!attachment) {
+      throw new Error('Lampiran tidak ditemukan');
+    }
+
+    // Delete from database first
     await this.repository.removeAttachment(attachmentId, letterInstanceId);
 
+    // Delete from MinIO
+    if (attachment.storagePath) {
+      try {
+        await this.minio.deleteFile(attachment.storagePath);
+      } catch (error) {
+        console.error(`Failed to delete file from MinIO: ${attachment.storagePath}`, error);
+      }
+    }
+
     return { message: 'Lampiran berhasil dihapus' };
+  }
+
+  /**
+   * Get signed URL for attachment download
+   */
+  async getAttachmentUrl(attachmentId: string, letterInstanceId: string, userId: string) {
+    // Verify ownership or authorized role
+    const submission = await this.repository.findById(letterInstanceId);
+    if (!submission) {
+      throw new Error(ERROR_MESSAGES.SUBMISSION.NOT_FOUND);
+    }
+
+    const attachment = await this.repository.getAttachmentById(attachmentId);
+    if (!attachment || attachment.letterInstanceId !== letterInstanceId) {
+      throw new Error('Lampiran tidak ditemukan');
+    }
+
+    if (!attachment.storagePath) {
+      throw new Error('File tidak tersedia');
+    }
+
+    const fileUrl = await this.minio.getFileUrl(attachment.storagePath);
+
+    return {
+      fileName: attachment.fileName,
+      fileUrl,
+      mimeType: attachment.mimeType,
+    };
   }
 
   // ============================================================================

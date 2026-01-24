@@ -111,3 +111,114 @@ export const resubmitSchema = t.Object({
   formData: submissionFormDataSchema,
   signatureConfig: signatureConfigSchema,
 });
+
+// ============================================================================
+// File Upload Constants
+// ============================================================================
+
+export const FILE_UPLOAD_CONFIG = {
+  MAX_FILES: 5,
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB in bytes
+  ALLOWED_MIME_TYPES: [
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+  ] as const,
+  ALLOWED_EXTENSIONS: ['.pdf', '.jpg', '.jpeg', '.png'] as const,
+};
+
+// ============================================================================
+// Create Submission with Attachments Schema (Multipart Form Data)
+// ============================================================================
+
+export const createSubmissionWithFilesSchema = t.Object({
+  letterTypeId: t.String({ minLength: 1, error: 'ID jenis surat wajib diisi' }),
+  
+  nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
+  nim: t.Optional(t.String()),
+  nip: t.Optional(t.String()),
+  email: t.String({ format: 'email', error: 'Email tidak valid' }),
+  noHp: t.String({ minLength: 10, error: 'Nomor HP minimal 10 digit' }),
+  departemen: t.String({ minLength: 1, error: 'Departemen wajib diisi' }),
+  programStudi: t.String({ minLength: 1, error: 'Program Studi wajib diisi' }),
+  
+  jenisSurat: t.Union([t.Literal('SURAT_TUGAS'), t.Literal('SURAT_KEPUTUSAN')], {
+    error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
+  }),
+  keperluan: t.String({ minLength: 10, error: 'Keperluan minimal 10 karakter' }),
+  judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
+  tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi' }),
+  tanggalSelesai: t.Optional(t.String()),
+  durasiAcara: t.Optional(t.String()),
+  lokasiAcara: t.String({ minLength: 3, error: 'Lokasi acara minimal 3 karakter' }),
+  
+  butuhTtdKadep: t.Optional(t.Union([t.Boolean(), t.String()])),
+  
+  targetSigner: t.Union([t.Literal('DEKAN'), t.Literal('WADEK_1'), t.Literal('WADEK_2')], {
+    error: 'Target penandatangan harus DEKAN, WADEK_1, atau WADEK_2',
+  }),
+  requestKadepSign: t.Optional(t.Union([t.Boolean(), t.String()])),
+  requestWadekSign: t.Optional(t.Union([t.Boolean(), t.String()])),
+  
+  catatan: t.Optional(t.String()),
+  
+  attachments: t.Optional(t.Files({
+    maxItems: FILE_UPLOAD_CONFIG.MAX_FILES,
+    error: `Maksimal ${FILE_UPLOAD_CONFIG.MAX_FILES} file`,
+  })),
+});
+
+// ============================================================================
+// Upload Attachment Schema
+// ============================================================================
+
+export const uploadAttachmentSchema = t.Object({
+  file: t.File({
+    error: 'File wajib diupload',
+  }),
+  description: t.Optional(t.String({ maxLength: 500 })),
+});
+
+// ============================================================================
+// File Validation Helper
+// ============================================================================
+
+export function validateFile(file: File): { valid: boolean; error?: string } {
+  if (file.size > FILE_UPLOAD_CONFIG.MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File ${file.name} terlalu besar. Maksimal ${FILE_UPLOAD_CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`,
+    };
+  }
+  
+  const mimeType = file.type.toLowerCase();
+  if (!FILE_UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(mimeType as any)) {
+    return {
+      valid: false,
+      error: `File ${file.name} memiliki tipe yang tidak diizinkan. Hanya PDF, JPG, dan PNG yang diperbolehkan`,
+    };
+  }
+  
+  return { valid: true };
+}
+
+export function validateFiles(files: File[]): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (files.length > FILE_UPLOAD_CONFIG.MAX_FILES) {
+    errors.push(`Maksimal ${FILE_UPLOAD_CONFIG.MAX_FILES} file yang dapat diupload`);
+  }
+  
+  for (const file of files) {
+    const result = validateFile(file);
+    if (!result.valid && result.error) {
+      errors.push(result.error);
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}

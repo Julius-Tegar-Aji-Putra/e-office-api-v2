@@ -4,7 +4,7 @@
  * Path prefix: /api/submission
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { submissionController } from './submission.controller';
 import {
   createSubmissionSchema,
@@ -12,6 +12,8 @@ import {
   submissionQuerySchema,
   submissionIdParamSchema,
   cancelSubmissionSchema,
+  createSubmissionWithFilesSchema,
+  uploadAttachmentSchema,
 } from './submission.validation';
 import { authGuardPlugin } from '../../middlewares/auth';
 
@@ -89,7 +91,49 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     body: createSubmissionSchema,
     detail: {
       summary: 'Create new submission',
-      description: 'Membuat pengajuan surat baru. Hanya untuk role MAHASISWA atau DOSEN',
+      description: 'Membuat pengajuan surat baru tanpa lampiran. Hanya untuk role MAHASISWA atau DOSEN',
+      tags: ['Submission'],
+    },
+  })
+
+  // Route untuk create submission dengan file upload
+  .post('/with-files', async ({ body, user }) => {
+    // Extract files from multipart form-data (field name is 'attachments')
+    const files = body.attachments 
+      ? (Array.isArray(body.attachments) ? body.attachments : [body.attachments]).filter((f: unknown): f is File => f instanceof File)
+      : null;
+    
+    return submissionController.createSubmissionWithFiles(
+      user.id,
+      {
+        letterTypeId: body.letterTypeId,
+        nama: body.nama,
+        nim: body.nim,
+        nip: body.nip,
+        email: body.email,
+        noHp: body.noHp,
+        departemen: body.departemen,
+        programStudi: body.programStudi,
+        jenisSurat: body.jenisSurat,
+        keperluan: body.keperluan,
+        judulAcara: body.judulAcara,
+        tanggalAcara: body.tanggalAcara,
+        tanggalSelesai: body.tanggalSelesai,
+        durasiAcara: body.durasiAcara,
+        lokasiAcara: body.lokasiAcara,
+        butuhTtdKadep: body.butuhTtdKadep,
+        catatan: body.catatan,
+        targetSigner: body.targetSigner,
+        requestKadepSign: body.requestKadepSign,
+        requestWadekSign: body.requestWadekSign,
+      },
+      files
+    );
+  }, {
+    body: createSubmissionWithFilesSchema,
+    detail: {
+      summary: 'Create new submission with files',
+      description: 'Membuat pengajuan surat baru dengan upload lampiran langsung (multipart/form-data). Max 5 files, masing-masing max 5MB. Format: PDF, JPG, PNG',
       tags: ['Submission'],
     },
   })
@@ -122,35 +166,64 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   // Attachments
   // ==========================================================================
 
+  // Upload attachment (multipart/form-data)
   .post('/:id/attachments', async ({ params, body, user }) => {
-    // Note: File upload should be handled by separate endpoint with multipart
-    // This is for registering uploaded file metadata
+    // Validate file exists
+    if (!body.file || !(body.file instanceof File)) {
+      return {
+        success: false,
+        message: 'File lampiran wajib diunggah',
+        statusCode: 400,
+      };
+    }
+    
     return submissionController.addAttachment(
       params.id,
       user.id,
-      {
-        fileName: (body as any).fileName,
-        fileUrl: (body as any).fileUrl,
-        fileSize: (body as any).fileSize,
-        mimeType: (body as any).mimeType,
-      },
-      (body as any).description
+      body.file,
+      body.description
     );
   }, {
     params: submissionIdParamSchema,
+    body: uploadAttachmentSchema,
     detail: {
-      summary: 'Add attachment',
-      description: 'Menambahkan lampiran ke pengajuan. File harus diupload terlebih dahulu ke storage',
+      summary: 'Upload attachment',
+      description: 'Mengunggah dan menambahkan lampiran ke pengajuan (multipart/form-data). Max 5MB, format: PDF, JPG, PNG',
       tags: ['Submission'],
     },
   })
 
+  // Get attachment download URL
+  .get('/:id/attachments/:attachmentId/download', async ({ params, user }) => {
+    return submissionController.getAttachmentDownloadUrl(
+      params.id,
+      params.attachmentId,
+      user.id,
+      []
+    );
+  }, {
+    params: t.Object({
+      id: t.String({ description: 'Letter Instance ID' }),
+      attachmentId: t.String({ description: 'Attachment ID' }),
+    }),
+    detail: {
+      summary: 'Get attachment download URL',
+      description: 'Mendapatkan signed URL untuk download lampiran (valid 1 jam)',
+      tags: ['Submission'],
+    },
+  })
+
+  // Delete attachment
   .delete('/:id/attachments/:attachmentId', async ({ params, user }) => {
     return submissionController.removeAttachment(params.id, params.attachmentId, user.id);
   }, {
+    params: t.Object({
+      id: t.String({ description: 'Letter Instance ID' }),
+      attachmentId: t.String({ description: 'Attachment ID' }),
+    }),
     detail: {
       summary: 'Remove attachment',
-      description: 'Menghapus lampiran dari pengajuan',
+      description: 'Menghapus lampiran dari pengajuan dan storage',
       tags: ['Submission'],
     },
   });

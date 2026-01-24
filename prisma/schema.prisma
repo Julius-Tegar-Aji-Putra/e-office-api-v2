@@ -350,7 +350,9 @@ model LetterAttachment {
   id               String         @id @default(cuid())
   letterInstanceId String
   fileName         String
-  fileUrl          String
+  storageName      String
+  storagePath      String
+  fileUrl          String?
   fileSize         Int?
   mimeType         String?
   description      String?

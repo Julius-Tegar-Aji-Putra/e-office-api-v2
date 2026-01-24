@@ -18,11 +18,12 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('7d'),
   
   // MinIO / Storage
-  MINIO_ENDPOINT: z.string().optional(),
-  MINIO_PORT: z.string().optional(),
-  MINIO_ACCESS_KEY: z.string().optional(),
-  MINIO_SECRET_KEY: z.string().optional(),
+  MINIO_ENDPOINT: z.string().default('localhost'),
+  MINIO_PORT: z.string().default('9000'),
+  MINIO_ACCESS_KEY: z.string().default('minioadmin'),
+  MINIO_SECRET_KEY: z.string().default('minioadmin'),
   MINIO_USE_SSL: z.string().default('false'),
+  MINIO_BUCKET: z.string().default('e-office-attachments'),
   
   // OAuth / SSO
   OAUTH_CLIENT_ID: z.string().optional(),

@@ -65,6 +65,37 @@ export interface UploadAttachmentDTO {
   description?: string;
 }
 
+/**
+ * Multipart form data untuk create submission dengan files
+ * Semua field direpresentasikan flat karena multipart form-data
+ */
+export interface CreateSubmissionMultipartData {
+  letterTypeId: string;
+  // Form data fields (flat)
+  nama: string;
+  nim?: string;
+  nip?: string;
+  email: string;
+  noHp: string;
+  departemen: string;
+  programStudi: string;
+  jenisSurat: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
+  keperluan: string;
+  judulAcara: string;
+  tanggalAcara: string;
+  tanggalSelesai?: string;
+  durasiAcara?: string;
+  lokasiAcara: string;
+  butuhTtdKadep?: boolean | string;
+  catatan?: string;
+  // Signature config fields (flat)
+  targetSigner: 'DEKAN' | 'WADEK_1' | 'WADEK_2';
+  requestKadepSign?: boolean | string;
+  requestWadekSign?: boolean | string;
+  // Files
+  attachments?: File[];
+}
+
 // ============================================================================
 // Response Types
 // ============================================================================

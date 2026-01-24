@@ -8,7 +8,8 @@ import { submissionService, SubmissionService } from './submission.service';
 import { successResponse, errorResponse, paginatedResponse } from '../../shared/utils/response';
 import { HTTP_STATUS } from '../../shared/constants/http-status';
 import { ROLES } from '../../shared/constants/roles';
-import type { CreateSubmissionDTO, SubmissionFilter, SubmissionSort } from './submission.types';
+import { validateFiles, FILE_UPLOAD_CONFIG } from './submission.validation';
+import type { CreateSubmissionDTO, SubmissionFilter, SubmissionSort, CreateSubmissionMultipartData, SignatureConfigDTO } from './submission.types';
 import type { LetterCategory } from '../../generated/prisma/enums';
 
 // ============================================================================
@@ -149,13 +150,81 @@ export class SubmissionController {
 
   /**
    * POST /submission
-   * Create new submission
+   * Create new submission (tanpa lampiran)
    */
   async createSubmission(userId: string, body: CreateSubmissionDTO) {
     try {
       const result = await this.service.createSubmission(userId, body);
       return successResponse('Pengajuan berhasil dibuat', result);
     } catch (error) {
+      return errorResponse(
+        error instanceof Error ? error.message : 'Gagal membuat pengajuan',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }
+
+  /**
+   * POST /submission/with-files
+   * Create new submission dengan upload lampiran
+   * Menerima multipart form-data dengan files
+   */
+  async createSubmissionWithFiles(
+    userId: string,
+    formData: CreateSubmissionMultipartData,
+    files: File[] | null
+  ) {
+    try {
+      // Validasi files jika ada
+      if (files && files.length > 0) {
+        const fileValidation = validateFiles(files);
+        if (!fileValidation.valid) {
+          return errorResponse(
+            fileValidation.errors.join(', '),
+            HTTP_STATUS.BAD_REQUEST
+          );
+        }
+      }
+
+      // Parse boolean values from string (multipart form-data sends everything as string)
+      const parseBool = (val: boolean | string | undefined): boolean => {
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'string') return val.toLowerCase() === 'true';
+        return false;
+      };
+
+      // Construct CreateSubmissionDTO from flat multipart data
+      const dto: CreateSubmissionDTO = {
+        letterTypeId: formData.letterTypeId,
+        formData: {
+          nama: formData.nama,
+          nim: formData.nim,
+          nip: formData.nip,
+          email: formData.email,
+          noHp: formData.noHp,
+          departemen: formData.departemen,
+          programStudi: formData.programStudi,
+          jenisSurat: formData.jenisSurat,
+          keperluan: formData.keperluan,
+          judulAcara: formData.judulAcara,
+          tanggalAcara: formData.tanggalAcara,
+          tanggalSelesai: formData.tanggalSelesai,
+          durasiAcara: formData.durasiAcara,
+          lokasiAcara: formData.lokasiAcara,
+          butuhTtdKadep: parseBool(formData.butuhTtdKadep),
+          catatan: formData.catatan,
+        },
+        signatureConfig: {
+          targetSigner: formData.targetSigner,
+          requestKadepSign: parseBool(formData.requestKadepSign),
+          requestWadekSign: parseBool(formData.requestWadekSign),
+        },
+      };
+
+      const result = await this.service.createSubmission(userId, dto, files || undefined);
+      return successResponse('Pengajuan berhasil dibuat', result);
+    } catch (error) {
+      console.error('Error creating submission with files:', error);
       return errorResponse(
         error instanceof Error ? error.message : 'Gagal membuat pengajuan',
         HTTP_STATUS.BAD_REQUEST
@@ -227,15 +296,25 @@ export class SubmissionController {
 
   /**
    * POST /submission/:id/attachments
-   * Add attachment
+   * Upload dan tambah attachment ke submission
+   * Menerima single file via multipart form-data
    */
   async addAttachment(
     letterInstanceId: string,
     userId: string,
-    file: { fileName: string; fileUrl: string; fileSize?: number; mimeType?: string },
+    file: File,
     description?: string
   ) {
     try {
+      // Validasi file
+      const fileValidation = validateFiles([file]);
+      if (!fileValidation.valid) {
+        return errorResponse(
+          fileValidation.errors.join(', '),
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
       const attachment = await this.service.addAttachment(
         letterInstanceId,
         userId,
@@ -244,6 +323,7 @@ export class SubmissionController {
       );
       return successResponse('Lampiran berhasil ditambahkan', attachment);
     } catch (error) {
+      console.error('Error adding attachment:', error);
       return errorResponse(
         error instanceof Error ? error.message : 'Gagal menambahkan lampiran',
         HTTP_STATUS.BAD_REQUEST
@@ -253,15 +333,54 @@ export class SubmissionController {
 
   /**
    * DELETE /submission/:id/attachments/:attachmentId
-   * Remove attachment
+   * Remove attachment dari submission dan MinIO storage
    */
   async removeAttachment(letterInstanceId: string, attachmentId: string, userId: string) {
     try {
       const result = await this.service.removeAttachment(attachmentId, letterInstanceId, userId);
       return successResponse(result.message);
     } catch (error) {
+      console.error('Error removing attachment:', error);
       return errorResponse(
         error instanceof Error ? error.message : 'Gagal menghapus lampiran',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }
+
+  /**
+   * GET /submission/:id/attachments/:attachmentId/download
+   * Get signed URL untuk download attachment
+   */
+  async getAttachmentDownloadUrl(
+    letterInstanceId: string,
+    attachmentId: string,
+    userId: string,
+    userRoles: string[]
+  ) {
+    try {
+      // Verify access to submission first
+      const viewerRole = this.getPrimaryRole(userRoles);
+      const submission = await this.service.getSubmissionById(letterInstanceId, viewerRole);
+      
+      if (!submission) {
+        return errorResponse('Pengajuan tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+      }
+
+      // Check access - submitter can only access their own
+      if (
+        (viewerRole === ROLES.MAHASISWA || viewerRole === ROLES.DOSEN) &&
+        submission.createdBy.id !== userId
+      ) {
+        return errorResponse('Anda tidak memiliki akses ke lampiran ini', HTTP_STATUS.FORBIDDEN);
+      }
+
+      const result = await this.service.getAttachmentUrl(attachmentId, letterInstanceId, userId);
+      return successResponse('URL download berhasil dibuat', result);
+    } catch (error) {
+      console.error('Error getting attachment URL:', error);
+      return errorResponse(
+        error instanceof Error ? error.message : 'Gagal mendapatkan URL download',
         HTTP_STATUS.BAD_REQUEST
       );
     }

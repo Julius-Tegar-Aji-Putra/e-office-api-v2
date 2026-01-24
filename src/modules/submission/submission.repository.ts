@@ -270,7 +270,9 @@ export class SubmissionRepository {
   async addAttachment(data: {
     letterInstanceId: string;
     fileName: string;
-    fileUrl: string;
+    storageName: string;
+    storagePath: string;
+    fileUrl?: string;
     fileSize?: number;
     mimeType?: string;
     description?: string;
@@ -280,12 +282,52 @@ export class SubmissionRepository {
       data: {
         letterInstanceId: data.letterInstanceId,
         fileName: data.fileName,
+        storageName: data.storageName,
+        storagePath: data.storagePath,
         fileUrl: data.fileUrl,
         fileSize: data.fileSize,
         mimeType: data.mimeType,
         description: data.description,
         uploadedById: data.uploadedById,
       },
+    });
+  }
+
+  /**
+   * Add multiple attachments in transaction
+   */
+  async addAttachments(
+    letterInstanceId: string,
+    attachments: Array<{
+      fileName: string;
+      storageName: string;
+      storagePath: string;
+      fileSize?: number;
+      mimeType?: string;
+      description?: string;
+      uploadedById: string;
+    }>
+  ) {
+    return prisma.letterAttachment.createMany({
+      data: attachments.map((att) => ({
+        letterInstanceId,
+        fileName: att.fileName,
+        storageName: att.storageName,
+        storagePath: att.storagePath,
+        fileSize: att.fileSize,
+        mimeType: att.mimeType,
+        description: att.description,
+        uploadedById: att.uploadedById,
+      })),
+    });
+  }
+
+  /**
+   * Get attachment by ID
+   */
+  async getAttachmentById(id: string) {
+    return prisma.letterAttachment.findUnique({
+      where: { id },
     });
   }
 
