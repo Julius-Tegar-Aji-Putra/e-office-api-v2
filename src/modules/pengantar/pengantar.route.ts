@@ -1,46 +1,177 @@
 /**
- * Pengantar Routes
- * Route definition untuk /pengantar
+ * Pengantar Routes (Elysia)
+ * Route definition untuk modul surat pengantar
+ * Path prefix: /api/pengantar
  */
 
-import { Hono } from 'hono';
-import { PengantarController } from './pengantar.controller';
-import { PengantarService } from './pengantar.service';
-import { PengantarRepository } from './pengantar.repository';
-import { authMiddleware } from '../../shared/middleware/auth.middleware';
-import { roleMiddleware } from '../../shared/middleware/role.middleware';
-import { ROLES, ROLE_GROUPS } from '../../shared/constants/roles';
+import { Elysia } from 'elysia';
+import { pengantarController } from './pengantar.controller';
+import {
+  pengantarQuerySchema,
+  letterIdParamSchema,
+  approveBodySchema,
+  rejectBodySchema,
+  saveDraftBodySchema,
+  signBodySchema
+} from './pengantar.validation';
+import { ROLES } from '../../shared/constants/roles';
 
-const pengantarRoutes = new Hono();
+// ============================================================================
+// Type definitions for context
+// ============================================================================
 
-// Initialize dependencies
-const repository = new PengantarRepository();
-const service = new PengantarService(repository);
-const controller = new PengantarController(service);
+interface AuthUser {
+  id: string;
+  email: string;
+  roles: string[];
+}
 
-// Apply auth middleware
-pengantarRoutes.use('/*', authMiddleware);
+interface AuthStore {
+  user: AuthUser;
+}
 
-// Routes
-pengantarRoutes.get('/', (c) => controller.list(c));
-pengantarRoutes.get('/:id', (c) => controller.getById(c));
+// ============================================================================
+// Pengantar Routes
+// ============================================================================
 
-pengantarRoutes.post(
-  '/:submissionId/generate',
-  roleMiddleware(...ROLE_GROUPS.PRODI_LEADERS),
-  (c) => controller.generateFromProdi(c)
-);
+export const pengantarRoutes = new Elysia({ prefix: '/pengantar' })
+  // ==========================================================================
+  // Queue Endpoints
+  // ==========================================================================
 
-pengantarRoutes.post(
-  '/:id/approve',
-  roleMiddleware(...ROLE_GROUPS.ALL_LEADERS),
-  (c) => controller.approve(c)
-);
+  .get('/kaprodi-queue', async ({ query, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.getKaprodiQueue(user.id, {
+      page: query.page,
+      limit: query.limit,
+      status: query.status as any,
+      search: query.search
+    });
+  }, {
+    query: pengantarQuerySchema,
+    detail: {
+      summary: 'Get Kaprodi approval queue',
+      description: 'Mendapatkan daftar surat yang menunggu approval Kaprodi',
+      tags: ['Pengantar']
+    }
+  })
 
-pengantarRoutes.post(
-  '/:id/reject',
-  roleMiddleware(...ROLE_GROUPS.ALL_LEADERS),
-  (c) => controller.reject(c)
-);
+  .get('/admin-queue', async ({ query, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.getAdminProdiQueue(user.id, {
+      page: query.page,
+      limit: query.limit,
+      status: query.status as any,
+      search: query.search
+    });
+  }, {
+    query: pengantarQuerySchema,
+    detail: {
+      summary: 'Get Admin Prodi drafting queue',
+      description: 'Mendapatkan daftar surat yang menunggu drafting Admin Prodi',
+      tags: ['Pengantar']
+    }
+  })
 
-export { pengantarRoutes };
+  .get('/signature-queue', async ({ query, store }) => {
+    const user = (store as AuthStore).user;
+    // Determine role for signature queue (KAPRODI or KADEP)
+    const signerRole = user.roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    return pengantarController.getSignatureQueue(user.id, signerRole, {
+      page: query.page,
+      limit: query.limit
+    });
+  }, {
+    query: pengantarQuerySchema,
+    detail: {
+      summary: 'Get signature queue',
+      description: 'Mendapatkan daftar surat yang menunggu tanda tangan',
+      tags: ['Pengantar']
+    }
+  })
+
+  // ==========================================================================
+  // Detail Endpoint
+  // ==========================================================================
+
+  .get('/:id', async ({ params, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.getLetterDetail(params.id, user.id, user.roles);
+  }, {
+    params: letterIdParamSchema,
+    detail: {
+      summary: 'Get letter detail',
+      description: 'Mendapatkan detail surat pengantar beserta permissions',
+      tags: ['Pengantar']
+    }
+  })
+
+  // ==========================================================================
+  // Action Endpoints
+  // ==========================================================================
+
+  .post('/:id/approve', async ({ params, body, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.approveSubmission(params.id, body, user.id, ROLES.KAPRODI);
+  }, {
+    params: letterIdParamSchema,
+    body: approveBodySchema,
+    detail: {
+      summary: 'Approve submission',
+      description: 'Kaprodi menyetujui pengajuan surat',
+      tags: ['Pengantar']
+    }
+  })
+
+  .post('/:id/reject', async ({ params, body, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.rejectSubmission(params.id, body, user.id, ROLES.KAPRODI);
+  }, {
+    params: letterIdParamSchema,
+    body: rejectBodySchema,
+    detail: {
+      summary: 'Reject submission',
+      description: 'Kaprodi menolak pengajuan surat',
+      tags: ['Pengantar']
+    }
+  })
+
+  .post('/:id/draft', async ({ params, body, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.saveDraft(params.id, body, user.id, ROLES.ADMIN_PRODI);
+  }, {
+    params: letterIdParamSchema,
+    body: saveDraftBodySchema,
+    detail: {
+      summary: 'Save draft',
+      description: 'Admin Prodi menyimpan draft surat pengantar',
+      tags: ['Pengantar']
+    }
+  })
+
+  .post('/:id/submit-draft', async ({ params, store }) => {
+    const user = (store as AuthStore).user;
+    return pengantarController.submitDraftForSignature(params.id, user.id, ROLES.ADMIN_PRODI);
+  }, {
+    params: letterIdParamSchema,
+    detail: {
+      summary: 'Submit draft for signature',
+      description: 'Admin Prodi mengajukan draft untuk ditandatangani',
+      tags: ['Pengantar']
+    }
+  })
+
+  .post('/:id/sign', async ({ params, body, store }) => {
+    const user = (store as AuthStore).user;
+    // Determine signer role
+    const signerRole = user.roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    return pengantarController.signPengantar(params.id, body, user.id, signerRole);
+  }, {
+    params: letterIdParamSchema,
+    body: signBodySchema,
+    detail: {
+      summary: 'Sign document',
+      description: 'Kaprodi/Kadep menandatangani surat pengantar',
+      tags: ['Pengantar']
+    }
+  });

@@ -1,17 +1,29 @@
-import { PrismaClient } from "@backend/generated/prisma/client.ts";
+/**
+ * Database Client
+ * Prisma client singleton untuk database operations
+ */
+
+import { PrismaClient, Prisma as PrismaNamespace } from "@backend/generated/prisma/client.ts";
 
 const globalForPrisma = globalThis as unknown as {
-	prisma: PrismaClient | undefined;
+	prismaClient: PrismaClient | undefined;
 };
 
-export const Prisma =
-	globalForPrisma.prisma ??
+const prismaClient =
+	globalForPrisma.prismaClient ??
 	new PrismaClient({
-		log: ["query", "info", "warn", "error"],
+		log: process.env.NODE_ENV === 'development' 
+			? ["query", "info", "warn", "error"]
+			: ["error"],
 	});
 
 if (process.env.NODE_ENV !== "production") {
-	globalForPrisma.prisma = Prisma;
+	globalForPrisma.prismaClient = prismaClient;
 }
+
+// Export instance with different aliases
+export const prisma = prismaClient;
+export const db = prismaClient;
+export const Prisma = PrismaNamespace;
 
 export * from "@backend/generated/prisma/client.ts";

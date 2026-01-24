@@ -1,45 +1,225 @@
 /**
  * Legalisasi Controller
- * Controller UPA (finalisasi surat)
+ * HTTP handlers untuk modul UPA (penomoran, stempel, finalisasi)
  */
 
-import { Context } from 'hono';
-import { LegalisasiService } from './legalisasi.service';
-import { successResponse } from '../../shared/utils/response.util';
+import { Context } from 'elysia';
+import { legalisasiService } from './legalisasi.service';
+import { DocumentType } from '../../generated/prisma/client';
 
-export class LegalisasiController {
-  constructor(private legalisasiService: LegalisasiService) {}
+// ============================================================================
+// TYPES
+// ============================================================================
 
-  async listPending(c: Context) {
-    const data = await this.legalisasiService.getPendingLegalisasi();
-    return c.json(successResponse('Berhasil mengambil data pending legalisasi', data));
+interface UserContext {
+  user?: {
+    id: string;
+    role: string;
+    name: string;
+  };
+}
+
+type ControllerContext = Context & UserContext;
+
+// ============================================================================
+// CONTROLLER CLASS
+// ============================================================================
+
+class LegalisasiController {
+  /**
+   * GET /queue - Get UPA processing queue
+   */
+  async getQueue(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const query = ctx.query as any;
+    const params = {
+      page: query.page ? parseInt(query.page) : 1,
+      limit: query.limit ? parseInt(query.limit) : 10,
+      status: query.status,
+      search: query.search
+    };
+
+    const result = await legalisasiService.getUPAQueue(params, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
   }
 
-  async getById(c: Context) {
-    const id = c.req.param('id');
-    const data = await this.legalisasiService.getLegalisasiById(id);
-    return c.json(successResponse('Berhasil mengambil detail legalisasi', data));
+  /**
+   * GET /:id - Get letter detail
+   */
+  async getLetterDetail(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { id } = ctx.params as { id: string };
+    const result = await legalisasiService.getLetterDetail(id, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
   }
 
-  async process(c: Context) {
-    const suratHasilId = c.req.param('suratHasilId');
-    const user = c.get('user');
-    const body = await c.req.json();
-    const data = await this.legalisasiService.processLegalisasi(suratHasilId, user.userId, body);
-    return c.json(successResponse('Legalisasi berhasil diproses', data));
+  /**
+   * GET /recent-numbers/:type - Get recent nomor surat for reference
+   */
+  async getRecentNumbers(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { type } = ctx.params as { type: string };
+    
+    // Validate document type
+    if (!Object.values(DocumentType).includes(type as DocumentType)) {
+      ctx.set.status = 400;
+      return { success: false, error: 'Invalid document type' };
+    }
+
+    const result = await legalisasiService.getRecentNomorSurat(
+      type as DocumentType,
+      user.id,
+      user.role
+    );
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
   }
 
-  async distribute(c: Context) {
-    const id = c.req.param('id');
-    const user = c.get('user');
-    const body = await c.req.json();
-    const data = await this.legalisasiService.distributeSurat(id, user.userId, body);
-    return c.json(successResponse('Surat berhasil didistribusikan', data));
+  /**
+   * POST /:id/assign-number - Assign nomor surat
+   */
+  async assignNumber(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { id } = ctx.params as { id: string };
+    const body = ctx.body as { nomorSurat: string; tanggalSurat: string };
+
+    if (!body.nomorSurat || !body.tanggalSurat) {
+      ctx.set.status = 400;
+      return { success: false, error: 'Missing required fields: nomorSurat, tanggalSurat' };
+    }
+
+    const result = await legalisasiService.assignNomorSurat(
+      {
+        documentId: id,
+        nomorSurat: body.nomorSurat,
+        tanggalSurat: new Date(body.tanggalSurat)
+      },
+      user.id,
+      user.role
+    );
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
   }
 
-  async archive(c: Context) {
-    const id = c.req.param('id');
-    const data = await this.legalisasiService.getArchivedDocuments();
-    return c.json(successResponse('Berhasil mengambil arsip dokumen', data));
+  /**
+   * POST /:id/stamp - Apply stamp to document
+   */
+  async applyStamp(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { id } = ctx.params as { id: string };
+    const result = await legalisasiService.applyStamp(id, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
+  }
+
+  /**
+   * POST /:id/finalize - Finalize document (QR, PDF)
+   */
+  async finalizeDocument(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { id } = ctx.params as { id: string };
+    const body = ctx.body as { qrCodeUrl: string; fileUrl: string };
+
+    if (!body.qrCodeUrl || !body.fileUrl) {
+      ctx.set.status = 400;
+      return { success: false, error: 'Missing required fields: qrCodeUrl, fileUrl' };
+    }
+
+    const result = await legalisasiService.finalizeDocument(
+      {
+        documentId: id,
+        qrCodeUrl: body.qrCodeUrl,
+        fileUrl: body.fileUrl
+      },
+      user.id,
+      user.role
+    );
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
+  }
+
+  /**
+   * GET /:id/tembusan - Get tembusan recipients
+   */
+  async getTembusanRecipients(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { id } = ctx.params as { id: string };
+    const result = await legalisasiService.getTembusanRecipients(id, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
   }
 }
+
+export const legalisasiController = new LegalisasiController();

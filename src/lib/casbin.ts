@@ -1,5 +1,5 @@
 import { newEnforcer, type Enforcer } from "casbin";
-import { Prisma } from "@backend/db/index.ts";
+import { prisma } from "@backend/db/index.ts";
 import path from "node:path";
 
 let enforcer: Enforcer | null = null;
@@ -19,7 +19,7 @@ export async function getEnforcer(): Promise<Enforcer> {
 // Sync policies from Prisma database to Casbin
 async function syncPoliciesFromDatabase(enforcer: Enforcer) {
 	// Get all role permissions from database
-	const rolePermissions = await Prisma.rolePermission.findMany({
+	const rolePermissions = await prisma.rolePermission.findMany({
 		include: {
 			role: true,
 			permission: true,
@@ -36,7 +36,7 @@ async function syncPoliciesFromDatabase(enforcer: Enforcer) {
 	}
 
 	// Get all user roles from database
-	const userRoles = await Prisma.userRole.findMany({
+	const userRoles = await prisma.userRole.findMany({
 		include: {
 			user: true,
 			role: true,

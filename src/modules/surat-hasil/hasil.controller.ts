@@ -1,46 +1,150 @@
 /**
- * Hasil Controller
- * Controller untuk surat hasil & tanda tangan
+ * Surat Hasil Controller
+ * HTTP handler untuk modul drafting SK/ST
  */
 
-import { Context } from 'hono';
-import { HasilService } from './hasil.service';
-import { successResponse } from '../../shared/utils/response.util';
+import { hasilService, CreateDraftServiceInput, UpdateDraftServiceInput } from './hasil.service';
+import { HasilListParams } from './hasil.repository';
+import { successResponse, errorResponse } from '../../shared/utils/response';
 
-export class HasilController {
-  constructor(private hasilService: HasilService) {}
+// Helper to extract error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Terjadi kesalahan';
+}
 
-  async list(c: Context) {
-    const user = c.get('user');
-    const data = await this.hasilService.getSuratHasilList(user);
-    return c.json(successResponse('Berhasil mengambil data surat hasil', data));
+// ============================================================================
+// CONTROLLER CLASS
+// ============================================================================
+
+class HasilController {
+  /**
+   * GET /surat-hasil/queue
+   * Get drafting queue for staff
+   */
+  async getDraftingQueue(userId: string, userRoles: string[], params: HasilListParams) {
+    try {
+      const result = await hasilService.getDraftingQueue(userId, userRoles, params);
+      return successResponse('Berhasil mengambil antrian drafting', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
   }
 
-  async getById(c: Context) {
-    const id = c.req.param('id');
-    const data = await this.hasilService.getSuratHasilById(id);
-    return c.json(successResponse('Berhasil mengambil detail surat hasil', data));
+  /**
+   * GET /surat-hasil/my-drafts
+   * Get letters drafted by current user
+   */
+  async getMyDraftedLetters(userId: string, params: HasilListParams) {
+    try {
+      const result = await hasilService.getMyDraftedLetters(userId, params);
+      return successResponse('Berhasil mengambil daftar draft', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
   }
 
-  async generate(c: Context) {
-    const submissionId = c.req.param('submissionId');
-    const user = c.get('user');
-    const body = await c.req.json();
-    const data = await this.hasilService.generateSuratHasil(submissionId, user.userId, body);
-    return c.json(successResponse('Surat hasil berhasil digenerate', data), 201);
+  /**
+   * GET /surat-hasil/:id
+   * Get letter detail for drafting
+   */
+  async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
+    try {
+      const result = await hasilService.getLetterDetail(letterId, userId, userRoles);
+      return successResponse('Berhasil mengambil detail surat', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
   }
 
-  async sign(c: Context) {
-    const id = c.req.param('id');
-    const user = c.get('user');
-    const body = await c.req.json();
-    const data = await this.hasilService.signDocument(id, user.userId, body);
-    return c.json(successResponse('Dokumen berhasil ditandatangani', data));
+  /**
+   * POST /surat-hasil/:id/draft
+   * Create new SK/ST draft
+   */
+  async createDraft(
+    letterId: string,
+    body: {
+      documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
+      content: Record<string, unknown>;
+      tembusan?: string[];
+      perihal?: string;
+      signatories: Array<{
+        signerRole: string;
+        signerName: string;
+        signerNip?: string;
+        order: number;
+      }>;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const input: CreateDraftServiceInput = {
+        letterId,
+        documentType: body.documentType,
+        content: body.content,
+        tembusan: body.tembusan,
+        perihal: body.perihal,
+        signatories: body.signatories
+      };
+      const result = await hasilService.createDraft(input, userId, userRole);
+      return successResponse('Draft berhasil dibuat', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
   }
 
-  async getSignatureQueue(c: Context) {
-    const id = c.req.param('id');
-    const data = await this.hasilService.getSignatureQueue(id);
-    return c.json(successResponse('Berhasil mengambil antrian tanda tangan', data));
+  /**
+   * PUT /surat-hasil/document/:documentId
+   * Update existing draft
+   */
+  async updateDraft(
+    documentId: string,
+    body: {
+      content?: Record<string, unknown>;
+      tembusan?: string[];
+      perihal?: string;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const input: UpdateDraftServiceInput = {
+        documentId,
+        content: body.content,
+        tembusan: body.tembusan,
+        perihal: body.perihal
+      };
+      const result = await hasilService.updateDraft(input, userId, userRole);
+      return successResponse('Draft berhasil diperbarui', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * POST /surat-hasil/:id/submit
+   * Submit draft for verification
+   */
+  async submitForVerification(
+    letterId: string,
+    body: { targetSupervisor?: 'AKADEMIK' | 'SUMBER_DAYA' },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.submitForVerification(
+        letterId,
+        userId,
+        userRole,
+        body.targetSupervisor
+      );
+      return successResponse('Draft berhasil diajukan untuk verifikasi', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
   }
 }
+
+export const hasilController = new HasilController();

@@ -1,21 +1,59 @@
 /**
- * Disposisi Validation
- * Validasi target & jenis disposisi
+ * Disposisi Validation Schemas
  */
 
-import { z } from 'zod';
+import { t } from 'elysia';
 
-export const createDisposisiSchema = z.object({
-  submissionId: z.string().uuid(),
-  targetUserId: z.string().uuid(),
-  message: z.string().min(5, 'Pesan disposisi minimal 5 karakter'),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+// ============================================================================
+// QUERY SCHEMAS
+// ============================================================================
+
+export const disposisiQuerySchema = t.Object({
+  page: t.Optional(t.Numeric({ minimum: 1, default: 1 })),
+  limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
+  status: t.Optional(t.String()),
+  category: t.Optional(t.Union([
+    t.Literal('AKADEMIK'),
+    t.Literal('SUMBER_DAYA'),
+    t.Literal('UMUM')
+  ])),
+  search: t.Optional(t.String())
 });
 
-export const processDisposisiSchema = z.object({
-  action: z.enum(['accept', 'reject']),
-  notes: z.string().optional(),
+// ============================================================================
+// PARAM SCHEMAS
+// ============================================================================
+
+export const letterIdParamSchema = t.Object({
+  id: t.String({ minLength: 1 })
 });
 
-export type CreateDisposisiInput = z.infer<typeof createDisposisiSchema>;
-export type ProcessDisposisiInput = z.infer<typeof processDisposisiSchema>;
+export const roleParamSchema = t.Object({
+  role: t.String({ minLength: 1 })
+});
+
+// ============================================================================
+// BODY SCHEMAS
+// ============================================================================
+
+export const categorizeBodySchema = t.Object({
+  category: t.Union([
+    t.Literal('AKADEMIK'),
+    t.Literal('SUMBER_DAYA'),
+    t.Literal('UMUM')
+  ], { error: 'Kategori harus AKADEMIK, SUMBER_DAYA, atau UMUM' })
+});
+
+export const forwardBodySchema = t.Object({
+  targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
+  notes: t.Optional(t.String())
+});
+
+export const completeBodySchema = t.Object({
+  notes: t.String({ minLength: 1, error: 'Catatan wajib diisi' })
+});
+
+export const returnBodySchema = t.Object({
+  targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
+  reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' })
+});

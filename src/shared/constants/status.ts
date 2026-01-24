@@ -40,3 +40,28 @@ export const SIGNATURE_STATUS = {
 } as const;
 
 export type SignatureStatus = typeof SIGNATURE_STATUS[keyof typeof SIGNATURE_STATUS];
+
+/* ---------- Legacy aliases for dash.ts ---------- */
+export const STATUS = SUBMISSION_STATUS;
+
+export const STATUS_DISPLAY: Record<string, string> = {
+  [SUBMISSION_STATUS.DRAFT]: 'Draft',
+  [SUBMISSION_STATUS.SUBMITTED]: 'Diajukan',
+  [SUBMISSION_STATUS.PRODI_REVIEW]: 'Review Prodi',
+  [SUBMISSION_STATUS.PRODI_APPROVED]: 'Disetujui Prodi',
+  [SUBMISSION_STATUS.PRODI_REJECTED]: 'Ditolak Prodi',
+  [SUBMISSION_STATUS.DEPT_REVIEW]: 'Review Departemen',
+  [SUBMISSION_STATUS.DEPT_APPROVED]: 'Disetujui Departemen',
+  [SUBMISSION_STATUS.DEPT_REJECTED]: 'Ditolak Departemen',
+  [SUBMISSION_STATUS.FAKULTAS_REVIEW]: 'Review Fakultas',
+  [SUBMISSION_STATUS.FAKULTAS_APPROVED]: 'Disetujui Fakultas',
+  [SUBMISSION_STATUS.FAKULTAS_REJECTED]: 'Ditolak Fakultas',
+  [SUBMISSION_STATUS.SIGNING]: 'Proses TTD',
+  [SUBMISSION_STATUS.LEGALISASI]: 'Legalisasi',
+  [SUBMISSION_STATUS.COMPLETED]: 'Selesai',
+  [SUBMISSION_STATUS.CANCELLED]: 'Dibatalkan',
+};
+
+export const getDisplayStatus = (status: string): string => {
+  return STATUS_DISPLAY[status] || status;
+};

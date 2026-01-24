@@ -1,10 +1,11 @@
 /**
  * Routes Registry
  * Central route registry - Menggabungkan semua module routes
+ * Framework: Elysia
  * NO business logic here, hanya registrasi routes
  */
 
-import { Hono } from 'hono';
+import { Elysia } from 'elysia';
 
 // Import module routes
 import { submissionRoutes } from './modules/submission/submission.route';
@@ -12,13 +13,13 @@ import { pengantarRoutes } from './modules/pengantar/pengantar.route';
 import { disposisiRoutes } from './modules/disposisi/disposisi.route';
 import { leadershipRoutes } from './modules/leadership/leadership.route';
 import { hasilRoutes } from './modules/surat-hasil/hasil.route';
-import { legalisasiRoutes } from './modules/legalisasi/legalisasi.route';
+import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
 
-// Import existing routes (backward compatibility)
-// NOTE: Routes lama masih menggunakan Elysia, perlu dimigrasi ke Hono
-// Sementara di-comment untuk menghindari type errors
+// Import existing routes
 // import dashRoutes from './routes/dash';
-// import meRoutes from './routes/me';
+import meRoutes from './routes/me';
+
+// Import master routes - disabled for now
 // import masterDepartemenRoutes from './routes/master/departemen';
 // import masterMahasiswaRoutes from './routes/master/mahasiswa';
 // import masterPegawaiRoutes from './routes/master/pegawai';
@@ -28,42 +29,87 @@ import { legalisasiRoutes } from './modules/legalisasi/legalisasi.route';
 // import masterSuratTemplateRoutes from './routes/master/suratTemplate';
 // import masterSuratTypeRoutes from './routes/master/suratType';
 // import masterUserRoutes from './routes/master/user';
-// import publicRegisterRoutes from './routes/public/register';
-// import publicSignInRoutes from './routes/public/sign-in';
+
+// Import public routes
+import publicRegisterRoutes from './routes/public/register';
+import publicSignInRoutes from './routes/public/sign-in';
 // import publicSsoCallbackRoutes from './routes/public/auth/sso/callback';
 
-export function registerRoutes(app: Hono) {
-  // Public routes (no auth required)
-  // TODO: Migrate old Elysia routes to Hono
-  // app.route('/public/register', publicRegisterRoutes);
-  // app.route('/public/sign-in', publicSignInRoutes);
-  // app.route('/public/auth/sso/callback', publicSsoCallbackRoutes);
+// ============================================================================
+// ROUTES REGISTRY
+// ============================================================================
 
-  // Protected routes - New modular structure
-  app.route('/api/submission', submissionRoutes);
-  app.route('/api/pengantar', pengantarRoutes);
-  app.route('/api/disposisi', disposisiRoutes);
-  app.route('/api/leadership', leadershipRoutes);
-  app.route('/api/surat-hasil', hasilRoutes);
-  app.route('/api/legalisasi', legalisasiRoutes);
+export function createApiRoutes() {
+  return new Elysia()
+    // Health check
+    .get('/api/health', () => ({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: '2.0.0',
+    }))
 
-  // Protected routes - Legacy/Existing structure
-  // TODO: Migrate old Elysia routes to Hono structure
-  // app.route('/api/dash', dashRoutes);
-  // app.route('/api/me', meRoutes);
-  
-  // Master data routes
-  // TODO: Create new Hono-based master data modules
-  // app.route('/api/master/departemen', masterDepartemenRoutes);
-  // app.route('/api/master/mahasiswa', masterMahasiswaRoutes);
-  // app.route('/api/master/pegawai', masterPegawaiRoutes);
-  // app.route('/api/master/permission', masterPermissionRoutes);
-  // app.route('/api/master/prodi', masterProdiRoutes);
-  // app.route('/api/master/role', masterRoleRoutes);
-  // app.route('/api/master/surat-template', masterSuratTemplateRoutes);
-  // app.route('/api/master/surat-type', masterSuratTypeRoutes);
-  // app.route('/api/master/user', masterUserRoutes);
+    // =========================================================================
+    // MODULE ROUTES (New Implementation)
+    // =========================================================================
 
-  // Health check
-  app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+    // Module A: PENGAJUAN (Submission)
+    .group('/api', (api) => api.use(submissionRoutes))
+
+    // Module B: SURAT PENGANTAR
+    .use(pengantarRoutes)
+
+    // Module C: DISPOSISI
+    .use(disposisiRoutes)
+
+    // Module D: SURAT HASIL
+    .use(hasilRoutes)
+
+    // Module E: LEADERSHIP (Verification & Signing)
+    .use(leadershipRoutes)
+
+    // Module F: LEGALISASI (UPA Finishing)
+    .use(legalisasiRoute)
+
+    // =========================================================================
+    // DASHBOARD ROUTES
+    // =========================================================================
+    // .use(dashRoutes)
+    .use(meRoutes);
+
+    // =========================================================================
+    // MASTER DATA ROUTES - disabled for now
+    // =========================================================================
+    // .group('/api/master', (master) =>
+    //   master
+    //     .use(masterDepartemenRoutes)
+    //     .use(masterMahasiswaRoutes)
+    //     .use(masterPegawaiRoutes)
+    //     .use(masterPermissionRoutes)
+    //     .use(masterProdiRoutes)
+    //     .use(masterRoleRoutes)
+    //     .use(masterSuratTemplateRoutes)
+    //     .use(masterSuratTypeRoutes)
+    //     .use(masterUserRoutes)
+    // );
+}
+
+export function createPublicRoutes() {
+  return new Elysia()
+    // Public routes (no auth required)
+    .group('/public', (pub) => 
+      pub
+        .use(publicRegisterRoutes)
+        .use(publicSignInRoutes)
+    );
+    // .use(publicSsoCallbackRoutes);
+}
+
+// ============================================================================
+// REGISTER ALL ROUTES
+// ============================================================================
+
+export function registerRoutes(app: Elysia) {
+  return app
+    .use(createPublicRoutes())
+    .use(createApiRoutes());
 }

@@ -1,78 +1,134 @@
 /**
  * Application Setup
- * Inisialisasi aplikasi (Hono), registrasi middleware global & routes
+ * Inisialisasi aplikasi (Elysia), registrasi middleware global & routes
+ * Framework: Elysia
  */
 
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { prettyJSON } from 'hono/pretty-json';
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
+import { swagger } from '@elysiajs/swagger';
 import { env } from './config/env';
-import { registerRoutes } from './routes';
-import { errorMiddleware } from './shared/middleware/error.middleware';
+// TODO: Re-enable when routes are fixed
+// import { registerRoutes } from './routes';
 import './types'; // Import global type declarations
 
-// Create Hono app instance
-const app = new Hono();
-
 // ============================================
-// GLOBAL MIDDLEWARE
+// CREATE ELYSIA APP
 // ============================================
 
-// Request logging (development only)
-if (env.NODE_ENV === 'development') {
-  app.use('*', logger());
-  app.use('*', prettyJSON());
-}
+const app = new Elysia()
+  // ==========================================
+  // SWAGGER DOCUMENTATION
+  // ==========================================
+  .use(
+    swagger({
+      documentation: {
+        info: {
+          title: 'E-Office ST/SK Dekan API',
+          version: '2.0.0',
+          description: 'API untuk sistem E-Office Surat Tugas/Keputusan Dekan',
+        },
+        tags: [
+          { name: 'Auth', description: 'Authentication endpoints' },
+          { name: 'Dashboard', description: 'Dashboard endpoints' },
+          { name: 'Submission', description: 'Pengajuan surat endpoints' },
+          { name: 'Pengantar', description: 'Surat pengantar endpoints' },
+          { name: 'Disposisi', description: 'Disposisi fakultas endpoints' },
+          { name: 'Surat Hasil', description: 'Drafting surat tugas/keputusan' },
+          { name: 'Leadership', description: 'Verifikasi & tanda tangan pejabat' },
+          { name: 'Legalisasi', description: 'UPA processing endpoints' },
+          { name: 'Master', description: 'Master data endpoints' },
+        ],
+      },
+      path: '/docs',
+    })
+  )
 
-// CORS configuration
-app.use(
-  '*',
-  cors({
-    origin: ['http://localhost:3001', 'http://localhost:3000'], // Add your frontend URLs
-    credentials: true,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+  // ==========================================
+  // CORS CONFIGURATION
+  // ==========================================
+  .use(
+    cors({
+      origin: env.NODE_ENV === 'production' 
+        ? ['https://e-office.fti.uajy.ac.id']
+        : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    })
+  )
+
+  // ==========================================
+  // REQUEST LOGGING (Development)
+  // ==========================================
+  .onRequest(({ request }) => {
+    if (env.NODE_ENV === 'development') {
+      console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
+    }
   })
-);
 
-// Custom context middleware (untuk attach user info, dll)
-app.use('*', async (c, next) => {
-  // Add request ID for tracing
-  c.set('requestId', crypto.randomUUID());
-  c.set('requestTime', Date.now());
-  
-  await next();
-  
-  // Log response time
-  const responseTime = Date.now() - c.get('requestTime');
-  c.header('X-Response-Time', `${responseTime}ms`);
-});
+  // ==========================================
+  // RESPONSE TIMING
+  // ==========================================
+  .derive(({ request }) => ({
+    requestId: crypto.randomUUID(),
+    requestTime: Date.now(),
+  }))
+  .onAfterHandle(({ set, requestTime }) => {
+    const responseTime = Date.now() - (requestTime || Date.now());
+    set.headers['X-Response-Time'] = `${responseTime}ms`;
+  })
+
+  // ==========================================
+  // HEALTH CHECK
+  // ==========================================
+  .get('/health', () => ({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0',
+    environment: env.NODE_ENV,
+  }))
+
+  // ==========================================
+  // 404 HANDLER
+  // ==========================================
+  .onError(({ code, error, path, set }) => {
+    if (code === 'NOT_FOUND') {
+      set.status = 404;
+      return {
+        success: false,
+        error: 'Not Found',
+        message: 'The requested resource was not found',
+        path,
+      };
+    }
+
+    // Log errors in development
+    if (env.NODE_ENV === 'development') {
+      console.error('Error:', error);
+    }
+
+    // Return generic error response
+    const errorStatus = typeof error === 'object' && error !== null && 'status' in error 
+      ? (error as { status: number }).status 
+      : 500;
+    set.status = errorStatus;
+    
+    const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+      ? (error as { message: string }).message
+      : 'Internal Server Error';
+    
+    return {
+      success: false,
+      error: code,
+      message: errorMessage,
+    };
+  });
 
 // ============================================
-// ROUTE REGISTRATION
+// REGISTER ALL ROUTES
 // ============================================
-registerRoutes(app);
-
-// ============================================
-// 404 HANDLER
-// ============================================
-app.notFound((c) => {
-  return c.json(
-    {
-      error: 'Not Found',
-      message: 'The requested resource was not found',
-      path: c.req.path,
-    },
-    404
-  );
-});
-
-// ============================================
-// GLOBAL ERROR HANDLER
-// ============================================
-app.onError((err, c) => {
-  return errorMiddleware(err, c);
-});
+// TODO: Re-enable when routes are fixed
+// registerRoutes(app);
 
 export default app;

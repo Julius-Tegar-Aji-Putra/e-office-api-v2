@@ -1,23 +1,58 @@
 /**
- * Leadership Validation
- * Validasi aksi pimpinan
+ * Leadership Validation Schemas
  */
 
-import { z } from 'zod';
+import { t } from 'elysia';
 
-export const approveSubmissionSchema = z.object({
-  notes: z.string().optional(),
+// ============================================================================
+// QUERY SCHEMAS
+// ============================================================================
+
+export const leadershipQuerySchema = t.Object({
+  page: t.Optional(t.Numeric({ minimum: 1, default: 1 })),
+  limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
+  status: t.Optional(t.String()),
+  category: t.Optional(t.Union([
+    t.Literal('AKADEMIK'),
+    t.Literal('SUMBER_DAYA'),
+    t.Literal('UMUM')
+  ])),
+  search: t.Optional(t.String())
 });
 
-export const rejectSubmissionSchema = z.object({
-  reason: z.string().min(10, 'Alasan penolakan minimal 10 karakter'),
+// ============================================================================
+// PARAM SCHEMAS
+// ============================================================================
+
+export const letterIdParamSchema = t.Object({
+  id: t.String({ minLength: 1 })
 });
 
-export const redisposeSubmissionSchema = z.object({
-  targetUserId: z.string().uuid(),
-  message: z.string().min(5, 'Pesan disposisi minimal 5 karakter'),
+export const documentIdParamSchema = t.Object({
+  documentId: t.String({ minLength: 1 })
 });
 
-export type ApproveSubmissionInput = z.infer<typeof approveSubmissionSchema>;
-export type RejectSubmissionInput = z.infer<typeof rejectSubmissionSchema>;
-export type RedisposeSubmissionInput = z.infer<typeof redisposeSubmissionSchema>;
+// ============================================================================
+// BODY SCHEMAS
+// ============================================================================
+
+export const verifyBodySchema = t.Object({
+  notes: t.Optional(t.String()),
+  nextTargets: t.Optional(t.Array(t.String())) // For UMUM multi-select
+});
+
+export const signBodySchema = t.Object({
+  signatureUrl: t.String({ minLength: 1, error: 'URL tanda tangan wajib diisi' }),
+  signerName: t.String({ minLength: 1, error: 'Nama penandatangan wajib diisi' }),
+  signerNip: t.Optional(t.String()),
+  notes: t.Optional(t.String())
+});
+
+export const returnBodySchema = t.Object({
+  targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
+  reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' })
+});
+
+export const updateDraftBodySchema = t.Object({
+  content: t.Record(t.String(), t.Any())
+});

@@ -91,3 +91,7 @@ export const requirePermission = (resource: string, action: string) => ({
 export const requireRole = (role: string) => ({
 	role: { requiredRole: role },
 });
+
+/* ---------- legacy aliases ---------- */
+export const authMiddleware = authGuardPlugin;
+export const requireAuth = authGuardPlugin;

@@ -1,626 +1,1231 @@
-import { Prisma } from "@backend/db/index.ts";
-import { randomBytes, scryptSync } from "crypto";
+import { PrismaClient } from '../generated/prisma/client';
+import { 
+  LetterCategory, 
+  LetterStatus, 
+  DocumentType,
+  LogAction,
+  Priority,
+  Jenjang
+} from '../generated/prisma/enums';
+import { randomUUID } from 'crypto';
 
-import { auth } from "@backend/lib/auth.ts";
+const prisma = new PrismaClient();
+
+// ============================================================================
+// HELPER & CONSTANTS
+// ============================================================================
+const DEFAULT_PASSWORD = "password1234"; // Hashed by Better-Auth in production
+
+// Role constants sesuai Prompting.md
+const ROLES = {
+  SUPERADMIN: 'SUPERADMIN',
+  MAHASISWA: 'MAHASISWA',
+  DOSEN: 'DOSEN',
+  KAPRODI: 'KAPRODI',
+  ADMIN_PRODI: 'ADMIN_PRODI',
+  KADEP: 'KADEP',
+  ADMIN_FAKULTAS: 'ADMIN_FAKULTAS',
+  DEKAN: 'DEKAN',
+  WADEK_1: 'WADEK_1',
+  WADEK_2: 'WADEK_2',
+  MANAJER_TU: 'MANAJER_TU',
+  SUPERVISOR_AKADEMIK: 'SUPERVISOR_AKADEMIK',
+  SUPERVISOR_SUMBER_DAYA: 'SUPERVISOR_SUMBER_DAYA',
+  STAF_AKADEMIK: 'STAF_AKADEMIK',
+  STAF_SUMBER_DAYA: 'STAF_SUMBER_DAYA',
+  UPA: 'UPA'
+} as const;
 
 async function main() {
-	console.log("Starting database seed...");
+  console.log('🚀 Starting E-Office V2 Seeding...');
+  console.log('━'.repeat(60));
 
-	// "pemohon"
-	// "supervisor akademik"
-	// "supervisor kemahasiswaan"
-	// "petugas tu"
-	// "dekan"
-	// "wakil dekan 1"
-	// "wakil dekan 2"
-	// "manajer tu"
-	// "petugas akademik"
-	// "upa"
-	// "supervisor sumberdaya"
-	// "prodi"
-	// "dosen pembimbing"
-	// "dosen koordinator"
-	// "ketua prodi"
-	// "admin departemen"
-	// "ketua departemen"
-	// "pegawai ukt"
-	// "supervisor sumberdaya"
-	// "superadmin"
-	// Roles
-	const superAdminRole = await Prisma.role.upsert({
-		create: {
-			name: "superadmin",
-		},
-		update: {},
-		where: {
-			name: "superadmin",
-		},
-	});
+  // ====================================================================
+  // 1. CLEANUP DATABASE
+  // ====================================================================
+  console.log('🧹 Cleaning up database...');
+  
+  const deleteTables = [
+    prisma.letterLog.deleteMany(),
+    prisma.documentSignature.deleteMany(),
+    prisma.letterDocument.deleteMany(),
+    prisma.letterAttachment.deleteMany(),
+    prisma.letterInstance.deleteMany(),
+    prisma.letterTemplate.deleteMany(),
+    prisma.letterType.deleteMany(),
+    prisma.savedSignature.deleteMany(),
+    prisma.session.deleteMany(),
+    prisma.account.deleteMany(),
+    prisma.userRole.deleteMany(),
+    prisma.rolePermission.deleteMany(),
+    prisma.permission.deleteMany(),
+    prisma.mahasiswa.deleteMany(),
+    prisma.pegawai.deleteMany(),
+    prisma.user.deleteMany(),
+    prisma.programStudi.deleteMany(),
+    prisma.departemen.deleteMany(),
+    prisma.role.deleteMany(),
+  ];
 
-	const mahasiswaRole = await Prisma.role.upsert({
-		create: {
-			name: "mahasiswa",
-		},
-		update: {},
-		where: {
-			name: "mahasiswa",
-		},
-	});
+  await prisma.$transaction(deleteTables);
+  console.log('✨ Database cleaned!\n');
 
-	const supervisorAkademikRole = await Prisma.role.upsert({
-		create: {
-			name: "supervisor_akademik",
-		},
-		update: {},
-		where: {
-			name: "supervisor_akademik",
-		},
-	});
+  // ====================================================================
+  // 2. CREATE ROLES (Sesuai Prompting.md)
+  // ====================================================================
+  console.log('📋 Creating Roles...');
+  
+  const roleList = Object.values(ROLES);
+  const roleMap = new Map<string, string>();
 
-	const supervisorKemahasiswaanRole = await Prisma.role.upsert({
-		create: {
-			name: "supervisor_kemahasiswaan",
-		},
-		update: {},
-		where: {
-			name: "supervisor_kemahasiswaan",
-		},
-	});
+  for (const roleName of roleList) {
+    const role = await prisma.role.create({ 
+      data: { 
+        name: roleName,
+        description: getRoleDescription(roleName)
+      } 
+    });
+    roleMap.set(roleName, role.id);
+    console.log(`   ✓ ${roleName}`);
+  }
 
-	const petugasTURole = await Prisma.role.upsert({
-		create: {
-			name: "petugas_tu",
-		},
-		update: {},
-		where: {
-			name: "petugas_tu",
-		},
-	});
+  // ====================================================================
+  // 3. CREATE PERMISSIONS
+  // ====================================================================
+  console.log('\n🔐 Creating Permissions...');
+  
+  const permissions = [
+    // Letter permissions
+    { resource: 'letter', action: 'create' },
+    { resource: 'letter', action: 'read' },
+    { resource: 'letter', action: 'update' },
+    { resource: 'letter', action: 'delete' },
+    { resource: 'letter', action: 'approve' },
+    { resource: 'letter', action: 'reject' },
+    { resource: 'letter', action: 'sign' },
+    { resource: 'letter', action: 'disposition' },
+    { resource: 'letter', action: 'verify' },
+    // Dashboard permissions
+    { resource: 'dashboard', action: 'view_all' },
+    { resource: 'dashboard', action: 'view_own' },
+    { resource: 'dashboard', action: 'view_department' },
+    { resource: 'dashboard', action: 'view_faculty' },
+    // Master data
+    { resource: 'master', action: 'manage' },
+  ];
 
-	const dekanRole = await Prisma.role.upsert({
-		create: {
-			name: "dekan",
-		},
-		update: {},
-		where: {
-			name: "dekan",
-		},
-	});
+  for (const p of permissions) {
+    await prisma.permission.create({ data: p });
+  }
+  console.log(`   ✓ Created ${permissions.length} permissions`);
 
-	const wakilDekan1Role = await Prisma.role.upsert({
-		create: {
-			name: "wakil_dekan_1",
-		},
-		update: {},
-		where: {
-			name: "wakil_dekan_1",
-		},
-	});
+  // ====================================================================
+  // 4. CREATE ACADEMIC STRUCTURE (Departemen & Prodi)
+  // ====================================================================
+  console.log('\n🏫 Creating Academic Structure...');
+  
+  // -- Departemen FSM --
+  const deptMap = new Map<string, string>();
+  const departments = [
+    { name: 'Departemen Matematika', code: 'MATH' },
+    { name: 'Departemen Biologi', code: 'BIO' },
+    { name: 'Departemen Kimia', code: 'KIM' },
+    { name: 'Departemen Fisika', code: 'FIS' },
+    { name: 'Departemen Statistika', code: 'STAT' },
+    { name: 'Departemen Informatika', code: 'IF' },
+    { name: 'Fakultas Sains dan Matematika', code: 'FSM' } // For faculty-level staff
+  ];
 
-	const wakilDekan2Role = await Prisma.role.upsert({
-		create: {
-			name: "wakil_dekan_2",
-		},
-		update: {},
-		where: {
-			name: "wakil_dekan_2",
-		},
-	});
+  for (const d of departments) {
+    const dept = await prisma.departemen.create({ data: d });
+    deptMap.set(d.code, dept.id);
+    console.log(`   ✓ Dept: ${d.name}`);
+  }
 
-	const managerTURole = await Prisma.role.upsert({
-		create: {
-			name: "manager_tu",
-		},
-		update: {},
-		where: {
-			name: "manager_tu",
-		},
-	});
+  // -- Program Studi --
+  const prodiMap = new Map<string, string>();
+  const programStudi = [
+    { name: 'S1 Matematika', code: 'S1-MATH', dept: 'MATH', jenjang: Jenjang.S1 },
+    { name: 'S2 Matematika', code: 'S2-MATH', dept: 'MATH', jenjang: Jenjang.S2 },
+    { name: 'S1 Biologi', code: 'S1-BIO', dept: 'BIO', jenjang: Jenjang.S1 },
+    { name: 'S1 Bioteknologi', code: 'S1-BIOTEK', dept: 'BIO', jenjang: Jenjang.S1 },
+    { name: 'S1 Kimia', code: 'S1-KIM', dept: 'KIM', jenjang: Jenjang.S1 },
+    { name: 'S1 Fisika', code: 'S1-FIS', dept: 'FIS', jenjang: Jenjang.S1 },
+    { name: 'S2 Fisika', code: 'S2-FIS', dept: 'FIS', jenjang: Jenjang.S2 },
+    { name: 'S1 Statistika', code: 'S1-STAT', dept: 'STAT', jenjang: Jenjang.S1 },
+    { name: 'S1 Informatika', code: 'S1-IF', dept: 'IF', jenjang: Jenjang.S1 },
+    { name: 'S2 Informatika', code: 'S2-IF', dept: 'IF', jenjang: Jenjang.S2 },
+    { name: 'Fakultas', code: 'FAKULTAS', dept: 'FSM', jenjang: Jenjang.S1 } // Placeholder for faculty staff
+  ];
 
-	const petugasAkademikRole = await Prisma.role.upsert({
-		create: {
-			name: "petugas_akademik",
-		},
-		update: {},
-		where: {
-			name: "petugas_akademik",
-		},
-	});
+  for (const p of programStudi) {
+    const prodi = await prisma.programStudi.create({
+      data: {
+        name: p.name,
+        code: p.code,
+        jenjang: p.jenjang,
+        departemenId: deptMap.get(p.dept)!
+      }
+    });
+    prodiMap.set(p.code, prodi.id);
+  }
+  console.log(`   ✓ Created ${programStudi.length} program studi`);
 
-	const upaRole = await Prisma.role.upsert({
-		create: {
-			name: "upa",
-		},
-		update: {},
-		where: {
-			name: "upa",
-		},
-	});
+  // ====================================================================
+  // 5. CREATE USERS (Lengkap sesuai skenario)
+  // ====================================================================
+  console.log('\n👥 Creating Users...');
+  
+  interface CreateUserParams {
+    name: string;
+    email: string;
+    roleName: string;
+    profile?: {
+      nim?: string;
+      nip?: string;
+      jabatan?: string;
+      noHp?: string;
+      tahunMasuk?: string;
+      deptCode: string;
+      prodiCode: string;
+    };
+  }
 
-	const supervisorSumberdayaRole = await Prisma.role.upsert({
-		create: {
-			name: "supervisor_sumberdaya",
-		},
-		update: {},
-		where: {
-			name: "supervisor_sumberdaya",
-		},
-	});
+  const createUser = async ({ name, email, roleName, profile }: CreateUserParams) => {
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        emailVerified: true,
+        accounts: {
+          create: {
+            id: randomUUID(),
+            providerId: 'credential',
+            accountId: email,
+            password: DEFAULT_PASSWORD
+          }
+        },
+        userRoles: {
+          create: { roleId: roleMap.get(roleName)! }
+        }
+      }
+    });
 
-	const prodiRole = await Prisma.role.upsert({
-		create: {
-			name: "prodi",
-		},
-		update: {},
-		where: {
-			name: "prodi",
-		},
-	});
+    // Create profile based on role
+    if (roleName === ROLES.MAHASISWA && profile) {
+      await prisma.mahasiswa.create({
+        data: {
+          userId: user.id,
+          nim: profile.nim || `NIM${Date.now()}`,
+          tahunMasuk: profile.tahunMasuk || '2024',
+          noHp: profile.noHp || '08123456789',
+          departemenId: deptMap.get(profile.deptCode)!,
+          programStudiId: prodiMap.get(profile.prodiCode)!
+        }
+      });
+    } else if (roleName !== ROLES.SUPERADMIN && profile) {
+      await prisma.pegawai.create({
+        data: {
+          userId: user.id,
+          nip: profile.nip || `NIP${Date.now()}`,
+          jabatan: profile.jabatan || roleName,
+          noHp: profile.noHp,
+          departemenId: deptMap.get(profile.deptCode)!,
+          programStudiId: prodiMap.get(profile.prodiCode)!
+        }
+      });
+    }
 
-	const dosenPembimbingRole = await Prisma.role.upsert({
-		create: {
-			name: "dosen_pembimbing",
-		},
-		update: {},
-		where: {
-			name: "dosen_pembimbing",
-		},
-	});
+    console.log(`   ✓ ${roleName}: ${name} <${email}>`);
+    return user;
+  };
 
-	const dosenKoordinatorRole = await Prisma.role.upsert({
-		create: {
-			name: "dosen_koordinator",
-		},
-		update: {},
-		where: {
-			name: "dosen_koordinator",
-		},
-	});
+  // --- SUPERADMIN ---
+  await createUser({
+    name: 'Super Admin',
+    email: 'superadmin@fsm.undip.ac.id',
+    roleName: ROLES.SUPERADMIN
+  });
 
-	const ketuaProdiRole = await Prisma.role.upsert({
-		create: {
-			name: "ketua_prodi",
-		},
-		update: {},
-		where: {
-			name: "ketua_prodi",
-		},
-	});
+  // --- MAHASISWA (Informatika) ---
+  const mhsIf1 = await createUser({
+    name: 'Ahmad Budi Santoso',
+    email: 'ahmad.budi@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24060121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567001',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-	const adminDepartemenRole = await Prisma.role.upsert({
-		create: {
-			name: "admin_departemen",
-		},
-		update: {},
-		where: {
-			name: "admin_departemen",
-		},
-	});
+  const mhsIf2 = await createUser({
+    name: 'Dewi Sartika',
+    email: 'dewi.sartika@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24060121130002',
+      tahunMasuk: '2024',
+      noHp: '081234567002',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-	const ketuaDepartemenRole = await Prisma.role.upsert({
-		create: {
-			name: "ketua_departemen",
-		},
-		update: {},
-		where: {
-			name: "ketua_departemen",
-		},
-	});
+  // --- DOSEN (Informatika) ---
+  const dosenIf = await createUser({
+    name: 'Dr. Raden Satrio, M.Kom.',
+    email: 'raden.satrio@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '198501152010121001',
+      jabatan: 'Dosen',
+      noHp: '081234567010',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-	const pegawaiUktRole = await Prisma.role.upsert({
-		create: {
-			name: "pegawai_ukt",
-		},
-		update: {},
-		where: {
-			name: "pegawai_ukt",
-		},
-	});
+  // --- KETUA PRODI INFORMATIKA ---
+  const kaprodiIf = await createUser({
+    name: 'Prof. Dr. Aris Sugiharto, S.Si., M.Kom.',
+    email: 'kaprodi.if@undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '197608152005011001',
+      jabatan: 'Ketua Program Studi S1 Informatika',
+      noHp: '081234567100',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-	console.log("User Upserted");
+  // --- ADMIN PRODI INFORMATIKA ---
+  const adminProdiIf = await createUser({
+    name: 'Siti Aminah, S.Kom.',
+    email: 'admin.prodi.if@undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199012152018032001',
+      jabatan: 'Admin Program Studi Informatika',
+      noHp: '081234567101',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-	// 2. Create Permissions
-	const permissions = await Promise.all([
-		// Departemen permission
-		Prisma.permission.create({
-			data: { resource: "departemen", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "departemen", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "departemen", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "departemen", action: "delete" },
-		}),
+  // --- KETUA DEPARTEMEN INFORMATIKA ---
+  const kadepIf = await createUser({
+    name: 'Prof. Dr. Ir. Kusworo Adi, M.T.',
+    email: 'kadep.if@undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '196805201995121001',
+      jabatan: 'Ketua Departemen Informatika',
+      noHp: '081234567102',
+      deptCode: 'IF',
+      prodiCode: 'S1-IF'
+    }
+  });
 
-		// prodi
-		Prisma.permission.create({
-			data: { resource: "prodi", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "prodi", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "prodi", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "prodi", action: "delete" },
-		}),
+  // --- PEJABAT FAKULTAS ---
+  const adminFakultas = await createUser({
+    name: 'Bambang Wicaksono, S.E.',
+    email: 'admin.fakultas@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_FAKULTAS,
+    profile: {
+      nip: '198807152015041001',
+      jabatan: 'Admin Surat Fakultas',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-		// role
-		Prisma.permission.create({
-			data: { resource: "role", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "role", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "role", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "role", action: "delete" },
-		}),
+  const dekan = await createUser({
+    name: 'Prof. Dr. Heru Susanto, S.T., M.M., Ph.D.',
+    email: 'dekan@fsm.undip.ac.id',
+    roleName: ROLES.DEKAN,
+    profile: {
+      nip: '196903151994031001',
+      jabatan: 'Dekan FSM',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-		// user include mahasiswa and pegawai
-		Prisma.permission.create({
-			data: { resource: "user", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "user", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "user", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "user", action: "delete" },
-		}),
+  const wadek1 = await createUser({
+    name: 'Dr. Muhammad Nur, S.Si., M.Si.',
+    email: 'wadek1@fsm.undip.ac.id',
+    roleName: ROLES.WADEK_1,
+    profile: {
+      nip: '197506151999031001',
+      jabatan: 'Wakil Dekan I (Bidang Akademik)',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-		// lettertype
-		Prisma.permission.create({
-			data: { resource: "letterType", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterType", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterType", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterType", action: "delete" },
-		}),
+  const wadek2 = await createUser({
+    name: 'Dr. Adi Darmawan, S.Si., M.Si.',
+    email: 'wadek2@fsm.undip.ac.id',
+    roleName: ROLES.WADEK_2,
+    profile: {
+      nip: '197808201999031002',
+      jabatan: 'Wakil Dekan II (Bidang Sumber Daya)',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-		// letter template
-		Prisma.permission.create({
-			data: { resource: "letterTemplate", action: "create" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterTemplate", action: "read" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterTemplate", action: "update" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letterTemplate", action: "delete" },
-		}),
+  const manajerTu = await createUser({
+    name: 'Drs. Tri Handoko, M.M.',
+    email: 'manajer.tu@fsm.undip.ac.id',
+    roleName: ROLES.MANAJER_TU,
+    profile: {
+      nip: '197010151995031001',
+      jabatan: 'Manajer Tata Usaha',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-		// main transaction
-		Prisma.permission.create({
-			data: { resource: "letter", action: "file" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letter", action: "disposition" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letter", action: "forward" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letter", action: "editOverlay" },
-		}),
-		Prisma.permission.create({
-			data: { resource: "letter", action: "numbering" },
-		}),
-	]);
+  const spvAkademik = await createUser({
+    name: 'Retno Wulandari, S.E.',
+    email: 'spv.akademik@fsm.undip.ac.id',
+    roleName: ROLES.SUPERVISOR_AKADEMIK,
+    profile: {
+      nip: '198305152010032001',
+      jabatan: 'Supervisor Akademik',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	console.log("Permissions upserted");
+  const spvSumberDaya = await createUser({
+    name: 'Agus Prasetyo, S.E.',
+    email: 'spv.sumberdaya@fsm.undip.ac.id',
+    roleName: ROLES.SUPERVISOR_SUMBER_DAYA,
+    profile: {
+      nip: '198205152009031001',
+      jabatan: 'Supervisor Sumber Daya',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	// 3. Assign Permissions to Roles
-	// Admin gets all permissions
-	await Promise.all(
-		permissions.map((permission) =>
-			Prisma.rolePermission.create({
-				data: {
-					roleId: superAdminRole.id,
-					permissionId: permission.id,
-				},
-			}),
-		),
-	);
+  const stafAkademik1 = await createUser({
+    name: 'Rina Oktavia, A.Md.',
+    email: 'staf.akademik1@fsm.undip.ac.id',
+    roleName: ROLES.STAF_AKADEMIK,
+    profile: {
+      nip: '199205152018032001',
+      jabatan: 'Staf Akademik',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	// // Dosen gets letter approval permissions
-	// await Promise.all(
-	// 	permissions
-	// 		.filter((p) =>
-	// 			["letter:read", "letter:approve", "letter:reject"].includes(
-	// 				`${p.resource}:${p.action}`,
-	// 			),
-	// 		)
-	// 		.map((permission) =>
-	// 			Prisma.rolePermission.create({
-	// 				data: {
-	// 					roleId: dosenRole.id,
-	// 					permissionId: permission.id,
-	// 				},
-	// 			}),
-	// 		),
-	// );
+  const stafAkademik2 = await createUser({
+    name: 'Budi Hartono, A.Md.',
+    email: 'staf.akademik2@fsm.undip.ac.id',
+    roleName: ROLES.STAF_AKADEMIK,
+    profile: {
+      nip: '199305152018031001',
+      jabatan: 'Staf Akademik',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	// Mahasiswa gets letter create and read
-	await Promise.all(
-		permissions
-			.filter((p) =>
-				["letter:create", "letter:read"].includes(`${p.resource}:${p.action}`),
-			)
-			.map((permission) =>
-				Prisma.rolePermission.create({
-					data: {
-						roleId: mahasiswaRole.id,
-						permissionId: permission.id,
-					},
-				}),
-			),
-	);
+  const stafSumberDaya = await createUser({
+    name: 'Yuni Astuti, A.Md.',
+    email: 'staf.sumberdaya@fsm.undip.ac.id',
+    roleName: ROLES.STAF_SUMBER_DAYA,
+    profile: {
+      nip: '199105152017032001',
+      jabatan: 'Staf Sumber Daya',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	console.log("Assigned permissions to roles");
+  const upaUser = await createUser({
+    name: 'Hendra Wijaya, S.Kom.',
+    email: 'upa@fsm.undip.ac.id',
+    roleName: ROLES.UPA,
+    profile: {
+      nip: '199008152016031001',
+      jabatan: 'Staff Unit Pelaksana Akademik',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
 
-	// Create Departemen
-	const departemenMatematika = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_math",
-		},
-		update: {},
-		create: {
-			name: "Matematika",
-			code: "fsm_math",
-		},
-	});
+  // ====================================================================
+  // 6. CREATE LETTER TYPES & TEMPLATES
+  // ====================================================================
+  console.log('\n📄 Creating Letter Types & Templates...');
+  
+  // Type 1: Surat Tugas
+  const typeST = await prisma.letterType.create({
+    data: {
+      name: 'Surat Tugas',
+      code: 'ST',
+      description: 'Surat Tugas untuk kegiatan/perjalanan dinas',
+      category: LetterCategory.UMUM,
+      requiresPengantar: true,
+      requiresDekanSign: true,
+      requiresWadekSign: false,
+      defaultTargetSigner: 'DEKAN'
+    }
+  });
 
-	const departemenBiologi = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_bio",
-		},
-		update: {},
-		create: {
-			name: "Biologi",
-			code: "fsm_bio",
-		},
-	});
+  // Type 2: Surat Keputusan
+  const typeSK = await prisma.letterType.create({
+    data: {
+      name: 'Surat Keputusan',
+      code: 'SK',
+      description: 'Surat Keputusan Dekan',
+      category: LetterCategory.UMUM,
+      requiresPengantar: true,
+      requiresDekanSign: true,
+      requiresWadekSign: false,
+      defaultTargetSigner: 'DEKAN'
+    }
+  });
 
-	const departemenKimia = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_kim",
-		},
-		update: {},
-		create: {
-			name: "Kimia",
-			code: "fsm_kim",
-		},
-	});
+  // Type 3: SK Akademik (Pembimbing/Penguji)
+  const typeSkAkademik = await prisma.letterType.create({
+    data: {
+      name: 'SK Pembimbing/Penguji',
+      code: 'SK-AKADEMIK',
+      description: 'SK Penetapan Pembimbing atau Penguji Tugas Akhir',
+      category: LetterCategory.AKADEMIK,
+      requiresPengantar: true,
+      requiresDekanSign: true,
+      requiresWadekSign: true,
+      defaultTargetSigner: 'DEKAN'
+    }
+  });
 
-	const departemenFisika = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_fis",
-		},
-		update: {},
-		create: {
-			name: "Fisika",
-			code: "fsm_fis",
-		},
-	});
+  // Template untuk Surat Tugas
+  await prisma.letterTemplate.create({
+    data: {
+      versionName: 'v1.0',
+      letterTypeId: typeST.id,
+      schemaDefinition: {
+        type: "object",
+        required: ["keperluan", "nama_kegiatan", "tanggal_mulai", "lokasi"],
+        properties: {
+          keperluan: { type: "string", title: "Keperluan" },
+          nama_kegiatan: { type: "string", title: "Nama Kegiatan/Acara" },
+          tanggal_mulai: { type: "string", format: "date", title: "Tanggal Mulai" },
+          tanggal_selesai: { type: "string", format: "date", title: "Tanggal Selesai" },
+          durasi: { type: "string", title: "Durasi Kegiatan" },
+          lokasi: { type: "string", title: "Lokasi Kegiatan" },
+          keterangan: { type: "string", title: "Keterangan Tambahan" }
+        }
+      },
+      formFields: [
+        { key: "keperluan", label: "Keperluan", type: "text", required: true },
+        { key: "nama_kegiatan", label: "Nama Kegiatan/Acara", type: "text", required: true },
+        { key: "tanggal_mulai", label: "Tanggal Mulai", type: "date", required: true },
+        { key: "tanggal_selesai", label: "Tanggal Selesai", type: "date", required: false },
+        { key: "durasi", label: "Durasi", type: "text", required: false },
+        { key: "lokasi", label: "Lokasi", type: "text", required: true },
+        { key: "keterangan", label: "Keterangan", type: "textarea", required: false }
+      ],
+      contentTemplate: {
+        // TipTap JSON content template - simplified for seed
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "SURAT TUGAS" }]
+          },
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Nomor: {{nomor_surat}}" }]
+          }
+        ]
+      },
+      isActive: true
+    }
+  });
 
-	const departemenStatistika = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_statis",
-		},
-		update: {},
-		create: {
-			name: "Statistika",
-			code: "fsm_statis",
-		},
-	});
+  // Template untuk Surat Keputusan
+  await prisma.letterTemplate.create({
+    data: {
+      versionName: 'v1.0',
+      letterTypeId: typeSK.id,
+      schemaDefinition: {
+        type: "object",
+        required: ["judul_sk", "perihal", "pertimbangan"],
+        properties: {
+          judul_sk: { type: "string", title: "Judul SK" },
+          perihal: { type: "string", title: "Perihal" },
+          pertimbangan: { type: "string", title: "Pertimbangan" },
+          dasar_hukum: { type: "array", items: { type: "string" }, title: "Dasar Hukum" },
+          memutuskan: { type: "string", title: "Memutuskan" }
+        }
+      },
+      formFields: [
+        { key: "judul_sk", label: "Judul SK", type: "text", required: true },
+        { key: "perihal", label: "Perihal", type: "text", required: true },
+        { key: "pertimbangan", label: "Pertimbangan", type: "textarea", required: true },
+        { key: "dasar_hukum", label: "Dasar Hukum", type: "array", required: false },
+        { key: "memutuskan", label: "Memutuskan", type: "textarea", required: false }
+      ],
+      contentTemplate: {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "SURAT KEPUTUSAN DEKAN" }]
+          }
+        ]
+      },
+      isActive: true
+    }
+  });
 
-	const departemenInformatika = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_if",
-		},
-		update: {},
-		create: {
-			name: "Informatika",
-			code: "fsm_if",
-		},
-	});
+  console.log('   ✓ Created Letter Types & Templates');
 
-	const departemenFsm = await Prisma.departemen.upsert({
-		where: {
-			code: "fsm_main",
-		},
-		update: {},
-		create: {
-			name: "FSM",
-			code: "fsm_main",
-		},
-	});
+  // ====================================================================
+  // 7. SCENARIO SEEDING - CREATE SAMPLE LETTER INSTANCES
+  // ====================================================================
+  console.log('\n🎬 Creating Sample Scenarios...');
 
-	// Program Studi
-	const prodiInformatika = await Prisma.programStudi.upsert({
-		where: {
-			code: "240601",
-		},
-		update: {},
-		create: {
-			name: "S1 Informatika",
-			code: "240601",
-			departemenId: departemenInformatika.id,
-		},
-	});
+  // SCENARIO 1: Surat baru disubmit (Status: SUBMITTED, Role: KAPRODI)
+  const letter1 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Kompetisi Nasional",
+        nama_kegiatan: "GEMASTIK XVI 2026",
+        tanggal_mulai: "2026-03-15",
+        tanggal_selesai: "2026-03-18",
+        durasi: "4 hari",
+        lokasi: "Institut Teknologi Bandung",
+        request_ttd_kadep: true // Pengaju request TTD sampai Kadep
+      },
+      status: LetterStatus.SUBMITTED,
+      currentActiveRole: ROLES.KAPRODI,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf1.id,
+      signatureConfig: {
+        targetSigner: "DEKAN",
+        requireKadepSign: true
+      },
+      logs: {
+        create: {
+          actorId: mhsIf1.id,
+          actorRole: ROLES.MAHASISWA,
+          action: LogAction.SUBMIT,
+          toStatus: LetterStatus.SUBMITTED,
+          notes: 'Pengajuan Surat Tugas untuk GEMASTIK XVI'
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 1: Surat baru disubmit (Menunggu Kaprodi)');
 
-	const prodiKimia = await Prisma.programStudi.upsert({
-		where: {
-			code: "240301",
-		},
-		update: {},
-		create: {
-			name: "S1 Kimia",
-			code: "240301",
-			departemenId: departemenKimia.id,
-		},
-	});
+  // SCENARIO 2: Kaprodi sudah approve, menunggu Admin Prodi draft
+  const letter2 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Seminar Internasional",
+        nama_kegiatan: "International Conference on Data Science 2026",
+        tanggal_mulai: "2026-04-20",
+        tanggal_selesai: "2026-04-22",
+        durasi: "3 hari",
+        lokasi: "Singapore",
+        request_ttd_kadep: false
+      },
+      status: LetterStatus.SURAT_PENGANTAR_DRAFT,
+      currentActiveRole: ROLES.ADMIN_PRODI,
+      priority: Priority.HIGH,
+      letterTypeId: typeST.id,
+      createdById: dosenIf.id,
+      signatureConfig: {
+        targetSigner: "DEKAN",
+        requireKadepSign: false
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: dosenIf.id,
+              actorRole: ROLES.DOSEN,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan ST untuk konferensi internasional'
+            },
+            {
+              actorId: kaprodiIf.id,
+              actorRole: ROLES.KAPRODI,
+              action: LogAction.APPROVE,
+              fromStatus: LetterStatus.SUBMITTED,
+              toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
+              notes: 'Disetujui. Silakan lanjutkan drafting surat pengantar.'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 2: Menunggu Admin Prodi draft surat pengantar');
 
-	const prodiFisikaS1 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240401",
-		},
-		update: {},
-		create: {
-			name: "S1 Fisika",
-			code: "240401",
-			departemenId: departemenFisika.id,
-		},
-	});
+  // SCENARIO 3: Surat Pengantar sudah jadi, menunggu TTD Kaprodi
+  const letter3 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Workshop",
+        nama_kegiatan: "Workshop Machine Learning",
+        tanggal_mulai: "2026-02-10",
+        tanggal_selesai: "2026-02-12",
+        durasi: "3 hari",
+        lokasi: "Jakarta",
+        request_ttd_kadep: true
+      },
+      status: LetterStatus.SURAT_PENGANTAR_REVIEW,
+      currentActiveRole: ROLES.KAPRODI,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf2.id,
+      signatureConfig: {
+        targetSigner: "DEKAN",
+        requireKadepSign: true
+      },
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          content: {
+            type: "doc",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "Dengan hormat," }] },
+              { type: "paragraph", content: [{ type: "text", text: "Bersama ini kami mengajukan permohonan..." }] }
+            ]
+          },
+          perihal: "Permohonan Izin Mengikuti Workshop Machine Learning"
+        }
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: mhsIf2.id,
+              actorRole: ROLES.MAHASISWA,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan ST untuk workshop'
+            },
+            {
+              actorId: kaprodiIf.id,
+              actorRole: ROLES.KAPRODI,
+              action: LogAction.APPROVE,
+              fromStatus: LetterStatus.SUBMITTED,
+              toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
+              notes: 'Disetujui'
+            },
+            {
+              actorId: adminProdiIf.id,
+              actorRole: ROLES.ADMIN_PRODI,
+              action: LogAction.DRAFT_CREATE,
+              fromStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
+              toStatus: LetterStatus.SURAT_PENGANTAR_REVIEW,
+              notes: 'Surat pengantar telah dibuat'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 3: Surat pengantar menunggu TTD Kaprodi');
 
-	const prodiFisikaS2 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240402",
-		},
-		update: {},
-		create: {
-			name: "S2 Fisika",
-			code: "240402",
-			departemenId: departemenFisika.id,
-		},
-	});
+  // SCENARIO 4: Sudah masuk Fakultas (Admin Fakultas belum disposisi)
+  const letter4 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Pembicara Seminar",
+        nama_kegiatan: "Seminar Nasional Teknologi Informasi",
+        tanggal_mulai: "2026-05-15",
+        tanggal_selesai: "2026-05-15",
+        durasi: "1 hari",
+        lokasi: "Universitas Gadjah Mada"
+      },
+      status: LetterStatus.FAKULTAS_RECEIVED,
+      currentActiveRole: ROLES.ADMIN_FAKULTAS,
+      priority: Priority.HIGH,
+      letterTypeId: typeST.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          nomorSurat: '001/UN7.5.1/PP/2026',
+          tanggalSurat: new Date('2026-01-20'),
+          perihal: 'Permohonan Izin Pembicara Seminar',
+          isSigned: true,
+          signatures: {
+            createMany: {
+              data: [
+                {
+                  signerId: kaprodiIf.id,
+                  signerRole: ROLES.KAPRODI,
+                  signerName: 'Prof. Dr. Aris Sugiharto, S.Si., M.Kom.',
+                  signerNip: '197608152005011001',
+                  order: 0
+                },
+                {
+                  signerId: kadepIf.id,
+                  signerRole: ROLES.KADEP,
+                  signerName: 'Prof. Dr. Ir. Kusworo Adi, M.T.',
+                  signerNip: '196805201995121001',
+                  order: 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: dosenIf.id,
+              actorRole: ROLES.DOSEN,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan ST pembicara seminar'
+            },
+            {
+              actorId: kaprodiIf.id,
+              actorRole: ROLES.KAPRODI,
+              action: LogAction.APPROVE,
+              fromStatus: LetterStatus.SUBMITTED,
+              toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
+              notes: 'Disetujui'
+            },
+            {
+              actorId: adminProdiIf.id,
+              actorRole: ROLES.ADMIN_PRODI,
+              action: LogAction.DRAFT_CREATE,
+              notes: 'Draft surat pengantar'
+            },
+            {
+              actorId: kaprodiIf.id,
+              actorRole: ROLES.KAPRODI,
+              action: LogAction.SIGN,
+              notes: 'TTD Kaprodi'
+            },
+            {
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
+              action: LogAction.SIGN,
+              fromStatus: LetterStatus.SURAT_PENGANTAR_SIGNED,
+              toStatus: LetterStatus.FAKULTAS_RECEIVED,
+              notes: 'TTD Kadep, diteruskan ke Fakultas'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 4: Surat masuk fakultas (Menunggu Admin Fakultas)');
 
-	const prodiMatematikaS1 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240101",
-		},
-		update: {},
-		create: {
-			name: "S1 Matematika",
-			code: "240101",
-			departemenId: departemenMatematika.id,
-		},
-	});
+  // SCENARIO 5: Sedang didisposisi Dekan
+  const letter5 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Perjalanan Dinas Penelitian",
+        nama_kegiatan: "Kolaborasi Riset Internasional",
+        tanggal_mulai: "2026-06-01",
+        tanggal_selesai: "2026-06-07",
+        durasi: "7 hari",
+        lokasi: "Universitas Tokyo, Jepang",
+        jenis_surat: "AKADEMIK"
+      },
+      status: LetterStatus.FAKULTAS_DISPOSITION,
+      currentActiveRole: ROLES.DEKAN,
+      priority: Priority.URGENT,
+      letterTypeId: typeST.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          nomorSurat: '002/UN7.5.1/PP/2026',
+          tanggalSurat: new Date('2026-01-21'),
+          perihal: 'Permohonan Izin Perjalanan Dinas Penelitian',
+          isSigned: true
+        }
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: dosenIf.id,
+              actorRole: ROLES.DOSEN,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan perjalanan dinas penelitian'
+            },
+            {
+              actorId: adminFakultas.id,
+              actorRole: ROLES.ADMIN_FAKULTAS,
+              action: LogAction.DISPOSITION,
+              fromStatus: LetterStatus.FAKULTAS_RECEIVED,
+              toStatus: LetterStatus.FAKULTAS_DISPOSITION,
+              targetRole: ROLES.DEKAN,
+              notes: 'Disposisi ke Dekan (Jenis: AKADEMIK)',
+              metadata: { jenisSurat: 'AKADEMIK' }
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 5: Disposisi sedang di Dekan');
 
-	const prodiMatematikaS2 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240102",
-		},
-		update: {},
-		create: {
-			name: "S2 Matematika",
-			code: "240102",
-			departemenId: departemenMatematika.id,
-		},
-	});
+  // SCENARIO 6: Staf sedang drafting SK/ST
+  const letter6 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Kepanitiaan Dies Natalis",
+        nama_kegiatan: "Dies Natalis ke-65 FSM",
+        tanggal_mulai: "2026-09-01",
+        tanggal_selesai: "2026-09-03",
+        durasi: "3 hari",
+        lokasi: "Fakultas Sains dan Matematika UNDIP",
+        jenis_surat: "SUMBER_DAYA"
+      },
+      status: LetterStatus.FAKULTAS_DRAFTING,
+      currentActiveRole: ROLES.STAF_SUMBER_DAYA,
+      priority: Priority.HIGH,
+      letterTypeId: typeSK.id,
+      createdById: mhsIf1.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_PENGANTAR,
+          nomorSurat: '003/UN7.5.1/PP/2026',
+          isSigned: true
+        }
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: mhsIf1.id,
+              actorRole: ROLES.MAHASISWA,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan SK Kepanitiaan'
+            },
+            {
+              actorId: adminFakultas.id,
+              actorRole: ROLES.ADMIN_FAKULTAS,
+              action: LogAction.DISPOSITION,
+              targetRole: ROLES.WADEK_2,
+              notes: 'Disposisi ke Wadek II (SUMBER_DAYA)',
+              metadata: { jenisSurat: 'SUMBER_DAYA' }
+            },
+            {
+              actorId: wadek2.id,
+              actorRole: ROLES.WADEK_2,
+              action: LogAction.DISPOSITION,
+              targetRole: ROLES.MANAJER_TU,
+              notes: 'Disposisi ke Manajer TU'
+            },
+            {
+              actorId: manajerTu.id,
+              actorRole: ROLES.MANAJER_TU,
+              action: LogAction.DISPOSITION,
+              targetRole: ROLES.SUPERVISOR_SUMBER_DAYA,
+              notes: 'Disposisi ke Supervisor SD'
+            },
+            {
+              actorId: spvSumberDaya.id,
+              actorRole: ROLES.SUPERVISOR_SUMBER_DAYA,
+              action: LogAction.DISPOSITION,
+              targetRole: ROLES.STAF_SUMBER_DAYA,
+              toStatus: LetterStatus.FAKULTAS_DRAFTING,
+              notes: 'Disposisi ke Staf SD untuk drafting'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 6: Staf sedang drafting SK');
 
-	const prodiStatistikaS1 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240503",
-		},
-		update: {},
-		create: {
-			name: "S1 Statistika",
-			code: "240103",
-			departemenId: departemenStatistika.id,
-		},
-	});
+  // SCENARIO 7: Proses Verifikasi (dari Staf naik ke atas)
+  const letter7 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Pembimbing Tugas Akhir",
+        nama_kegiatan: "Penetapan Dosen Pembimbing TA",
+        tanggal_mulai: "2026-02-01",
+        lokasi: "Departemen Informatika"
+      },
+      status: LetterStatus.FAKULTAS_VERIFICATION,
+      currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
+      priority: Priority.NORMAL,
+      letterTypeId: typeSkAkademik.id,
+      createdById: mhsIf1.id,
+      documents: {
+        createMany: {
+          data: [
+            {
+              type: DocumentType.SURAT_PENGANTAR,
+              nomorSurat: '004/UN7.5.1/PP/2026',
+              isSigned: true
+            },
+            {
+              type: DocumentType.SURAT_KEPUTUSAN,
+              perihal: 'SK Penetapan Dosen Pembimbing Tugas Akhir',
+              content: {
+                type: "doc",
+                content: [
+                  { type: "heading", content: [{ type: "text", text: "SURAT KEPUTUSAN DEKAN" }] },
+                  { type: "paragraph", content: [{ type: "text", text: "Menetapkan: ..." }] }
+                ]
+              },
+              isSigned: false
+            }
+          ]
+        }
+      },
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: mhsIf1.id,
+              actorRole: ROLES.MAHASISWA,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan SK Pembimbing TA'
+            },
+            {
+              actorId: stafAkademik1.id,
+              actorRole: ROLES.STAF_AKADEMIK,
+              action: LogAction.DRAFT_CREATE,
+              toStatus: LetterStatus.FAKULTAS_DRAFTING,
+              notes: 'Draft SK Pembimbing dibuat'
+            },
+            {
+              actorId: stafAkademik1.id,
+              actorRole: ROLES.STAF_AKADEMIK,
+              action: LogAction.VERIFY,
+              toStatus: LetterStatus.FAKULTAS_VERIFICATION,
+              targetRole: ROLES.SUPERVISOR_AKADEMIK,
+              notes: 'Ajukan verifikasi ke Supervisor'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 7: Proses verifikasi (Supervisor)');
 
-	const prodiBiologiS1 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240201",
-		},
-		update: {},
-		create: {
-			name: "S1 Biologi",
-			code: "240201",
-			departemenId: departemenBiologi.id,
-		},
-	});
+  // SCENARIO 8: Menunggu di UPA (TTD sudah lengkap)
+  const letter8 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "SK Kepanitiaan Wisuda",
+        nama_kegiatan: "Wisuda Periode I Tahun 2026",
+        tanggal_mulai: "2026-03-20"
+      },
+      status: LetterStatus.UPA_NUMBERING,
+      currentActiveRole: ROLES.UPA,
+      priority: Priority.URGENT,
+      letterTypeId: typeSK.id,
+      createdById: dosenIf.id,
+      documents: {
+        create: {
+          type: DocumentType.SURAT_KEPUTUSAN,
+          perihal: 'SK Penetapan Panitia Wisuda',
+          content: { type: "doc", content: [] },
+          isSigned: true,
+          tembusan: [
+            { role: ROLES.WADEK_1, name: 'Wakil Dekan I' },
+            { role: ROLES.WADEK_2, name: 'Wakil Dekan II' },
+            { role: ROLES.MANAJER_TU, name: 'Manajer TU' }
+          ],
+          signatures: {
+            createMany: {
+              data: [
+                {
+                  signerId: dekan.id,
+                  signerRole: ROLES.DEKAN,
+                  signerName: 'Prof. Dr. Heru Susanto, S.T., M.M., Ph.D.',
+                  signerNip: '196903151994031001',
+                  order: 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      logs: {
+        create: {
+          actorId: dekan.id,
+          actorRole: ROLES.DEKAN,
+          action: LogAction.SIGN,
+          toStatus: LetterStatus.UPA_NUMBERING,
+          notes: 'TTD Dekan selesai, diteruskan ke UPA'
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 8: Menunggu di UPA (penomoran)');
 
-	const prodiBioteknologiS1 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240202",
-		},
-		update: {},
-		create: {
-			name: "S1 Bioteknologi",
-			code: "240202",
-			departemenId: departemenBiologi.id,
-		},
-	});
+  // SCENARIO 9: Surat COMPLETED (sudah selesai)
+  const letter9 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Mengikuti Lomba Karya Tulis",
+        nama_kegiatan: "LKTI Nasional 2026",
+        tanggal_mulai: "2026-01-15",
+        tanggal_selesai: "2026-01-17"
+      },
+      status: LetterStatus.COMPLETED,
+      currentActiveRole: null,
+      priority: Priority.NORMAL,
+      letterTypeId: typeST.id,
+      createdById: mhsIf2.id,
+      completedAt: new Date('2026-01-18'),
+      documents: {
+        createMany: {
+          data: [
+            {
+              type: DocumentType.SURAT_PENGANTAR,
+              nomorSurat: '100/UN7.5.1/PP/2026',
+              tanggalSurat: new Date('2026-01-10'),
+              isSigned: true
+            },
+            {
+              type: DocumentType.SURAT_TUGAS,
+              nomorSurat: '101/UN7.5/ST/2026',
+              tanggalSurat: new Date('2026-01-14'),
+              perihal: 'Surat Tugas Mengikuti LKTI Nasional',
+              isSigned: true,
+              fileUrl: 'letters/st-lkti-2026.pdf',
+              qrCodeUrl: 'qr/st-lkti-2026-qr.png'
+            }
+          ]
+        }
+      },
+      logs: {
+        create: {
+          actorId: upaUser.id,
+          actorRole: ROLES.UPA,
+          action: LogAction.FINALIZE,
+          toStatus: LetterStatus.COMPLETED,
+          notes: 'Surat selesai diproses dan didistribusikan'
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 9: Surat COMPLETED');
 
-	const prodiBiologiS2 = await Prisma.programStudi.upsert({
-		where: {
-			code: "240203",
-		},
-		update: {},
-		create: {
-			name: "S2 Biologi",
-			code: "240203",
-			departemenId: departemenBiologi.id,
-		},
-	});
+  // SCENARIO 10: Surat REJECTED oleh Kaprodi
+  const letter10 = await prisma.letterInstance.create({
+    data: {
+      submissionValues: {
+        keperluan: "Liburan ke Bali",
+        nama_kegiatan: "Vacation",
+        tanggal_mulai: "2026-07-01"
+      },
+      status: LetterStatus.REJECTED,
+      currentActiveRole: null,
+      priority: Priority.LOW,
+      letterTypeId: typeST.id,
+      createdById: mhsIf1.id,
+      logs: {
+        createMany: {
+          data: [
+            {
+              actorId: mhsIf1.id,
+              actorRole: ROLES.MAHASISWA,
+              action: LogAction.SUBMIT,
+              toStatus: LetterStatus.SUBMITTED,
+              notes: 'Pengajuan ST'
+            },
+            {
+              actorId: kaprodiIf.id,
+              actorRole: ROLES.KAPRODI,
+              action: LogAction.REJECT,
+              fromStatus: LetterStatus.SUBMITTED,
+              toStatus: LetterStatus.REJECTED,
+              notes: 'Ditolak: Keperluan tidak sesuai dengan ketentuan pengajuan surat tugas.'
+            }
+          ]
+        }
+      }
+    }
+  });
+  console.log('   ✓ Scenario 10: Surat REJECTED');
 
-	const prodiFSM = await Prisma.programStudi.upsert({
-		where: {
-			code: "240111",
-		},
-		update: {},
-		create: {
-			name: "FSM",
-			code: "240111",
-			departemenId: departemenFsm.id,
-		},
-	});
-
-	console.log("Created program studi");
-
-	// Create Users
-	const adminUser = await Prisma.user.create({
-		data: {
-			name: "Admin Sistem",
-			email: "admin@university.ac.id",
-			emailVerified: true,
-		},
-	});
-
-	// Create Account
-
-	const response = await auth.api.signUpEmail({
-		body: {
-			email: "superadmin@fsm.internal",
-			password: "password1234",
-			name: "Admin",
-		},
-	});
-
-	await Prisma.userRole.create({
-		data: {
-			userId: response.user.id,
-			roleId: superAdminRole.id,
-		},
-	});
-
-	console.log("Assigned roles to users");
+  // ====================================================================
+  // COMPLETE
+  // ====================================================================
+  console.log('\n' + '━'.repeat(60));
+  console.log('🎉 SEEDING COMPLETED SUCCESSFULLY!');
+  console.log('━'.repeat(60));
+  console.log('\n📊 Summary:');
+  console.log(`   • Roles: ${roleList.length}`);
+  console.log(`   • Permissions: ${permissions.length}`);
+  console.log(`   • Departments: ${departments.length}`);
+  console.log(`   • Program Studi: ${programStudi.length}`);
+  console.log(`   • Letter Types: 3`);
+  console.log(`   • Sample Letters: 10 (various statuses)`);
+  console.log('\n📝 Test Accounts (password: password1234):');
+  console.log('   • superadmin@fsm.undip.ac.id (SUPERADMIN)');
+  console.log('   • ahmad.budi@students.undip.ac.id (MAHASISWA)');
+  console.log('   • kaprodi.if@undip.ac.id (KAPRODI)');
+  console.log('   • admin.prodi.if@undip.ac.id (ADMIN_PRODI)');
+  console.log('   • admin.fakultas@fsm.undip.ac.id (ADMIN_FAKULTAS)');
+  console.log('   • dekan@fsm.undip.ac.id (DEKAN)');
+  console.log('   • upa@fsm.undip.ac.id (UPA)');
+  console.log('');
 }
 
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+function getRoleDescription(role: string): string {
+  const descriptions: Record<string, string> = {
+    SUPERADMIN: 'Administrator sistem dengan akses penuh',
+    MAHASISWA: 'Mahasiswa aktif FSM UNDIP',
+    DOSEN: 'Dosen FSM UNDIP',
+    KAPRODI: 'Ketua Program Studi',
+    ADMIN_PRODI: 'Administrator Program Studi',
+    KADEP: 'Ketua Departemen',
+    ADMIN_FAKULTAS: 'Administrator Surat Fakultas',
+    DEKAN: 'Dekan Fakultas Sains dan Matematika',
+    WADEK_1: 'Wakil Dekan I Bidang Akademik',
+    WADEK_2: 'Wakil Dekan II Bidang Sumber Daya',
+    MANAJER_TU: 'Manajer Tata Usaha',
+    SUPERVISOR_AKADEMIK: 'Supervisor Bagian Akademik',
+    SUPERVISOR_SUMBER_DAYA: 'Supervisor Bagian Sumber Daya',
+    STAF_AKADEMIK: 'Staf Bagian Akademik',
+    STAF_SUMBER_DAYA: 'Staf Bagian Sumber Daya',
+    UPA: 'Unit Pelaksana Akademik'
+  };
+  return descriptions[role] || role;
+}
+
+// ============================================================================
+// RUN SEED
+// ============================================================================
 main()
-	.catch((e) => {
-		console.error("Error seeding database:", e);
-		process.exit(1);
-	})
-	.finally(async () => {
-		await Prisma.$disconnect();
-	});
+  .catch((e) => {
+    console.error('❌ Seeding failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

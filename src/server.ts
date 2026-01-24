@@ -1,25 +1,110 @@
+/**
+ * Server Setup
+ * Main Elysia server with routes registration
+ * Framework: Elysia with autoload for existing routes
+ */
+
 import { cors } from "@elysiajs/cors";
 import { serverTiming } from "@elysiajs/server-timing";
 import { swagger } from "@elysiajs/swagger";
-import { auth } from "@backend/lib/auth.ts";
 import { Elysia } from "elysia";
 import { autoload } from "elysia-autoload";
-import env from "env-var";
 
+// Import module routes - Only import working modules for now
+import { submissionRoutes } from './modules/submission/submission.route';
+// TODO: Fix TypeScript errors in these modules then uncomment
+// import { pengantarRoutes } from './modules/pengantar/pengantar.route';
+// import { disposisiRoutes } from './modules/disposisi/disposisi.route';
+// import { leadershipRoutes } from './modules/leadership/leadership.route';
+// import { hasilRoutes } from './modules/surat-hasil/hasil.route';
+// import { legalisasiRoutes } from './modules/legalisasi/legalisasi.route';
+// import dashRoutes from './routes/dash';
 
 export const app = new Elysia()
-	.use(swagger())
+	// ==========================================
+	// SWAGGER DOCUMENTATION
+	// ==========================================
+	.use(
+		swagger({
+			documentation: {
+				info: {
+					title: 'E-Office ST/SK Dekan API',
+					version: '2.0.0',
+					description: 'API untuk sistem E-Office Surat Tugas/Keputusan Dekan',
+				},
+				tags: [
+					{ name: 'Auth', description: 'Authentication endpoints' },
+					{ name: 'Dashboard', description: 'Dashboard endpoints' },
+					{ name: 'Submission', description: 'Pengajuan surat endpoints' },
+					{ name: 'Pengantar', description: 'Surat pengantar endpoints' },
+					{ name: 'Disposisi', description: 'Disposisi fakultas endpoints' },
+					{ name: 'Surat Hasil', description: 'Drafting surat tugas/keputusan' },
+					{ name: 'Leadership', description: 'Verifikasi & tanda tangan pejabat' },
+					{ name: 'Legalisasi', description: 'UPA processing endpoints' },
+					{ name: 'Master', description: 'Master data endpoints' },
+				],
+			},
+			path: '/docs',
+		})
+	)
+
+	// ==========================================
+	// CORS CONFIGURATION
+	// ==========================================
 	.use(
 		cors({
-			origin: "*", // env.get("FE_URL").asString(),
-			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+			origin: "*", // Configure based on environment
+			methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
 			credentials: true,
 			allowedHeaders: ["Content-Type", "Authorization"],
 		}),
 	)
+
+	// ==========================================
+	// SERVER TIMING
+	// ==========================================
 	.use(serverTiming())
+
+	// ==========================================
+	// HEALTH CHECK
+	// ==========================================
+	.get('/health', () => ({
+		status: 'ok',
+		timestamp: new Date().toISOString(),
+		version: '2.0.0',
+	}))
+
+	// ==========================================
+	// MODULE ROUTES (New ST/SK Implementation)
+	// ==========================================
+	.group('/api', (api) =>
+		api
+			// Module A: PENGAJUAN
+			.use(submissionRoutes)
+			// TODO: Uncomment after fixing TypeScript errors
+			// Module B: SURAT PENGANTAR
+			// .use(pengantarRoutes)
+			// Module C: DISPOSISI
+			// .use(disposisiRoutes)
+			// Module D: SURAT HASIL
+			// .use(hasilRoutes)
+			// Module E: LEADERSHIP
+			// .use(leadershipRoutes)
+			// Module F: LEGALISASI
+			// .use(legalisasiRoutes)
+			// Dashboard Routes
+			// .use(dashRoutes)
+	)
+
+	// ==========================================
+	// AUTOLOAD EXISTING ROUTES
+	// ==========================================
 	.use(
 		await autoload({
+			pattern: "**/*.ts",
+			dir: "./routes",
+			// Exclude disabled modules and master routes
+			ignore: ["**/*.disabled", "**/*.disabled/**", "**/master/**"],
 			types: {
 				output: "./autogen.routes.ts",
 				typeName: "App",

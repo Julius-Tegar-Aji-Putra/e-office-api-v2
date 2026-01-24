@@ -1,32 +1,235 @@
 /**
- * Pengantar Types
- * Type khusus surat pengantar
+ * Pengantar Module Types
+ * Types untuk modul surat pengantar (Lingkup Departemen)
+ * Sesuai Prompting.md Modul B: PENGANTAR
  */
 
-export interface SuratPengantar {
-  id: string;
-  submissionId: string;
-  level: 'PRODI' | 'DEPT';
-  content: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  generatedBy: string;
-  approvedBy?: string;
-  rejectedBy?: string;
-  approvedAt?: Date;
-  rejectedAt?: Date;
-  rejectionReason?: string;
-  createdAt: Date;
-  updatedAt: Date;
+import type { LetterStatus, DocumentType, LetterCategory } from '../../generated/prisma/enums';
+
+// ============================================================================
+// Signature Configuration
+// ============================================================================
+
+/**
+ * Konfigurasi penandatangan surat pengantar
+ */
+export interface PengantarSignerConfig {
+  role: string; // KAPRODI, KADEP
+  name: string;
+  nip: string;
+  jabatan: string;
+  order: number; // Urutan TTD
+  status: 'PENDING' | 'SIGNED';
+  signedAt?: Date;
 }
 
-export interface SuratPengantarWithRelations extends SuratPengantar {
-  submission: any;
-  generatedByUser: {
+/**
+ * Signatories untuk dokumen pengantar
+ */
+export interface PengantarSignatories {
+  signers: PengantarSignerConfig[];
+  requestedBySubmitter: boolean; // Apakah request TTD Kadep dari pengaju?
+}
+
+// ============================================================================
+// Input Types
+// ============================================================================
+
+/**
+ * DTO untuk Kaprodi approve pengajuan
+ */
+export interface ApproveSubmissionDTO {
+  letterInstanceId: string;
+  notes?: string;
+}
+
+/**
+ * DTO untuk Kaprodi reject pengajuan
+ */
+export interface RejectSubmissionDTO {
+  letterInstanceId: string;
+  alasan: string; // Wajib
+}
+
+/**
+ * DTO untuk Admin Prodi draft surat pengantar
+ */
+export interface CreatePengantarDraftDTO {
+  letterInstanceId: string;
+  content: unknown; // TipTap JSON content
+  tembusan?: string[]; // Array of user IDs
+  perihal: string;
+  signatories: PengantarSignatories;
+}
+
+/**
+ * DTO untuk update draft pengantar
+ */
+export interface UpdatePengantarDraftDTO {
+  content?: unknown;
+  tembusan?: string[];
+  perihal?: string;
+  signatories?: Partial<PengantarSignatories>;
+}
+
+/**
+ * DTO untuk signing surat pengantar
+ */
+export interface SignPengantarDTO {
+  documentId: string;
+  signatureUrl: string; // URL to signature image in MinIO
+  notes?: string;
+}
+
+// ============================================================================
+// Response Types
+// ============================================================================
+
+/**
+ * Item di dashboard Kaprodi
+ */
+export interface KaprodiDashboardItem {
+  id: string;
+  namaPengaju: string;
+  judulSurat: string;
+  tipeSurat: string;
+  tanggalPengajuan: Date;
+  status: LetterStatus;
+  displayStatus: string;
+  needsAction: boolean; // Apakah butuh aksi dari Kaprodi?
+  actionType: 'APPROVE' | 'SIGN' | 'NONE';
+}
+
+/**
+ * Item di dashboard Admin Prodi
+ */
+export interface AdminProdiDashboardItem {
+  id: string;
+  namaPengaju: string;
+  judulSurat: string;
+  tipeSurat: string;
+  tanggalPengajuan: Date;
+  status: LetterStatus;
+  displayStatus: string;
+  needsAction: boolean;
+  actionType: 'DRAFT' | 'NONE';
+}
+
+/**
+ * Item di dashboard Kadep
+ */
+export interface KadepDashboardItem {
+  id: string;
+  namaPengaju: string;
+  judulSurat: string;
+  tipeSurat: string;
+  tanggalPengajuan: Date;
+  status: LetterStatus;
+  displayStatus: string;
+  needsAction: boolean;
+  actionType: 'SIGN' | 'NONE';
+}
+
+/**
+ * Detail surat pengantar
+ */
+export interface PengantarDetail {
+  id: string;
+  type: DocumentType;
+  content: unknown | null;
+  tembusan: string[] | null;
+  perihal: string | null;
+  isSigned: boolean;
+  fileUrl: string | null;
+  signatures: {
+    signerRole: string;
+    signerName: string;
+    signerNip: string | null;
+    signedAt: Date;
+    order: number;
+    signatureUrl: string | null;
+  }[];
+  // Letter instance info
+  letterInstance: {
     id: string;
-    name: string;
+    status: LetterStatus;
+    currentActiveRole: string | null;
+    submissionValues: unknown;
+    signatureConfig: unknown;
+    createdBy: {
+      id: string;
+      name: string;
+      email: string;
+    };
   };
-  approvedByUser?: {
-    id: string;
-    name: string;
-  };
+}
+
+/**
+ * Permissions untuk view pengantar
+ */
+export interface PengantarPermissions {
+  // Kaprodi
+  canApprove: boolean;
+  canReject: boolean;
+  canSign: boolean;
+
+  // Admin Prodi
+  canDraft: boolean;
+  canEditDraft: boolean;
+  canSubmitDraft: boolean;
+  canEditSignatories: boolean;
+
+  // Kadep
+  canSignAsKadep: boolean;
+
+  // View permissions
+  showDraftButton: boolean;
+  showSignButton: boolean;
+  showApproveRejectButtons: boolean;
+}
+
+// ============================================================================
+// Query Types
+// ============================================================================
+
+/**
+ * Filter untuk dashboard queries
+ */
+export interface PengantarFilter {
+  status?: LetterStatus[];
+  needsAction?: boolean;
+  search?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  programStudiId?: string;
+  departemenId?: string;
+}
+
+// ============================================================================
+// Internal Types
+// ============================================================================
+
+/**
+ * Template surat pengantar
+ */
+export interface PengantarTemplate {
+  header: string;
+  body: string;
+  footer: string;
+  signatureBlock: string;
+}
+
+/**
+ * Data untuk generate surat pengantar
+ */
+export interface PengantarGenerateData {
+  nomorSurat?: string;
+  tanggalSurat: Date;
+  perihal: string;
+  kepada: string;
+  dari: string;
+  isiSurat: string;
+  lampiran: string[];
+  tembusan: string[];
+  signatories: PengantarSignerConfig[];
 }
