@@ -10,6 +10,9 @@ import { swagger } from "@elysiajs/swagger";
 import { Elysia } from "elysia";
 import { autoload } from "elysia-autoload";
 
+// Import Better Auth
+import { auth } from "./lib/auth";
+
 // Import module routes - Only import working modules for now
 import { submissionRoutes } from './modules/submission/submission.route';
 // TODO: Fix TypeScript errors in these modules then uncomment
@@ -73,6 +76,12 @@ export const app = new Elysia()
 		timestamp: new Date().toISOString(),
 		version: '2.0.0',
 	}))
+
+	// ==========================================
+	// BETTER AUTH HANDLER
+	// All auth endpoints: /api/auth/*
+	// ==========================================
+	.mount(auth.handler)
 
 	// ==========================================
 	// MODULE ROUTES (New ST/SK Implementation)

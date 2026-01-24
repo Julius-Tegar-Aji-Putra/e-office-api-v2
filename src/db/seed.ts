@@ -8,13 +8,14 @@ import {
   Jenjang
 } from '../generated/prisma/enums';
 import { randomUUID } from 'crypto';
+import { hashPassword } from 'better-auth/crypto';
 
 const prisma = new PrismaClient();
 
 // ============================================================================
 // HELPER & CONSTANTS
 // ============================================================================
-const DEFAULT_PASSWORD = "password1234"; // Hashed by Better-Auth in production
+const DEFAULT_PASSWORD = "password1234";
 
 // Role constants sesuai Prompting.md
 const ROLES = {
@@ -191,6 +192,9 @@ async function main() {
     };
   }
 
+  // Hash password sekali saja untuk semua user (using Better Auth's hashPassword)
+  const hashedPassword = await hashPassword(DEFAULT_PASSWORD);
+
   const createUser = async ({ name, email, roleName, profile }: CreateUserParams) => {
     const user = await prisma.user.create({
       data: {
@@ -202,7 +206,7 @@ async function main() {
             id: randomUUID(),
             providerId: 'credential',
             accountId: email,
-            password: DEFAULT_PASSWORD
+            password: hashedPassword // Gunakan hashed password
           }
         },
         userRoles: {

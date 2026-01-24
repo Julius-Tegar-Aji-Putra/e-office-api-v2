@@ -1,12 +1,15 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+}
+
+generator prismabox {
+  provider                    = "prismabox"
+  output                      = "../src/generated/prismabox"
+  additionalProperties        = "true"
+  inputModel                  = "true"
+  typeboxImportDependencyName = "elysia"
+  typeboxImportVariableName   = "t"
 }
 
 datasource db {
@@ -14,31 +17,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-generator prismabox {
-  provider                    = "prismabox"
-  output                      = "../src/generated/prismabox"
-  typeboxImportVariableName   = "t"
-  typeboxImportDependencyName = "elysia"
-  additionalProperties        = true
-  inputModel                  = true
-}
-
-// ============================================================================
-// README - NAMING CONVENTION
-// ============================================================================
-// JavaScript/TypeScript: PascalCase (Model), camelCase (fields)
-// PostgreSQL: snake_case (tables & columns via @@map)
-// All IDs: CUID (string) for consistency
-// ============================================================================
-
-// ============================================================================
-// BETTER-AUTH GENERATED MODELS (DO NOT MODIFY STRUCTURE)
-// ============================================================================
-
 model Session {
   id        String   @id
   expiresAt DateTime
-  token     String
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ipAddress String?
@@ -46,7 +28,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@index([userId])
   @@map("session")
 }
@@ -56,7 +37,6 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -66,6 +46,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("account")
@@ -83,19 +64,14 @@ model Verification {
   @@map("verification")
 }
 
-// ============================================================================
-// RBAC MODELS (Role-Based Access Control)
-// ============================================================================
-
 model Role {
   id          String           @id @default(cuid())
   name        String           @unique
   description String?
-  users       UserRole[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   permissions RolePermission[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  users       UserRole[]
 
   @@map("role")
 }
@@ -114,8 +90,8 @@ model UserRole {
   id     String @id @default(cuid())
   userId String
   roleId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
   @@map("user_role")
@@ -125,69 +101,53 @@ model RolePermission {
   id           String     @id @default(cuid())
   roleId       String
   permissionId String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@map("role_permission")
 }
 
-// ============================================================================
-// USER & PROFILE MODELS
-// ============================================================================
-
 model User {
-  id    String @id @default(cuid())
-  name  String
-  email String @unique
-
-  // Better-Auth fields
-  emailVerified Boolean  @default(false)
-  image         String?
-  isAnonymous   Boolean? @default(false)
-
-  // Profile Relations (One-to-One)
-  mahasiswa Mahasiswa?
-  pegawai   Pegawai?
-
-  // Auth Relations
-  userRoles UserRole[]
-  sessions  Session[]
-  accounts  Account[]
-
-  // E-Office Relations
+  id                 String              @id @default(cuid())
+  name               String
+  email              String              @unique
+  emailVerified      Boolean             @default(false)
+  image              String?
+  isAnonymous        Boolean?            @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  accounts           Account[]
+  documentSignatures DocumentSignature[] @relation("SignatureOwner")
   createdLetters     LetterInstance[]    @relation("LetterCreator")
   logs               LetterLog[]         @relation("LogActor")
+  mahasiswa          Mahasiswa?
+  pegawai            Pegawai?
   savedSignatures    SavedSignature[]
-  documentSignatures DocumentSignature[] @relation("SignatureOwner")
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  sessions           Session[]
+  userRoles          UserRole[]
 
   @@map("user")
 }
 
 model Mahasiswa {
-  id  String @id @default(cuid())
-  nim String @unique
-
-  tahunMasuk   String
-  noHp         String
-  alamat       String?
-  tempatLahir  String?
-  tanggalLahir DateTime?
-
+  id             String       @id @default(cuid())
+  nim            String       @unique
+  tahunMasuk     String
+  noHp           String
+  alamat         String?
+  tempatLahir    String?
+  tanggalLahir   DateTime?
   userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   departemenId   String
-  departemen     Departemen   @relation(fields: [departemenId], references: [id])
   programStudiId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  departemen     Departemen   @relation(fields: [departemenId], references: [id])
   programStudi   ProgramStudi @relation(fields: [programStudiId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([departemenId])
   @@index([programStudiId])
@@ -195,172 +155,124 @@ model Mahasiswa {
 }
 
 model Pegawai {
-  id      String  @id @default(cuid())
-  nip     String  @unique
-  jabatan String
-  noHp    String?
-
+  id             String       @id @default(cuid())
+  nip            String       @unique
+  jabatan        String
+  noHp           String?
   userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   departemenId   String
-  departemen     Departemen   @relation(fields: [departemenId], references: [id])
   programStudiId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  departemen     Departemen   @relation(fields: [departemenId], references: [id])
   programStudi   ProgramStudi @relation(fields: [programStudiId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([departemenId])
   @@index([programStudiId])
   @@map("pegawai")
 }
 
-// ============================================================================
-// ACADEMIC STRUCTURE MODELS
-// ============================================================================
-
 model Departemen {
-  id   String @id @default(cuid())
-  name String
-  code String @unique
-
-  programStudi ProgramStudi[]
-  pegawai      Pegawai[]
+  id           String         @id @default(cuid())
+  name         String
+  code         String         @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
   mahasiswa    Mahasiswa[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  pegawai      Pegawai[]
+  programStudi ProgramStudi[]
 
   @@map("departemen")
 }
 
 model ProgramStudi {
-  id   String @id @default(cuid())
-  name String
-  code String @unique
-
-  jenjang      Jenjang    @default(S1)
+  id           String      @id @default(cuid())
+  name         String
+  code         String      @unique
+  jenjang      Jenjang     @default(S1)
   departemenId String
-  departemen   Departemen @relation(fields: [departemenId], references: [id])
-
-  pegawai   Pegawai[]
-  mahasiswa Mahasiswa[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+  mahasiswa    Mahasiswa[]
+  pegawai      Pegawai[]
+  departemen   Departemen  @relation(fields: [departemenId], references: [id])
 
   @@index([departemenId])
   @@map("program_studi")
 }
 
-// ============================================================================
-// SAVED SIGNATURE MODEL (User's Signature Library)
-// ============================================================================
-
 model SavedSignature {
-  id String @id @default(cuid())
-
-  userId   String
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type     SignatureType @default(UPLOAD)
-  fileUrl  String
-  fileName String
-  isActive Boolean       @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String        @id @default(cuid())
+  userId    String
+  type      SignatureType @default(UPLOAD)
+  fileUrl   String
+  fileName  String
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("saved_signature")
 }
 
-// ============================================================================
-// LETTER TYPE & TEMPLATE MODELS (Master Configuration)
-// ============================================================================
-
 model LetterType {
-  id          String         @id @default(cuid())
-  name        String
-  code        String         @unique
-  description String?
-  category    LetterCategory @default(UMUM)
-
-  // Configuration for this letter type
-  requiresPengantar   Boolean @default(true) // Apakah butuh surat pengantar?
-  requiresDekanSign   Boolean @default(true) // Apakah butuh TTD Dekan?
-  requiresWadekSign   Boolean @default(false) // Apakah butuh TTD Wadek?
-  defaultTargetSigner String? // Default role untuk penandatangan (DEKAN, WADEK_1, etc)
-
-  templates       LetterTemplate[]
-  letterInstances LetterInstance[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id                  String           @id @default(cuid())
+  name                String
+  code                String           @unique
+  description         String?
+  category            LetterCategory   @default(UMUM)
+  requiresPengantar   Boolean          @default(true)
+  requiresDekanSign   Boolean          @default(true)
+  requiresWadekSign   Boolean          @default(false)
+  defaultTargetSigner String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+  letterInstances     LetterInstance[]
+  templates           LetterTemplate[]
 
   @@map("letter_type")
 }
 
 model LetterTemplate {
-  id String @id @default(cuid())
-
-  versionName      String @map("version_name")
-  schemaDefinition Json   @map("schema_definition") // JSON Schema for form validation
-  formFields       Json   @map("form_fields") // UI Field definitions
-  contentTemplate  Json?  @map("content_template") // Draft content template (TipTap JSON)
-
-  letterTypeId String     @map("letter_type_id")
-  letterType   LetterType @relation(fields: [letterTypeId], references: [id])
-
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String     @id @default(cuid())
+  versionName      String     @map("version_name")
+  schemaDefinition Json       @map("schema_definition")
+  formFields       Json       @map("form_fields")
+  contentTemplate  Json?      @map("content_template")
+  letterTypeId     String     @map("letter_type_id")
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  letterType       LetterType @relation(fields: [letterTypeId], references: [id])
 
   @@index([letterTypeId])
   @@map("letter_template")
 }
 
-// ============================================================================
-// LETTER INSTANCE MODEL (Main Transaction Table)
-// ============================================================================
-
 model LetterInstance {
-  id String @id @default(cuid())
-
-  // === Submission Data ===
-  submissionValues Json // Data formulir yang diisi pengaju
-
-  // === Global Status (Follows State Machine) ===
-  status LetterStatus @default(SUBMITTED)
-
-  // === Workflow Tracking ===
-  currentActiveRole String? // Role yang sedang memegang surat ini
-  priority          Priority @default(NORMAL)
-
-  // === Signature Configuration (Requested by Submitter) ===
-  // Contoh: { "targetSigner": "DEKAN", "requestWadekSign": true }
-  signatureConfig Json?
-
-  // === Relations ===
-  letterTypeId String
-  letterType   LetterType @relation(fields: [letterTypeId], references: [id])
-  createdById  String
-  createdBy    User       @relation("LetterCreator", fields: [createdById], references: [id])
-
-  // Child Relations
-  documents   LetterDocument[]
-  logs        LetterLog[]
-  attachments LetterAttachment[]
-
-  // === Timestamps ===
-  submittedAt DateTime  @default(now())
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                String             @id @default(cuid())
+  submissionValues  Json
+  status            LetterStatus       @default(SUBMITTED)
+  currentActiveRole String?
+  priority          Priority           @default(NORMAL)
+  signatureConfig   Json?
+  letterTypeId      String
+  createdById       String
+  submittedAt       DateTime           @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  attachments       LetterAttachment[]
+  documents         LetterDocument[]
+  createdBy         User               @relation("LetterCreator", fields: [createdById], references: [id])
+  letterType        LetterType         @relation(fields: [letterTypeId], references: [id])
+  logs              LetterLog[]
 
   @@index([status])
   @@index([letterTypeId])
@@ -369,107 +281,64 @@ model LetterInstance {
   @@map("letter_instance")
 }
 
-// ============================================================================
-// LETTER DOCUMENT MODEL (Pengantar / SK / ST)
-// ============================================================================
-
 model LetterDocument {
-  id String @id @default(cuid())
-
+  id               String              @id @default(cuid())
   letterInstanceId String
-  letterInstance   LetterInstance @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
+  type             DocumentType
+  content          Json?
+  tembusan         Json?
+  nomorSurat       String?
+  tanggalSurat     DateTime?
+  perihal          String?
+  isSigned         Boolean             @default(false)
+  fileUrl          String?
+  qrCodeUrl        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  signatures       DocumentSignature[]
+  letterInstance   LetterInstance      @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
 
-  // === Document Type ===
-  type DocumentType
-
-  // === Document Content ===
-  content  Json? // TipTap JSON content (for drafting)
-  tembusan Json? // Array of tembusan recipients
-
-  // === Numbering (Filled by Admin/UPA) ===
-  nomorSurat   String?
-  tanggalSurat DateTime?
-  perihal      String?
-
-  // === Signing Status ===
-  isSigned Boolean @default(false)
-
-  // === Final Output ===
-  fileUrl   String? // Final PDF URL in MinIO
-  qrCodeUrl String? // QR Code for verification
-
-  // === Child Relations ===
-  signatures DocumentSignature[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([letterInstanceId, type]) // One document type per instance
+  @@unique([letterInstanceId, type])
   @@index([letterInstanceId])
   @@map("letter_document")
 }
 
-// ============================================================================
-// DOCUMENT SIGNATURE MODEL (Individual Signatures on Document)
-// ============================================================================
-
 model DocumentSignature {
-  id String @id @default(cuid())
-
-  documentId String
-  document   LetterDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  // === Signer Info ===
-  signerId   String
-  signer     User   @relation("SignatureOwner", fields: [signerId], references: [id])
-  signerRole String // Role saat menandatangani (KAPRODI, KADEP, DEKAN, etc)
-  signerName String // Nama lengkap saat TTD (snapshot)
-  signerNip  String? // NIP saat TTD (snapshot)
-
-  // === Signature Data ===
-  signatureUrl String? // URL ke file TTD di MinIO
-  signedAt     DateTime @default(now())
+  id           String         @id @default(cuid())
+  documentId   String
+  signerId     String
+  signerRole   String
+  signerName   String
+  signerNip    String?
+  signatureUrl String?
+  signedAt     DateTime       @default(now())
   notes        String?
+  order        Int            @default(0)
+  document     LetterDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer       User           @relation("SignatureOwner", fields: [signerId], references: [id])
 
-  // === Order (for multiple signatures) ===
-  order Int @default(0) // 0 = first signer, 1 = second, etc
-
-  @@unique([documentId, signerRole]) // One signature per role per document
+  @@unique([documentId, signerRole])
   @@index([documentId])
   @@index([signerId])
   @@map("document_signature")
 }
 
-// ============================================================================
-// LETTER LOG MODEL (Audit Trail & State Transitions)
-// ============================================================================
-
 model LetterLog {
-  id String @id @default(cuid())
-
+  id               String         @id @default(cuid())
   letterInstanceId String
+  actorId          String
+  actorRole        String
+  action           LogAction
+  fromStatus       LetterStatus?
+  toStatus         LetterStatus?
+  targetRole       String?
+  notes            String?
+  metadata         Json?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime       @default(now())
+  actor            User           @relation("LogActor", fields: [actorId], references: [id])
   letterInstance   LetterInstance @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
-
-  // === Actor Info ===
-  actorId   String
-  actor     User   @relation("LogActor", fields: [actorId], references: [id])
-  actorRole String // Role saat melakukan aksi
-
-  // === Action Details ===
-  action     LogAction
-  fromStatus LetterStatus? // Status sebelum aksi
-  toStatus   LetterStatus? // Status setelah aksi
-
-  // === Disposition/Routing Info ===
-  targetRole String? // Role tujuan (untuk DISPOSITION action)
-  notes      String? // Catatan/alasan
-
-  // === Metadata ===
-  metadata  Json? // Additional data (rejection reason, etc)
-  ipAddress String?
-  userAgent String?
-
-  createdAt DateTime @default(now())
 
   @@index([letterInstanceId])
   @@index([actorId])
@@ -477,34 +346,21 @@ model LetterLog {
   @@map("letter_log")
 }
 
-// ============================================================================
-// LETTER ATTACHMENT MODEL (Uploaded Files)
-// ============================================================================
-
 model LetterAttachment {
-  id String @id @default(cuid())
-
+  id               String         @id @default(cuid())
   letterInstanceId String
+  fileName         String
+  fileUrl          String
+  fileSize         Int?
+  mimeType         String?
+  description      String?
+  uploadedById     String
+  uploadedAt       DateTime       @default(now())
   letterInstance   LetterInstance @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
-
-  // === File Info ===
-  fileName    String
-  fileUrl     String
-  fileSize    Int?
-  mimeType    String?
-  description String?
-
-  // === Upload Info ===
-  uploadedById String
-  uploadedAt   DateTime @default(now())
 
   @@index([letterInstanceId])
   @@map("letter_attachment")
 }
-
-// ============================================================================
-// ENUMS
-// ============================================================================
 
 enum Jenjang {
   D3
@@ -514,24 +370,24 @@ enum Jenjang {
 }
 
 enum SignatureType {
-  UPLOAD // Uploaded image file
-  HANDWRITING // Drawn signature (base64 or SVG)
+  UPLOAD
+  HANDWRITING
 
   @@map("signature_type")
 }
 
 enum LetterCategory {
-  AKADEMIK // Surat terkait akademik (SK Pembimbing, SK Penguji, etc)
-  SUMBER_DAYA // Surat terkait SDM (SK Kepanitiaan, SK Perjalanan Dinas, etc)
-  UMUM // Surat umum lainnya
+  AKADEMIK
+  SUMBER_DAYA
+  UMUM
 
   @@map("letter_category")
 }
 
 enum DocumentType {
-  SURAT_PENGANTAR // Lingkup Departemen
-  SURAT_KEPUTUSAN // Lingkup Fakultas (SK)
-  SURAT_TUGAS // Lingkup Fakultas (ST)
+  SURAT_PENGANTAR
+  SURAT_KEPUTUSAN
+  SURAT_TUGAS
 
   @@map("document_type")
 }
@@ -546,66 +402,44 @@ enum Priority {
 }
 
 enum LogAction {
-  // === Submission Actions ===
-  SUBMIT // Pengaju submit surat baru
-  RESUBMIT // Pengaju submit ulang setelah revisi
-
-  // === Approval Actions ===
-  APPROVE // Menyetujui untuk lanjut ke tahap berikutnya
-  REJECT // Menolak permanen
-  RETURN // Mengembalikan untuk revisi
-
-  // === Disposition Actions ===
-  DISPOSITION // Meneruskan ke role lain
-
-  // === Drafting Actions ===
-  DRAFT_CREATE // Membuat draft dokumen
-  DRAFT_UPDATE // Mengupdate draft dokumen
-
-  // === Verification Actions ===
-  VERIFY // Memverifikasi draft
-  REQUEST_REVISION // Meminta revisi draft
-
-  // === Signing Actions ===
-  SIGN // Menandatangani dokumen
-
-  // === UPA Actions ===
-  ASSIGN_NUMBER // Memberikan nomor surat
-  STAMP // Memberikan stempel/cap
-  GENERATE_QR // Generate QR Code
-  FINALIZE // Finalisasi dokumen
-
-  // === System Actions ===
-  STATUS_CHANGE // Perubahan status otomatis
-  COMMENT // Menambah komentar/catatan
+  SUBMIT
+  RESUBMIT
+  APPROVE
+  REJECT
+  RETURN
+  DISPOSITION
+  DRAFT_CREATE
+  DRAFT_UPDATE
+  VERIFY
+  REQUEST_REVISION
+  SIGN
+  ASSIGN_NUMBER
+  STAMP
+  GENERATE_QR
+  FINALIZE
+  STATUS_CHANGE
+  COMMENT
 
   @@map("log_action")
 }
 
 enum LetterStatus {
-  // === Lingkup Departemen ===
-  SUBMITTED // Baru diajukan (Posisi: Meja Kaprodi)
-  KAPRODI_REVIEW // Sedang direview Kaprodi
-  SURAT_PENGANTAR_DRAFT // Kaprodi approve, Admin Prodi drafting pengantar
-  SURAT_PENGANTAR_REVIEW // Draft selesai, menunggu TTD Kaprodi/Kadep
-  SURAT_PENGANTAR_SIGNED // Surat pengantar sudah ditandatangani
-
-  // === Lingkup Fakultas ===
-  FAKULTAS_RECEIVED // Diterima Admin Fakultas
-  FAKULTAS_DISPOSITION // Sedang didisposisi (turun ke bawah)
-  FAKULTAS_DRAFTING // Staf sedang drafting SK/ST
-  FAKULTAS_VERIFICATION // Draft naik ke atas untuk verifikasi
-  FAKULTAS_SIGNING // Menunggu TTD pejabat (Wadek/Dekan)
-
-  // === UPA Processing ===
-  UPA_NUMBERING // UPA memberikan nomor surat
-  UPA_STAMPING // UPA memberikan stempel
-  UPA_FINALIZING // UPA finalisasi (generate PDF, QR)
-
-  // === Terminal States ===
-  COMPLETED // Selesai, bisa didownload
-  REJECTED // Ditolak permanen
-  CANCELLED // Dibatalkan oleh pengaju
+  SUBMITTED
+  KAPRODI_REVIEW
+  SURAT_PENGANTAR_DRAFT
+  SURAT_PENGANTAR_REVIEW
+  SURAT_PENGANTAR_SIGNED
+  FAKULTAS_RECEIVED
+  FAKULTAS_DISPOSITION
+  FAKULTAS_DRAFTING
+  FAKULTAS_VERIFICATION
+  FAKULTAS_SIGNING
+  UPA_NUMBERING
+  UPA_STAMPING
+  UPA_FINALIZING
+  COMPLETED
+  REJECTED
+  CANCELLED
 
   @@map("letter_status")
 }
