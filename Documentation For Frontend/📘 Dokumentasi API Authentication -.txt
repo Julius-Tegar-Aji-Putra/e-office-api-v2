@@ -1,0 +1,172 @@
+📘 Dokumentasi API Authentication - E-Office ST/SK Dekan
+🔐 Overview
+Backend menggunakan Better Auth untuk sistem autentikasi yang aman dan modern. Session-based authentication dengan cookie better-auth.session_token.
+
+🌐 Base URL
+Local: http://localhost:3079
+Network: http://192.168.18.36:3079 (sesuaikan dengan IP dari console log)
+
+Sign In (Login)
+Login dengan email dan password.
+
+Endpoint: POST /api/auth/sign-in/email
+
+Request Body:
+{
+  "email": "kaprodi.if@undip.ac.id",
+  "password": "password1234"
+}
+
+Response Success (200):
+{
+  "user": {
+    "id": "cm4xfv8yw000008mh3t8x9y2z",
+    "email": "kaprodi.if@undip.ac.id",
+    "name": "Dr. Eko Prasetyo",
+    "emailVerified": true,
+    "image": null,
+    "createdAt": "2026-01-24T08:15:00.000Z",
+    "updatedAt": "2026-01-24T08:15:00.000Z"
+  },
+  "session": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresAt": "2026-01-31T08:15:00.000Z"
+  }
+}
+
+Response Error (401):
+{
+  "error": "Invalid email or password"
+}
+
+
+Get Current Session
+Mendapatkan informasi user yang sedang login.
+
+Endpoint: GET /api/auth/session
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Response Success (200):
+{
+  "session": {
+    "id": "cm4session123",
+    "userId": "cm4xfv8yw000008mh3t8x9y2z",
+    "expiresAt": "2026-01-31T08:15:00.000Z",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "ipAddress": "192.168.18.100",
+    "userAgent": "Mozilla/5.0..."
+  },
+  "user": {
+    "id": "cm4xfv8yw000008mh3t8x9y2z",
+    "email": "kaprodi.if@undip.ac.id",
+    "name": "Dr. Eko Prasetyo",
+    "emailVerified": true,
+    "image": null
+  }
+}
+
+Response Error (401):
+{
+  "error": "Unauthorized"
+}
+
+Sign Out (Logout)
+Logout dan hapus session.
+
+Endpoint: POST /api/auth/sign-out
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Response Success (200):
+{
+  "success": true
+}
+
+👥 Test Accounts
+Semua akun menggunakan password: password1234
+Lingkup Departemen
+Role	Email	Nama	Department	Program Studi
+MAHASISWA	ahmad.budi@students.undip.ac.id	Ahmad Budi Santoso	Informatika	S1 Informatika
+MAHASISWA	dewi.sartika@students.undip.ac.id	Dewi Sartika	Matematika	S1 Matematika
+DOSEN	raden.satrio@lecturer.undip.ac.id	Prof. Raden Satrio	Informatika	S1 Informatika
+KAPRODI	kaprodi.if@undip.ac.id	Dr. Eko Prasetyo	Informatika	S1 Informatika
+ADMIN_PRODI	admin.prodi.if@undip.ac.id	Siti Aminah	Informatika	S1 Informatika
+KADEP	kadep.if@undip.ac.id	Prof. Budi Hartono	Informatika	-
+Lingkup Fakultas
+Role	Email	Nama	Department
+ADMIN_FAKULTAS	admin.fakultas@fsm.undip.ac.id	Retno Wulandari	FSM
+DEKAN	dekan@fsm.undip.ac.id	Prof. Dr. Ahmad Dhani	FSM
+WADEK_1	wadek1@fsm.undip.ac.id	Dr. Bambang Sutopo	FSM
+WADEK_2	wadek2@fsm.undip.ac.id	Dr. Citra Lestari	FSM
+MANAJER_TU	manajer.tu@fsm.undip.ac.id	Drs. Eko Saputra	FSM
+SUPERVISOR_AKADEMIK	spv.akademik@fsm.undip.ac.id	Fitri Handayani, S.Kom	FSM
+SUPERVISOR_SUMBER_DAYA	spv.sumberdaya@fsm.undip.ac.id	Gita Pratiwi, S.E.	FSM
+STAF_AKADEMIK	staf.akademik1@fsm.undip.ac.id	Hendra Wijaya	FSM
+STAF_SUMBER_DAYA	staf.sumberdaya@fsm.undip.ac.id	Indah Permata	FSM
+UPA	upa@fsm.undip.ac.id	Joko Santoso	FSM
+Admin
+Role	Email	Nama
+SUPERADMIN	superadmin@fsm.undip.ac.id	System Administrator
+
+🔑 Session Management
+Cookie Details
+Name: better-auth.session_token
+HttpOnly: true (tidak bisa diakses JavaScript)
+Secure: true (hanya HTTPS di production)
+SameSite: Lax
+Max-Age: 604800 (7 hari)
+Session Update
+Session akan auto-refresh setiap 24 jam jika user masih aktif.
+
+🛡️ Protected Endpoints
+Semua endpoint di luar /api/auth/* memerlukan autentikasi.
+
+Cara menggunakan di Frontend:
+
+Axios (Recommended)
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3079',
+  withCredentials: true // PENTING: Agar cookie ikut terkirim
+});
+
+// Login
+const login = async (email: string, password: string) => {
+  const response = await api.post('/api/auth/sign-in/email', {
+    email,
+    password
+  });
+  return response.data;
+};
+
+// Get Dashboard (Protected)
+const getDashboard = async () => {
+  const response = await api.get('/dash');
+  return response.data;
+};
+
+Fetch API
+// Login
+const login = async (email: string, password: string) => {
+  const response = await fetch('http://localhost:3079/api/auth/sign-in/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include', // PENTING: Agar cookie ikut
+    body: JSON.stringify({ email, password })
+  });
+  return response.json();
+};
+
+// Get Dashboard (Protected)
+const getDashboard = async () => {
+  const response = await fetch('http://localhost:3079/dash', {
+    credentials: 'include' // PENTING
+  });
+  return response.json();
+};

@@ -109,6 +109,14 @@ export const STAF_ROLES = [
 ] as const;
 
 /**
+ * Supervisor (dapat verifikasi draft)
+ */
+export const SUPERVISOR_ROLES = [
+  ROLES.SUPERVISOR_AKADEMIK,
+  ROLES.SUPERVISOR_SUMBER_DAYA
+] as const;
+
+/**
  * Role yang dapat menandatangani
  */
 export const SIGNATORY_ROLES = [

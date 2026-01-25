@@ -72,10 +72,22 @@ class FacultyDispositionService {
       // Get available targets for disposition
       const category = letter.letterType.category as LetterCategory;
       const currentRole = userRoles.find(r => r === letter.currentActiveRole);
-      
-      const dispositionTargets = currentRole
-        ? this.getAvailableDispositionTargets(currentRole, category)
-        : [];
+      const isAdminFakultas = userRoles.includes(ROLES.ADMIN_FAKULTAS);
+
+      // Admin Fakultas dapat meneruskan ke siapapun (forward)
+      // Pejabat hanya bisa disposisi ke level bawah
+      let dispositionTargets: string[] = [];
+      let forwardTargets: string[] = [];
+
+      if (currentRole) {
+        if (isAdminFakultas && letter.status === LetterStatus.FAKULTAS_RECEIVED) {
+          // Admin Fakultas - Meneruskan (bebas pilih)
+          forwardTargets = this.getAvailableForwardTargets();
+        } else if (letter.status === LetterStatus.FAKULTAS_DISPOSITION) {
+          // Pejabat - Disposisi (terikat level)
+          dispositionTargets = this.getAvailableDispositionTargets(currentRole, category);
+        }
+      }
 
       // PERBAIKAN: Return targets berdasarkan history
       const returnTargets = currentRole
@@ -88,7 +100,8 @@ class FacultyDispositionService {
         success: true,
         data: {
           letter,
-          dispositionTargets,
+          forwardTargets,      // Untuk Admin Fakultas
+          dispositionTargets,  // Untuk Pejabat
           returnTargets,
           permissions
         }
@@ -126,7 +139,72 @@ class FacultyDispositionService {
   }
 
   /**
-   * Create disposition to next role
+   * Forward letter (Admin Fakultas) - BEBAS pilih target
+   * Ini berbeda dengan disposisi pejabat yang terikat level
+   */
+  async forwardLetter(
+    input: DispositionInput,
+    userId: string,
+    userRole: string
+  ): Promise<ServiceResult> {
+    try {
+      const letter = await facultyDispositionRepository.getLetterById(input.letterId);
+
+      if (!letter) {
+        return { success: false, error: 'Surat tidak ditemukan', code: 404 };
+      }
+
+      // Hanya Admin Fakultas yang bisa forward
+      if (userRole !== ROLES.ADMIN_FAKULTAS) {
+        return { success: false, error: 'Hanya Admin Fakultas yang dapat meneruskan surat', code: 403 };
+      }
+
+      // Validate current role
+      if (letter.currentActiveRole !== userRole) {
+        return { success: false, error: 'Bukan giliran Anda untuk meneruskan surat', code: 403 };
+      }
+
+      // Validasi status surat harus FAKULTAS_RECEIVED
+      if (letter.status !== LetterStatus.FAKULTAS_RECEIVED) {
+        return { success: false, error: 'Surat tidak dalam status yang dapat diteruskan', code: 400 };
+      }
+
+      // Admin Fakultas BEBAS pilih target (DEKAN, WADEK, MANAJER_TU, dsb)
+      // Tidak perlu cek hierarchy level
+      const validTargets: string[] = [
+        ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.MANAJER_TU,
+        ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA,
+        ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA
+      ];
+
+      if (!validTargets.includes(input.targetRole)) {
+        return { success: false, error: 'Target penerusan tidak valid', code: 400 };
+      }
+
+      // Check if target is staff -> change status to DRAFTING
+      if ((STAF_ROLES as readonly string[]).includes(input.targetRole)) {
+        const result = await facultyDispositionRepository.dispositionToStaff(
+          input.letterId,
+          input.targetRole,
+          userId,
+          userRole,
+          input.notes
+        );
+        return { success: true, data: result };
+      }
+
+      // Forward ke pejabat - status jadi FAKULTAS_DISPOSITION
+      const fromStatus = letter.status as LetterStatus;
+      const result = await facultyDispositionRepository.createDisposition(input, userId, userRole, fromStatus);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
+    }
+  }
+
+  /**
+   * Create disposition to next role (Pejabat only)
+   * Pejabat HANYA bisa disposisi ke role yang lebih rendah (terikat hierarchy)
    */
   async createDisposition(
     input: DispositionInput,
@@ -145,9 +223,9 @@ class FacultyDispositionService {
         return { success: false, error: 'Bukan giliran Anda untuk disposisi', code: 403 };
       }
 
-      // Validate target role is lower in hierarchy
+      // Pejabat: Validate target role is lower in hierarchy
       if (!canDispositionTo(userRole, input.targetRole)) {
-        return { success: false, error: 'Tidak dapat disposisi ke role yang lebih tinggi', code: 400 };
+        return { success: false, error: 'Tidak dapat disposisi ke role yang lebih tinggi atau setara', code: 400 };
       }
 
       // Check if target is staff -> change status to DRAFTING
@@ -245,6 +323,27 @@ class FacultyDispositionService {
   // PRIVATE HELPERS
   // ===========================================================================
 
+  /**
+   * Get available forward targets for Admin Fakultas
+   * Admin Fakultas dapat meneruskan ke SIAPAPUN (tidak terikat hierarchy)
+   */
+  private getAvailableForwardTargets(): string[] {
+    return [
+      ROLES.DEKAN,
+      ROLES.WADEK_1,
+      ROLES.WADEK_2,
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA
+    ];
+  }
+
+  /**
+   * Get available disposition targets for Pejabat
+   * Pejabat HANYA bisa disposisi ke role yang levelnya lebih RENDAH
+   */
   private getAvailableDispositionTargets(
     currentRole: string,
     category: LetterCategory
@@ -329,11 +428,13 @@ class FacultyDispositionService {
       canCategorize: isAdminFakultas && 
         letter.status === LetterStatus.SURAT_PENGANTAR_SIGNED && isCurrentRole,
 
-      // Can disposition when status is RECEIVED or DISPOSITION and it's their turn
-      canDisposition: isCurrentRole && (
-        letter.status === LetterStatus.FAKULTAS_RECEIVED ||
-        letter.status === LetterStatus.FAKULTAS_DISPOSITION
-      ),
+      // Admin Fakultas can forward (meneruskan) - BEBAS target
+      canForward: isAdminFakultas && 
+        letter.status === LetterStatus.FAKULTAS_RECEIVED && isCurrentRole,
+
+      // Pejabat can disposition - TERIKAT hierarchy (ke level bawah)
+      canDisposition: isPejabat && 
+        letter.status === LetterStatus.FAKULTAS_DISPOSITION && isCurrentRole,
 
       // Pejabat can mark as complete during disposition
       canComplete: isPejabat && 

@@ -301,6 +301,248 @@ class HasilRepository {
       }
     });
   }
+
+  /**
+   * Supervisor approve verification -> MANAJER_TU (bukan langsung signing)
+   * Flow: SUPERVISOR → approve → MANAJER_TU
+   */
+  async approveVerification(
+    letterId: string,
+    actorId: string,
+    actorRole: string,
+    notes?: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      // Supervisor approve -> kirim ke MANAJER_TU
+      const nextRole = 'MANAJER_TU';
+
+      const updated = await tx.letterInstance.update({
+        where: { id: letterId },
+        data: {
+          status: LetterStatus.FAKULTAS_VERIFICATION, // Tetap VERIFICATION, role berubah
+          currentActiveRole: nextRole,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterId,
+          actorId,
+          actorRole,
+          action: LogAction.APPROVE,
+          fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
+          toStatus: LetterStatus.FAKULTAS_VERIFICATION,
+          targetRole: nextRole,
+          notes: notes || 'Draft diverifikasi Supervisor, diteruskan ke Manajer TU'
+        }
+      });
+
+      return updated;
+    });
+  }
+
+  /**
+   * Manajer TU approve verification -> FAKULTAS_SIGNING
+   * Flow: MANAJER_TU → approve → First Signer (DEKAN/WADEK)
+   */
+  async manajerTuApproveVerification(
+    letterId: string,
+    actorId: string,
+    actorRole: string,
+    notes?: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      // Get first signer from ST/SK document
+      const letter = await tx.letterInstance.findUnique({
+        where: { id: letterId },
+        include: {
+          documents: {
+            where: {
+              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
+            },
+            include: {
+              signatures: { orderBy: { order: 'asc' } }
+            }
+          }
+        }
+      });
+
+      if (!letter || !letter.documents[0]) {
+        throw new Error('Surat atau dokumen tidak ditemukan');
+      }
+
+      const firstSignature = letter.documents[0].signatures[0];
+      const nextRole = firstSignature?.signerRole || 'DEKAN';
+
+      const updated = await tx.letterInstance.update({
+        where: { id: letterId },
+        data: {
+          status: LetterStatus.FAKULTAS_SIGNING,
+          currentActiveRole: nextRole,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterId,
+          actorId,
+          actorRole,
+          action: LogAction.APPROVE,
+          fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
+          toStatus: LetterStatus.FAKULTAS_SIGNING,
+          targetRole: nextRole,
+          notes: notes || 'Draft diverifikasi Manajer TU, siap untuk ditandatangani'
+        }
+      });
+
+      return updated;
+    });
+  }
+
+  /**
+   * Supervisor return draft for revision -> FAKULTAS_DRAFTING
+   */
+  async returnForRevision(
+    letterId: string,
+    actorId: string,
+    actorRole: string,
+    reason: string,
+    targetStaff: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.letterInstance.update({
+        where: { id: letterId },
+        data: {
+          status: LetterStatus.FAKULTAS_DRAFTING,
+          currentActiveRole: targetStaff,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterId,
+          actorId,
+          actorRole,
+          action: LogAction.RETURN,
+          fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
+          toStatus: LetterStatus.FAKULTAS_DRAFTING,
+          targetRole: targetStaff,
+          notes: reason
+        }
+      });
+
+      return updated;
+    });
+  }
+
+  /**
+   * Pejabat (Dekan/Wadek) sign SK/ST document
+   * Flow: FAKULTAS_SIGNING → sign → UPA_NUMBERING (if last signer) atau next signer
+   */
+  async signDocument(
+    letterId: string,
+    signatureUrl: string,
+    signerName: string,
+    signerNip: string | undefined,
+    actorId: string,
+    actorRole: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      // Get letter with SK/ST document and signatures
+      const letter = await tx.letterInstance.findUnique({
+        where: { id: letterId },
+        include: {
+          documents: {
+            where: {
+              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
+            },
+            include: {
+              signatures: { orderBy: { order: 'asc' } }
+            }
+          }
+        }
+      });
+
+      if (!letter || !letter.documents[0]) {
+        throw new Error('Surat atau dokumen tidak ditemukan');
+      }
+
+      const document = letter.documents[0];
+      
+      // Find pending signature for current role
+      const pendingSignature = document.signatures.find(
+        s => s.signerRole === actorRole && s.status === 'PENDING'
+      );
+
+      if (!pendingSignature) {
+        throw new Error('Tidak ada tanda tangan yang pending untuk role ini');
+      }
+
+      // Update signature
+      await tx.documentSignature.update({
+        where: { id: pendingSignature.id },
+        data: {
+          signerId: actorId,
+          signerName,
+          signerNip,
+          signatureUrl,
+          status: 'SIGNED',
+          signedAt: new Date()
+        }
+      });
+
+      // Check if all signatures complete
+      const remainingPending = document.signatures.filter(
+        s => s.id !== pendingSignature.id && s.status === 'PENDING'
+      );
+
+      let nextStatus: LetterStatus;
+      let nextRole: string;
+
+      if (remainingPending.length === 0) {
+        // All signed -> UPA_NUMBERING
+        nextStatus = LetterStatus.UPA_NUMBERING;
+        nextRole = 'UPA';
+        
+        // Mark document as signed
+        await tx.letterDocument.update({
+          where: { id: document.id },
+          data: { isSigned: true, updatedAt: new Date() }
+        });
+      } else {
+        // Still have pending signers
+        nextStatus = LetterStatus.FAKULTAS_SIGNING;
+        nextRole = remainingPending[0].signerRole;
+      }
+
+      const updated = await tx.letterInstance.update({
+        where: { id: letterId },
+        data: {
+          status: nextStatus,
+          currentActiveRole: nextRole,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterId,
+          actorId,
+          actorRole,
+          action: LogAction.SIGN,
+          fromStatus: LetterStatus.FAKULTAS_SIGNING,
+          toStatus: nextStatus,
+          targetRole: nextRole,
+          notes: `Dokumen ditandatangani oleh ${signerName}`
+        }
+      });
+
+      return updated;
+    });
+  }
 }
 
 export const hasilRepository = new HasilRepository();

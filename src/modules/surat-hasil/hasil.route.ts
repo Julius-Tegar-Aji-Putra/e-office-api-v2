@@ -12,9 +12,12 @@ import {
   documentIdParamSchema,
   createDraftBodySchema,
   updateDraftBodySchema,
-  submitVerificationBodySchema
+  submitVerificationBodySchema,
+  approveVerificationBodySchema,
+  returnRevisionBodySchema,
+  signDocumentBodySchema
 } from './hasil.validation';
-import { STAF_ROLES } from '../../shared/constants/roles';
+import { STAF_ROLES, PEJABAT_ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
 
@@ -121,6 +124,79 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     detail: {
       summary: 'Submit for verification',
       description: 'Staf mengajukan draft untuk verifikasi',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  // ==========================================================================
+  // Supervisor/Manajer TU Verification Actions
+  // ==========================================================================
+
+  .post('/:id/approve', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    // Find supervisor or manajer TU role
+    const activeRole = roles.find(r => 
+      ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
+    ) || roles[0];
+    return hasilController.approveVerification(params.id, body, user.id, activeRole);
+  }, {
+    params: letterIdParamSchema,
+    body: approveVerificationBodySchema,
+    detail: {
+      summary: 'Approve verification',
+      description: 'Supervisor verifikasi → Manajer TU, atau Manajer TU verifikasi → Signing',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  .put('/:id/supervisor-edit', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
+    ) || roles[0];
+    return hasilController.updateDraftAsSupervisor(params.id, body, user.id, activeRole);
+  }, {
+    params: letterIdParamSchema,
+    body: updateDraftBodySchema,
+    detail: {
+      summary: 'Supervisor/Manajer TU edit draft',
+      description: 'Supervisor atau Manajer TU mengedit draft SK/ST',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  .post('/:id/return', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
+    ) || roles[0];
+    return hasilController.returnForRevision(params.id, body, user.id, activeRole);
+  }, {
+    params: letterIdParamSchema,
+    body: returnRevisionBodySchema,
+    detail: {
+      summary: 'Return for revision',
+      description: 'Supervisor/Manajer TU mengembalikan draft untuk diperbaiki staf',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  // ==========================================================================
+  // Signing Actions (Dekan/Wadek)
+  // ==========================================================================
+
+  .post('/:id/sign', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      (PEJABAT_ROLES as readonly string[]).includes(r)
+    ) || roles[0];
+    return hasilController.signDocument(params.id, body, user.id, activeRole);
+  }, {
+    params: letterIdParamSchema,
+    body: signDocumentBodySchema,
+    detail: {
+      summary: 'Sign SK/ST document',
+      description: 'Pejabat (Dekan/Wadek) menandatangani dokumen SK/ST',
       tags: ['Surat Hasil']
     }
   });

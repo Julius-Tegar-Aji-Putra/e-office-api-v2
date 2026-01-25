@@ -73,7 +73,7 @@ class FacultyDispositionController {
 
   /**
    * POST /faculty-disposition/:id/forward
-   * Forward/disposition letter to next role
+   * Admin Fakultas meneruskan surat (BEBAS pilih target)
    */
   async forwardLetter(
     letterId: string,
@@ -81,15 +81,29 @@ class FacultyDispositionController {
     userId: string,
     userRole: string
   ) {
-    const result = await facultyDispositionService.createDisposition(
-      { letterId, targetRole: body.targetRole, notes: body.notes },
-      userId,
-      userRole
-    );
+    // Admin Fakultas pakai forwardLetter (bebas target)
+    // Pejabat pakai createDisposition (terikat hierarchy)
+    const result = userRole === 'ADMIN_FAKULTAS'
+      ? await facultyDispositionService.forwardLetter(
+          { letterId, targetRole: body.targetRole, notes: body.notes },
+          userId,
+          userRole
+        )
+      : await facultyDispositionService.createDisposition(
+          { letterId, targetRole: body.targetRole, notes: body.notes },
+          userId,
+          userRole
+        );
+
     if (!result.success) {
       return errorResponse(result.error || 'Unknown error', result.code || 500);
     }
-    return successResponse('Surat berhasil didisposisikan', result.data);
+    return successResponse(
+      userRole === 'ADMIN_FAKULTAS' 
+        ? 'Surat berhasil diteruskan' 
+        : 'Surat berhasil didisposisikan', 
+      result.data
+    );
   }
 
   /**

@@ -65,3 +65,20 @@ export const submitVerificationBodySchema = t.Object({
     t.Literal('SUMBER_DAYA')
   ]))
 });
+
+// Supervisor approval
+export const approveVerificationBodySchema = t.Object({
+  notes: t.Optional(t.String())
+});
+
+// Supervisor return for revision
+export const returnRevisionBodySchema = t.Object({
+  reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' })
+});
+
+// Sign document (Dekan/Wadek)
+export const signDocumentBodySchema = t.Object({
+  signatureUrl: t.String({ minLength: 1, error: 'URL tanda tangan wajib diisi' }),
+  signerName: t.String({ minLength: 1, error: 'Nama penandatangan wajib diisi' }),
+  signerNip: t.Optional(t.String())
+});

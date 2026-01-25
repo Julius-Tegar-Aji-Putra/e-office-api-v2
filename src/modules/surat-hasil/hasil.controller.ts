@@ -145,6 +145,120 @@ class HasilController {
       return errorResponse(getErrorMessage(error));
     }
   }
+
+  /**
+   * POST /surat-hasil/:id/approve
+   * Supervisor/Manajer TU approves verification
+   * - Supervisor approve -> ke Manajer TU
+   * - Manajer TU approve -> ke Signing
+   */
+  async approveVerification(
+    letterId: string,
+    body: { notes?: string },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.approveVerification(
+        letterId,
+        userId,
+        userRole,
+        body.notes
+      );
+      
+      // Supervisor -> Manajer TU
+      if (userRole.includes('SUPERVISOR')) {
+        return successResponse('Draft berhasil diverifikasi, diteruskan ke Manajer TU', { letter: result });
+      }
+      
+      // Manajer TU -> Signing
+      return successResponse('Draft berhasil diverifikasi, siap untuk ditandatangani', { letter: result });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * PUT /surat-hasil/:id/supervisor-edit
+   * Supervisor/Manajer TU edits draft (opsi 2)
+   * Pakai letterId, otomatis cari dokumen SK/ST-nya
+   */
+  async updateDraftAsSupervisor(
+    letterId: string,
+    body: {
+      content?: Record<string, unknown>;
+      tembusan?: string[];
+      perihal?: string;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.updateDraftAsSupervisor(
+        letterId,
+        body.content,
+        body.tembusan,
+        body.perihal,
+        userId,
+        userRole
+      );
+      return successResponse('Draft berhasil diperbarui oleh Supervisor/Manajer TU', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * POST /surat-hasil/:id/return
+   * Supervisor returns draft for revision
+   */
+  async returnForRevision(
+    letterId: string,
+    body: { reason: string },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.returnForRevision(
+        letterId,
+        userId,
+        userRole,
+        body.reason
+      );
+      return successResponse('Draft dikembalikan untuk revisi', { letter: result });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * POST /surat-hasil/:id/sign
+   * Pejabat (Dekan/Wadek) signs SK/ST document
+   */
+  async signDocument(
+    letterId: string,
+    body: {
+      signatureUrl: string;
+      signerName: string;
+      signerNip?: string;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.signDocument(
+        letterId,
+        body.signatureUrl,
+        body.signerName,
+        body.signerNip,
+        userId,
+        userRole
+      );
+      return successResponse('Dokumen berhasil ditandatangani', { letter: result });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
 }
 
 export const hasilController = new HasilController();
