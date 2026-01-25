@@ -13,29 +13,23 @@ import type { LetterCategory, DocumentType, Priority, LetterStatus } from '../..
  * Data formulir pengajuan surat
  */
 export interface SubmissionFormData {
-  // Data Diri (Autofill dari token, tapi editable)
+  // Data Diri
   nama: string;
   nim?: string; // Untuk mahasiswa
   nip?: string; // Untuk dosen/pegawai
-  email: string;
-  noHp: string;
   departemen: string;
   programStudi: string;
 
-  // Detail Surat
+  // Kebutuhan Surat
   jenisSurat: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
   keperluan: string;
   judulAcara: string;
-  tanggalAcara: string; // ISO date string
-  tanggalSelesai?: string; // ISO date string (untuk durasi)
+  tanggalAcara: string; // ISO datetime string (2026-02-15T09:00:00Z)
   durasiAcara?: string; // e.g., "3 hari"
   lokasiAcara: string;
 
-  // Konfigurasi TTD
-  butuhTtdKadep: boolean; // Request TTD Ketua Departemen
-
-  // Catatan tambahan
-  catatan?: string;
+  // Konfigurasi TTD Surat Pengantar (sampai Kaprodi atau sampai Kadep)
+  butuhTtdKadep: boolean;
 }
 
 /**
@@ -53,7 +47,6 @@ export interface CreateSubmissionDTO {
 export interface SignatureConfigDTO {
   targetSigner: 'DEKAN' | 'WADEK_1' | 'WADEK_2';
   requestKadepSign: boolean; // Butuh TTD Kadep di surat pengantar?
-  requestWadekSign?: boolean; // Butuh TTD Wadek di surat keluar?
 }
 
 /**
@@ -75,23 +68,18 @@ export interface CreateSubmissionMultipartData {
   nama: string;
   nim?: string;
   nip?: string;
-  email: string;
-  noHp: string;
   departemen: string;
   programStudi: string;
   jenisSurat: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
   keperluan: string;
   judulAcara: string;
-  tanggalAcara: string;
-  tanggalSelesai?: string;
+  tanggalAcara: string; // ISO datetime
   durasiAcara?: string;
   lokasiAcara: string;
   butuhTtdKadep?: boolean | string;
-  catatan?: string;
   // Signature config fields (flat)
   targetSigner: 'DEKAN' | 'WADEK_1' | 'WADEK_2';
   requestKadepSign?: boolean | string;
-  requestWadekSign?: boolean | string;
   // Files
   attachments?: File[];
 }

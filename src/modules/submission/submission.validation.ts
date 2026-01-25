@@ -14,8 +14,6 @@ export const submissionFormDataSchema = t.Object({
   nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
   nim: t.Optional(t.String()),
   nip: t.Optional(t.String()),
-  email: t.String({ format: 'email', error: 'Email tidak valid' }),
-  noHp: t.String({ minLength: 10, error: 'Nomor HP minimal 10 digit' }),
   departemen: t.String({ minLength: 1, error: 'Departemen wajib diisi' }),
   programStudi: t.String({ minLength: 1, error: 'Program Studi wajib diisi' }),
 
@@ -25,16 +23,12 @@ export const submissionFormDataSchema = t.Object({
   }),
   keperluan: t.String({ minLength: 10, error: 'Keperluan minimal 10 karakter' }),
   judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
-  tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi' }),
-  tanggalSelesai: t.Optional(t.String()),
+  tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }), // ISO datetime: 2026-02-15T09:00:00Z
   durasiAcara: t.Optional(t.String()),
   lokasiAcara: t.String({ minLength: 3, error: 'Lokasi acara minimal 3 karakter' }),
 
-  // Konfigurasi TTD
+  // Konfigurasi TTD Surat Pengantar (sampai Kaprodi atau sampai Kadep)
   butuhTtdKadep: t.Boolean({ default: false }),
-
-  // Catatan tambahan
-  catatan: t.Optional(t.String()),
 });
 
 // ============================================================================
@@ -46,7 +40,6 @@ export const signatureConfigSchema = t.Object({
     error: 'Target penandatangan harus DEKAN, WADEK_1, atau WADEK_2',
   }),
   requestKadepSign: t.Boolean({ default: false }),
-  requestWadekSign: t.Optional(t.Boolean()),
 });
 
 // ============================================================================
@@ -135,34 +128,31 @@ export const FILE_UPLOAD_CONFIG = {
 export const createSubmissionWithFilesSchema = t.Object({
   letterTypeId: t.String({ minLength: 1, error: 'ID jenis surat wajib diisi' }),
   
+  // Data Diri
   nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
   nim: t.Optional(t.String()),
   nip: t.Optional(t.String()),
-  email: t.String({ format: 'email', error: 'Email tidak valid' }),
-  noHp: t.String({ minLength: 10, error: 'Nomor HP minimal 10 digit' }),
   departemen: t.String({ minLength: 1, error: 'Departemen wajib diisi' }),
   programStudi: t.String({ minLength: 1, error: 'Program Studi wajib diisi' }),
   
+  // Kebutuhan Surat
   jenisSurat: t.Union([t.Literal('SURAT_TUGAS'), t.Literal('SURAT_KEPUTUSAN')], {
     error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
   }),
   keperluan: t.String({ minLength: 10, error: 'Keperluan minimal 10 karakter' }),
   judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
-  tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi' }),
-  tanggalSelesai: t.Optional(t.String()),
+  tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }),
   durasiAcara: t.Optional(t.String()),
   lokasiAcara: t.String({ minLength: 3, error: 'Lokasi acara minimal 3 karakter' }),
   
+  // TTD Config
   butuhTtdKadep: t.Optional(t.Union([t.Boolean(), t.String()])),
-  
   targetSigner: t.Union([t.Literal('DEKAN'), t.Literal('WADEK_1'), t.Literal('WADEK_2')], {
     error: 'Target penandatangan harus DEKAN, WADEK_1, atau WADEK_2',
   }),
   requestKadepSign: t.Optional(t.Union([t.Boolean(), t.String()])),
-  requestWadekSign: t.Optional(t.Union([t.Boolean(), t.String()])),
   
-  catatan: t.Optional(t.String()),
-  
+  // Lampiran (max 5 files)
   attachments: t.Optional(t.Files({
     maxItems: FILE_UPLOAD_CONFIG.MAX_FILES,
     error: `Maksimal ${FILE_UPLOAD_CONFIG.MAX_FILES} file`,

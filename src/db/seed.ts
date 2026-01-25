@@ -608,13 +608,17 @@ async function main() {
   const letter1 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
         keperluan: "Mengikuti Kompetisi Nasional",
-        nama_kegiatan: "GEMASTIK XVI 2026",
-        tanggal_mulai: "2026-03-15",
-        tanggal_selesai: "2026-03-18",
-        durasi: "4 hari",
-        lokasi: "Institut Teknologi Bandung",
-        request_ttd_kadep: true // Pengaju request TTD sampai Kadep
+        judulAcara: "GEMASTIK XVI 2026",
+        tanggalAcara: "2026-03-15T09:00:00Z",
+        durasiAcara: "4 hari",
+        lokasiAcara: "Institut Teknologi Bandung",
+        butuhTtdKadep: true
       },
       status: LetterStatus.SUBMITTED,
       currentActiveRole: ROLES.KAPRODI,
@@ -642,13 +646,17 @@ async function main() {
   const letter2 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
+        nama: "Dr. Raden Satrio",
+        nip: "198501152010121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
         keperluan: "Mengikuti Seminar Internasional",
-        nama_kegiatan: "International Conference on Data Science 2026",
-        tanggal_mulai: "2026-04-20",
-        tanggal_selesai: "2026-04-22",
-        durasi: "3 hari",
-        lokasi: "Singapore",
-        request_ttd_kadep: false
+        judulAcara: "International Conference on Data Science 2026",
+        tanggalAcara: "2026-04-20T08:00:00Z",
+        durasiAcara: "3 hari",
+        lokasiAcara: "Singapore",
+        butuhTtdKadep: false
       },
       status: LetterStatus.SURAT_PENGANTAR_DRAFT,
       currentActiveRole: ROLES.ADMIN_PRODI,
@@ -688,13 +696,17 @@ async function main() {
   const letter3 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
         keperluan: "Mengikuti Workshop",
-        nama_kegiatan: "Workshop Machine Learning",
-        tanggal_mulai: "2026-02-10",
-        tanggal_selesai: "2026-02-12",
-        durasi: "3 hari",
-        lokasi: "Jakarta",
-        request_ttd_kadep: true
+        judulAcara: "Workshop Machine Learning",
+        tanggalAcara: "2026-02-10T09:00:00Z",
+        durasiAcara: "3 hari",
+        lokasiAcara: "Jakarta",
+        butuhTtdKadep: true
       },
       status: LetterStatus.SURAT_PENGANTAR_REVIEW,
       currentActiveRole: ROLES.KAPRODI,
@@ -755,12 +767,17 @@ async function main() {
   const letter4 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Pembicara Seminar",
-        nama_kegiatan: "Seminar Nasional Teknologi Informasi",
-        tanggal_mulai: "2026-05-15",
-        tanggal_selesai: "2026-05-15",
-        durasi: "1 hari",
-        lokasi: "Universitas Gadjah Mada"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Pembicara Seminar Nasional untuk menyampaikan materi tentang teknologi informasi",
+        judulAcara: "Seminar Nasional Teknologi Informasi",
+        tanggalAcara: "2026-05-15T08:00:00Z",
+        durasiAcara: "1 hari",
+        lokasiAcara: "Universitas Gadjah Mada",
+        butuhTtdKadep: true
       },
       status: LetterStatus.FAKULTAS_RECEIVED,
       currentActiveRole: ROLES.ADMIN_FAKULTAS,
@@ -845,13 +862,17 @@ async function main() {
   const letter5 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Perjalanan Dinas Penelitian",
-        nama_kegiatan: "Kolaborasi Riset Internasional",
-        tanggal_mulai: "2026-06-01",
-        tanggal_selesai: "2026-06-07",
-        durasi: "7 hari",
-        lokasi: "Universitas Tokyo, Jepang",
-        jenis_surat: "AKADEMIK"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Perjalanan Dinas Penelitian ke Jepang untuk kolaborasi riset internasional",
+        judulAcara: "Kolaborasi Riset Internasional",
+        tanggalAcara: "2026-06-01T09:00:00Z",
+        durasiAcara: "7 hari",
+        lokasiAcara: "Universitas Tokyo, Jepang",
+        butuhTtdKadep: true
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.DEKAN,
@@ -898,13 +919,17 @@ async function main() {
   const letter6 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Kepanitiaan Dies Natalis",
-        nama_kegiatan: "Dies Natalis ke-65 FSM",
-        tanggal_mulai: "2026-09-01",
-        tanggal_selesai: "2026-09-03",
-        durasi: "3 hari",
-        lokasi: "Fakultas Sains dan Matematika UNDIP",
-        jenis_surat: "SUMBER_DAYA"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "Kepanitiaan Dies Natalis untuk membantu penyelenggaraan acara",
+        judulAcara: "Dies Natalis ke-65 FSM",
+        tanggalAcara: "2026-09-01T07:00:00Z",
+        durasiAcara: "3 hari",
+        lokasiAcara: "Fakultas Sains dan Matematika UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DRAFTING,
       currentActiveRole: ROLES.STAF_SUMBER_DAYA,
@@ -969,10 +994,16 @@ async function main() {
   const letter7 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Pembimbing Tugas Akhir",
-        nama_kegiatan: "Penetapan Dosen Pembimbing TA",
-        tanggal_mulai: "2026-02-01",
-        lokasi: "Departemen Informatika"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Pembimbing Tugas Akhir untuk penetapan dosen pembimbing skripsi",
+        judulAcara: "Penetapan Dosen Pembimbing TA",
+        tanggalAcara: "2026-02-01T08:00:00Z",
+        lokasiAcara: "Departemen Informatika",
+        butuhTtdKadep: true
       },
       status: LetterStatus.FAKULTAS_VERIFICATION,
       currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
@@ -1038,9 +1069,16 @@ async function main() {
   const letter8 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Kepanitiaan Wisuda",
-        nama_kegiatan: "Wisuda Periode I Tahun 2026",
-        tanggal_mulai: "2026-03-20"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Kepanitiaan Wisuda untuk menetapkan panitia pelaksana",
+        judulAcara: "Wisuda Periode I Tahun 2026",
+        tanggalAcara: "2026-03-20T07:00:00Z",
+        lokasiAcara: "Gedung Prof. Soedarto UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.UPA_NUMBERING,
       currentActiveRole: ROLES.UPA,
@@ -1090,10 +1128,17 @@ async function main() {
   const letter9 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Mengikuti Lomba Karya Tulis",
-        nama_kegiatan: "LKTI Nasional 2026",
-        tanggal_mulai: "2026-01-15",
-        tanggal_selesai: "2026-01-17"
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Mengikuti Lomba Karya Tulis Ilmiah untuk kompetisi nasional",
+        judulAcara: "LKTI Nasional 2026",
+        tanggalAcara: "2026-01-15T08:00:00Z",
+        durasiAcara: "3 hari",
+        lokasiAcara: "Jakarta",
+        butuhTtdKadep: true
       },
       status: LetterStatus.COMPLETED,
       currentActiveRole: null,
@@ -1139,9 +1184,16 @@ async function main() {
   const letter10 = await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Liburan ke Bali",
-        nama_kegiatan: "Vacation",
-        tanggal_mulai: "2026-07-01"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Liburan ke Bali untuk refreshing",
+        judulAcara: "Vacation",
+        tanggalAcara: "2026-07-01T08:00:00Z",
+        lokasiAcara: "Bali",
+        butuhTtdKadep: false
       },
       status: LetterStatus.REJECTED,
       currentActiveRole: null,
@@ -1184,10 +1236,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Mengikuti Pelatihan Data Science",
-        nama_kegiatan: "Data Science Bootcamp 2026",
-        tanggal_mulai: "2026-04-05",
-        lokasi: "Online"
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Mengikuti Pelatihan Data Science untuk meningkatkan kompetensi",
+        judulAcara: "Data Science Bootcamp 2026",
+        tanggalAcara: "2026-04-05T09:00:00Z",
+        lokasiAcara: "Online",
+        butuhTtdKadep: false
       },
       status: LetterStatus.KAPRODI_REVIEW,
       currentActiveRole: ROLES.KAPRODI,
@@ -1200,11 +1258,17 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Magang Industri",
-        nama_kegiatan: "Internship di PT Technology Indonesia",
-        tanggal_mulai: "2026-05-01",
-        tanggal_selesai: "2026-07-31",
-        lokasi: "Jakarta"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Magang Industri di perusahaan teknologi untuk pengalaman kerja",
+        judulAcara: "Internship di PT Technology Indonesia",
+        tanggalAcara: "2026-05-01T08:00:00Z",
+        durasiAcara: "3 bulan",
+        lokasiAcara: "Jakarta",
+        butuhTtdKadep: true
       },
       status: LetterStatus.SUBMITTED,
       currentActiveRole: ROLES.KAPRODI,
@@ -1219,10 +1283,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Penelitian Lapangan",
-        nama_kegiatan: "Survey Lapangan Skripsi",
-        tanggal_mulai: "2026-03-01",
-        lokasi: "Kabupaten Semarang"
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Penelitian Lapangan untuk survey data skripsi di kabupaten",
+        judulAcara: "Survey Lapangan Skripsi",
+        tanggalAcara: "2026-03-01T08:00:00Z",
+        lokasiAcara: "Kabupaten Semarang",
+        butuhTtdKadep: true
       },
       status: LetterStatus.SURAT_PENGANTAR_DRAFT,
       currentActiveRole: ROLES.ADMIN_PRODI,
@@ -1237,10 +1307,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Mengikuti Konferensi IEEE",
-        nama_kegiatan: "IEEE International Conference 2026",
-        tanggal_mulai: "2026-06-15",
-        lokasi: "Malaysia"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Mengikuti Konferensi IEEE International untuk presentasi paper",
+        judulAcara: "IEEE International Conference 2026",
+        tanggalAcara: "2026-06-15T09:00:00Z",
+        lokasiAcara: "Malaysia",
+        butuhTtdKadep: true
       },
       status: LetterStatus.SURAT_PENGANTAR_REVIEW,
       currentActiveRole: ROLES.KADEP,
@@ -1262,9 +1338,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Pengajuan Cuti Akademik",
-        nama_kegiatan: "Cuti Akademik Semester Genap",
-        tanggal_mulai: "2026-02-01"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "Pengajuan Cuti Akademik karena alasan kesehatan",
+        judulAcara: "Cuti Akademik Semester Genap",
+        tanggalAcara: "2026-02-01T08:00:00Z",
+        lokasiAcara: "Fakultas Sains dan Matematika UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.WADEK_1,
@@ -1286,9 +1369,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Pengadaan Alat Lab",
-        nama_kegiatan: "Pengadaan Server Komputer",
-        tanggal_mulai: "2026-03-15"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "Pengadaan Alat Lab untuk server komputer di lab informatika",
+        judulAcara: "Pengadaan Server Komputer",
+        tanggalAcara: "2026-03-15T08:00:00Z",
+        lokasiAcara: "Lab Komputer Informatika",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.WADEK_2,
@@ -1310,8 +1400,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Pengelola Website",
-        nama_kegiatan: "Tim Pengelola Website FSM"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Pengelola Website untuk tim pengelola website FSM",
+        judulAcara: "Tim Pengelola Website FSM",
+        tanggalAcara: "2026-02-01T08:00:00Z",
+        lokasiAcara: "FSM UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.MANAJER_TU,
@@ -1326,8 +1424,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Panitia Ujian",
-        nama_kegiatan: "Ujian Akhir Semester Genap"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Panitia Ujian untuk pelaksanaan UAS semester genap",
+        judulAcara: "Ujian Akhir Semester Genap",
+        tanggalAcara: "2026-06-01T07:00:00Z",
+        lokasiAcara: "FSM UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
@@ -1340,8 +1446,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Dosen Wali",
-        nama_kegiatan: "Penetapan Dosen Wali Angkatan 2026"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Dosen Wali untuk penetapan dosen wali angkatan baru",
+        judulAcara: "Penetapan Dosen Wali Angkatan 2026",
+        tanggalAcara: "2026-08-01T08:00:00Z",
+        lokasiAcara: "Departemen Informatika",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_VERIFICATION,
       currentActiveRole: ROLES.SUPERVISOR_AKADEMIK,
@@ -1363,8 +1477,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Tim Inventarisasi",
-        nama_kegiatan: "Inventarisasi Aset 2026"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Tim Inventarisasi untuk inventarisasi aset fakultas",
+        judulAcara: "Inventarisasi Aset 2026",
+        tanggalAcara: "2026-03-01T08:00:00Z",
+        lokasiAcara: "FSM UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DISPOSITION,
       currentActiveRole: ROLES.SUPERVISOR_SUMBER_DAYA,
@@ -1379,8 +1501,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Yudisium",
-        nama_kegiatan: "Yudisium Periode Februari 2026"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Yudisium untuk penetapan kelulusan mahasiswa",
+        judulAcara: "Yudisium Periode Februari 2026",
+        tanggalAcara: "2026-02-20T09:00:00Z",
+        lokasiAcara: "Auditorium FSM",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DRAFTING,
       currentActiveRole: ROLES.STAF_AKADEMIK,
@@ -1393,8 +1523,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Penguji Skripsi",
-        nama_kegiatan: "Penetapan Penguji Skripsi Batch 1"
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Penguji Skripsi untuk penetapan dosen penguji skripsi",
+        judulAcara: "Penetapan Penguji Skripsi Batch 1",
+        tanggalAcara: "2026-02-15T08:00:00Z",
+        lokasiAcara: "Departemen Informatika",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DRAFTING,
       currentActiveRole: ROLES.STAF_AKADEMIK,
@@ -1409,8 +1547,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Petugas Kebersihan",
-        nama_kegiatan: "Penetapan Petugas Kebersihan 2026"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Petugas Kebersihan untuk penetapan petugas kebersihan",
+        judulAcara: "Penetapan Petugas Kebersihan 2026",
+        tanggalAcara: "2026-01-02T07:00:00Z",
+        lokasiAcara: "FSM UNDIP",
+        butuhTtdKadep: false
       },
       status: LetterStatus.FAKULTAS_DRAFTING,
       currentActiveRole: ROLES.STAF_SUMBER_DAYA,
@@ -1425,8 +1571,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Tim Akreditasi",
-        nama_kegiatan: "Akreditasi Prodi Informatika 2026"
+        nama: "Dr. Raden Satrio, M.Kom.",
+        nip: "198501152012121001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Tim Akreditasi untuk persiapan akreditasi prodi",
+        judulAcara: "Akreditasi Prodi Informatika 2026",
+        tanggalAcara: "2026-04-01T08:00:00Z",
+        lokasiAcara: "Departemen Informatika",
+        butuhTtdKadep: false
       },
       status: LetterStatus.UPA_STAMPING,
       currentActiveRole: ROLES.UPA,
@@ -1447,8 +1601,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "SK Panitia Seminar",
-        nama_kegiatan: "Seminar Nasional FSM 2026"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_KEPUTUSAN",
+        keperluan: "SK Panitia Seminar untuk seminar nasional FSM",
+        judulAcara: "Seminar Nasional FSM 2026",
+        tanggalAcara: "2026-05-15T08:00:00Z",
+        lokasiAcara: "Auditorium FSM",
+        butuhTtdKadep: false
       },
       status: LetterStatus.UPA_FINALIZING,
       currentActiveRole: ROLES.UPA,
@@ -1471,9 +1633,16 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Mengikuti Workshop AI",
-        nama_kegiatan: "Workshop Artificial Intelligence",
-        tanggal_mulai: "2026-01-05"
+        nama: "Ahmad Budi Santoso",
+        nim: "24060121130001",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Mengikuti Workshop AI untuk meningkatkan kemampuan AI",
+        judulAcara: "Workshop Artificial Intelligence",
+        tanggalAcara: "2026-01-05T09:00:00Z",
+        lokasiAcara: "Bandung",
+        butuhTtdKadep: true
       },
       status: LetterStatus.COMPLETED,
       priority: Priority.NORMAL,
@@ -1495,9 +1664,17 @@ async function main() {
   await prisma.letterInstance.create({
     data: {
       submissionValues: {
-        keperluan: "Pengajuan PKL",
-        nama_kegiatan: "Praktik Kerja Lapangan",
-        tanggal_mulai: "2026-01-02"
+        nama: "Dewi Sartika",
+        nim: "24060121130002",
+        departemen: "Departemen Informatika",
+        programStudi: "S1 Informatika",
+        jenisSurat: "SURAT_TUGAS",
+        keperluan: "Pengajuan PKL di perusahaan untuk praktik kerja lapangan",
+        judulAcara: "Praktik Kerja Lapangan",
+        tanggalAcara: "2026-01-02T08:00:00Z",
+        durasiAcara: "3 bulan",
+        lokasiAcara: "PT Telkom Indonesia",
+        butuhTtdKadep: true
       },
       status: LetterStatus.COMPLETED,
       priority: Priority.NORMAL,

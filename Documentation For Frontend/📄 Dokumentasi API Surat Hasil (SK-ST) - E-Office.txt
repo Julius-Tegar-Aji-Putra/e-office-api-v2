@@ -1,0 +1,1687 @@
+📄 Dokumentasi API Surat Hasil (SK/ST) - E-Office ST/SK Dekan
+
+🎯 Overview
+Modul Surat Hasil menangani proses drafting, verifikasi, dan penandatanganan Surat Keputusan (SK) dan Surat Tugas (ST) oleh tim fakultas. Flow: Staf draft → Supervisor verifikasi → Manajer TU approve → Pejabat (Dekan/Wadek) sign → UPA legalisasi.
+
+Terdapat 2 sub-module:
+1. **Surat Hasil** (/api/surat-hasil) - Drafting dan verifikasi oleh Staf/Supervisor/Manajer TU
+2. **Signing** (/api/signing) - Penandatanganan oleh Pejabat (Dekan/Wadek)
+
+🌐 Base URL
+Local: http://localhost:3079
+Network: http://192.168.18.36:3079
+
+🔐 Authentication
+- Semua endpoint PRIVATE (perlu login)
+- Role yang terlibat: STAF_AKADEMIK, STAF_SUMBER_DAYA, SUPERVISOR_AKADEMIK, SUPERVISOR_SUMBER_DAYA, MANAJER_TU, DEKAN, WAKIL_DEKAN_1, WAKIL_DEKAN_2
+- Cookie: better-auth.session_token harus terkirim
+
+⚠️ IMPORTANT: Setelah login, wajib panggil GET /me untuk mendapatkan informasi user lengkap termasuk role.
+
+📍 API Endpoints - Surat Hasil (/api/surat-hasil)
+
+═══════════════════════════════════════════════════════════════════════════════
+1. Get Drafting Queue (STAF)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan antrian surat yang perlu di-draft SK/ST oleh staf.
+
+Endpoint: GET /api/surat-hasil/queue
+
+Query Parameters (All Optional):
+{
+  "page": 1,                    // Default: 1
+  "limit": 10,                  // Default: 10, Max: 100
+  "search": "seminar"           // Search in keperluan, judulAcara
+}
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/surat-hasil/queue?page=1&limit=10" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "letters": [
+      {
+        "id": "cmktcjvyk0001o9bg1uu3gam5",
+        "status": "FAKULTAS_DRAFTING",
+        "statusDisplay": "Menunggu Drafting SK/ST",
+        "letterType": {
+          "id": "cmktblwa50043o9rcfmw92xth",
+          "name": "Surat Tugas",
+          "code": "ST",
+          "category": "AKADEMIK"
+        },
+        "submissionValues": {
+          "nama": "Ahmad Budi Santoso",
+          "nim": "24060121130001",
+          "keperluan": "Mengikuti Lomba Competitive Programming",
+          "judulAcara": "Lomba Competitive Programming Nasional",
+          "tanggalAcara": "2026-02-15",
+          "lokasiAcara": "Jakarta Convention Center"
+        },
+        "currentActiveRole": "STAF_AKADEMIK",
+        "submitter": {
+          "name": "Ahmad Budi Santoso",
+          "email": "ahmad.budi@students.undip.ac.id"
+        },
+        "assignedCategory": "AKADEMIK",
+        "submittedAt": "2026-01-25T06:10:30.844Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "totalItems": 3,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Akses ditolak. Hanya STAF yang dapat mengakses endpoint ini",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+2. Get My Drafted Letters (STAF)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan daftar surat yang pernah di-draft oleh staf yang login.
+
+Endpoint: GET /api/surat-hasil/my-drafts
+
+Query Parameters (All Optional):
+{
+  "page": 1,                            // Default: 1
+  "limit": 10,                          // Default: 10, Max: 100
+  "documentType": "SURAT_TUGAS"         // SURAT_TUGAS | SURAT_KEPUTUSAN
+}
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/surat-hasil/my-drafts?page=1&limit=10&documentType=SURAT_TUGAS" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "letters": [
+      {
+        "id": "cmktcjvyk0001o9bg1uu3gam5",
+        "status": "FAKULTAS_VERIFICATION",
+        "statusDisplay": "Verifikasi Supervisor",
+        "letterType": {
+          "name": "Surat Tugas"
+        },
+        "document": {
+          "id": "doc123",
+          "type": "SURAT_TUGAS",
+          "perihal": "Surat Tugas Mengikuti Lomba",
+          "createdAt": "2026-01-25T10:00:00.000Z",
+          "updatedAt": "2026-01-25T10:00:00.000Z"
+        },
+        "submissionValues": {
+          "nama": "Ahmad Budi Santoso",
+          "keperluan": "Mengikuti Lomba Competitive Programming"
+        },
+        "draftedAt": "2026-01-25T10:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "totalItems": 5,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+3. Get Letter Detail (STAF/SUPERVISOR/MANAJER_TU)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan detail lengkap surat beserta dokumen draft SK/ST.
+
+Endpoint: GET /api/surat-hasil/:id
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "letter": {
+      "id": "cmktcjvyk0001o9bg1uu3gam5",
+      "status": "FAKULTAS_DRAFTING",
+      "statusDisplay": "Menunggu Drafting SK/ST",
+      "letterType": {
+        "id": "cmktblwa50043o9rcfmw92xth",
+        "name": "Surat Tugas",
+        "code": "ST"
+      },
+      "submissionValues": {
+        "nama": "Ahmad Budi Santoso",
+        "nim": "24060121130001",
+        "email": "ahmad.budi@students.undip.ac.id",
+        "departemen": "Departemen Informatika",
+        "keperluan": "Mengikuti Lomba Competitive Programming",
+        "judulAcara": "Lomba Competitive Programming Nasional",
+        "tanggalAcara": "2026-02-15",
+        "lokasiAcara": "Jakarta Convention Center"
+      },
+      "currentActiveRole": "STAF_AKADEMIK",
+      "assignedCategory": "AKADEMIK",
+      "documents": [],
+      "attachments": [
+        {
+          "id": "attach1",
+          "fileName": "proposal.pdf",
+          "fileSize": 2048576,
+          "uploadedAt": "2026-01-25T06:10:30.844Z"
+        }
+      ],
+      "logs": [
+        {
+          "id": "log1",
+          "actor": {
+            "name": "Admin Fakultas"
+          },
+          "actorRole": "ADMIN_FAKULTAS",
+          "action": "CATEGORIZE",
+          "toStatus": "FAKULTAS_DRAFTING",
+          "targetRole": "STAF_AKADEMIK",
+          "createdAt": "2026-01-25T09:00:00.000Z"
+        }
+      ]
+    },
+    "permissions": {
+      "canDraft": true,
+      "canUpdateDraft": false,
+      "canSubmitForVerification": false,
+      "canApprove": false,
+      "canReturn": false
+    }
+  }
+}
+
+Response Error (404):
+{
+  "success": false,
+  "message": "Surat tidak ditemukan",
+  "statusCode": 404
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+4. Create Draft SK/ST (STAF)
+═══════════════════════════════════════════════════════════════════════════════
+
+Staf membuat draft Surat Keputusan (SK) atau Surat Tugas (ST) baru.
+
+Endpoint: POST /api/surat-hasil/:id/draft
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "documentType": "SURAT_TUGAS",  // Required: SURAT_TUGAS | SURAT_KEPUTUSAN
+  "perihal": "Surat Tugas Mengikuti Lomba Competitive Programming",
+  "content": {
+    "nomor": "-",  // Will be filled by UPA
+    "lampiran": "-",
+    "perihal": "Surat Tugas Mengikuti Lomba",
+    "pembukaan": "Dekan Fakultas Sains dan Matematika Universitas Diponegoro dengan ini memberikan tugas kepada:",
+    "peserta": [
+      {
+        "nama": "Ahmad Budi Santoso",
+        "nim": "24060121130001",
+        "prodi": "S1 Informatika"
+      }
+    ],
+    "kegiatan": "Mengikuti Lomba Competitive Programming Nasional 2026",
+    "tanggal": "15-16 Februari 2026",
+    "tempat": "Jakarta Convention Center",
+    "penutup": "Demikian surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab."
+  },
+  "tembusan": [
+    "Wakil Dekan I",
+    "Ketua Departemen Informatika",
+    "Arsip"
+  ],
+  "signatories": [
+    {
+      "signerRole": "DEKAN",
+      "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+      "signerNip": "196305151988032001",
+      "order": 0
+    }
+  ]
+}
+
+Request Example:
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/draft" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "documentType": "SURAT_TUGAS",
+    "perihal": "Surat Tugas Mengikuti Lomba Competitive Programming",
+    "content": {
+      "pembukaan": "Dekan FSM Undip memberikan tugas...",
+      "peserta": [{"nama": "Ahmad Budi Santoso", "nim": "24060121130001"}],
+      "kegiatan": "Lomba CP Nasional"
+    },
+    "tembusan": ["Wadek I", "Arsip"],
+    "signatories": [
+      {
+        "signerRole": "DEKAN",
+        "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+        "order": 0
+      }
+    ]
+  }'
+
+Response Success (201):
+{
+  "success": true,
+  "message": "Draft SK/ST berhasil dibuat",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_DRAFTING",
+    "statusDisplay": "Draft Tersimpan",
+    "document": {
+      "id": "doc123",
+      "type": "SURAT_TUGAS",
+      "perihal": "Surat Tugas Mengikuti Lomba Competitive Programming",
+      "content": {
+        "pembukaan": "Dekan FSM Undip memberikan tugas...",
+        "peserta": [{"nama": "Ahmad Budi Santoso", "nim": "24060121130001"}]
+      },
+      "signatories": [
+        {
+          "signerRole": "DEKAN",
+          "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+          "order": 0
+        }
+      ],
+      "createdAt": "2026-01-25T10:30:00.000Z"
+    }
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Validation error",
+  "errors": [
+    {
+      "field": "documentType",
+      "message": "Tipe dokumen harus SURAT_TUGAS atau SURAT_KEPUTUSAN"
+    },
+    {
+      "field": "signatories",
+      "message": "Minimal satu penandatangan"
+    }
+  ],
+  "statusCode": 400
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Hanya STAF yang dapat membuat draft",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+5. Update Draft (STAF)
+═══════════════════════════════════════════════════════════════════════════════
+
+Staf memperbarui draft SK/ST yang sudah dibuat (sebelum disubmit untuk verifikasi).
+
+Endpoint: PUT /api/surat-hasil/document/:documentId
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body (Partial):
+{
+  "content": {
+    "kegiatan": "Mengikuti Lomba AI Internasional (Updated)"
+  },
+  "tembusan": ["Wadek I", "Kadep", "Arsip"],
+  "perihal": "Surat Tugas Mengikuti Lomba AI (Updated)"
+}
+
+Request Example:
+curl -X PUT "http://localhost:3079/api/surat-hasil/document/doc123" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "content": {
+      "kegiatan": "Mengikuti Lomba AI Internasional (Updated)"
+    }
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Draft berhasil diperbarui",
+  "data": {
+    "document": {
+      "id": "doc123",
+      "content": {
+        "kegiatan": "Mengikuti Lomba AI Internasional (Updated)"
+      },
+      "updatedAt": "2026-01-25T11:00:00.000Z"
+    }
+  }
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Draft tidak dapat diubah pada status ini",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+6. Submit for Verification (STAF)
+═══════════════════════════════════════════════════════════════════════════════
+
+Staf mengajukan draft SK/ST untuk diverifikasi oleh Supervisor.
+
+Endpoint: POST /api/surat-hasil/:id/submit
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "targetSupervisor": "AKADEMIK"  // Optional: AKADEMIK | SUMBER_DAYA
+}
+
+Request Example:
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/submit" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "targetSupervisor": "AKADEMIK"
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Draft berhasil diajukan untuk verifikasi",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_VERIFICATION",
+    "statusDisplay": "Menunggu Verifikasi Supervisor",
+    "currentActiveRole": "SUPERVISOR_AKADEMIK",
+    "submittedForVerificationAt": "2026-01-25T11:30:00.000Z"
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Draft belum dibuat. Buat draft terlebih dahulu",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+7. Approve Verification (SUPERVISOR/MANAJER_TU)
+═══════════════════════════════════════════════════════════════════════════════
+
+Supervisor menyetujui verifikasi → forward ke Manajer TU.
+Manajer TU menyetujui verifikasi → forward ke Signing (Pejabat).
+
+Endpoint: POST /api/surat-hasil/:id/approve
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "notes": "Disetujui. Sudah sesuai" // Optional
+}
+
+Request Example (SUPERVISOR):
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/approve" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "notes": "Diverifikasi dan disetujui"
+  }'
+
+Response Success (200) - Supervisor → Manajer TU:
+{
+  "success": true,
+  "message": "Verifikasi berhasil. Diteruskan ke Manajer TU",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_VERIFICATION",
+    "statusDisplay": "Menunggu Verifikasi Manajer TU",
+    "currentActiveRole": "MANAJER_TU",
+    "approvedAt": "2026-01-25T12:00:00.000Z"
+  }
+}
+
+Response Success (200) - Manajer TU → Signing:
+{
+  "success": true,
+  "message": "Verifikasi selesai. Diteruskan untuk penandatanganan",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_SIGNING",
+    "statusDisplay": "Menunggu Tanda Tangan Pejabat",
+    "currentActiveRole": "DEKAN",
+    "approvedAt": "2026-01-25T12:30:00.000Z"
+  }
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Hanya SUPERVISOR atau MANAJER_TU yang dapat approve verifikasi",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+8. Update Draft as Supervisor (SUPERVISOR/MANAJER_TU)
+═══════════════════════════════════════════════════════════════════════════════
+
+Supervisor atau Manajer TU mengedit draft SK/ST (opsi kedua dari 3 opsi).
+
+Endpoint: PUT /api/surat-hasil/:id/supervisor-edit
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "content": {
+    "penutup": "Demikian surat ini dibuat dengan sebenarnya (edited by supervisor)"
+  },
+  "perihal": "Surat Tugas (Revised)"
+}
+
+Request Example:
+curl -X PUT "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/supervisor-edit" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "content": {
+      "penutup": "Demikian surat ini dibuat dengan sebenarnya"
+    }
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Draft berhasil diperbarui oleh supervisor",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "document": {
+      "id": "doc123",
+      "content": {
+        "penutup": "Demikian surat ini dibuat dengan sebenarnya"
+      },
+      "updatedAt": "2026-01-25T12:15:00.000Z"
+    }
+  }
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Hanya SUPERVISOR atau MANAJER_TU yang dapat edit draft",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+9. Return for Revision (SUPERVISOR/MANAJER_TU)
+═══════════════════════════════════════════════════════════════════════════════
+
+Supervisor atau Manajer TU mengembalikan draft ke Staf untuk diperbaiki (opsi ketiga dari 3 opsi).
+
+Endpoint: POST /api/surat-hasil/:id/return
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "reason": "Ada kesalahan pada format tanggal dan nama peserta. Mohon diperbaiki." // Required
+}
+
+Request Example:
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/return" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "reason": "Format surat belum sesuai. Mohon perbaiki bagian pembukaan dan penutup."
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Draft dikembalikan ke staf untuk revisi",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_DRAFTING",
+    "statusDisplay": "Dikembalikan untuk Revisi",
+    "currentActiveRole": "STAF_AKADEMIK",
+    "returnedAt": "2026-01-25T12:45:00.000Z",
+    "returnReason": "Format surat belum sesuai. Mohon perbaiki bagian pembukaan dan penutup."
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Alasan pengembalian wajib diisi",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+10. Sign Document (DEKAN/WADEK)
+═══════════════════════════════════════════════════════════════════════════════
+
+Pejabat (Dekan/Wadek) menandatangani dokumen SK/ST secara berurutan.
+
+Endpoint: POST /api/surat-hasil/:id/sign
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "signatureUrl": "https://minio.example.com/signatures/dekan-signature.png",
+  "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+  "signerNip": "196305151988032001" // Optional
+}
+
+Request Example:
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/sign" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "signatureUrl": "https://minio.example.com/signatures/dekan-ttd.png",
+    "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+    "signerNip": "196305151988032001"
+  }'
+
+Response Success (200) - Ada penandatangan berikutnya:
+{
+  "success": true,
+  "message": "Tanda tangan berhasil. Menunggu tanda tangan berikutnya",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "FAKULTAS_SIGNING",
+    "currentActiveRole": "WAKIL_DEKAN_1",
+    "signedAt": "2026-01-25T13:00:00.000Z",
+    "nextSigner": {
+      "role": "WAKIL_DEKAN_1",
+      "name": "Dr. Ahmad Nur, M.T.",
+      "order": 1
+    }
+  }
+}
+
+Response Success (200) - Semua tanda tangan selesai:
+{
+  "success": true,
+  "message": "Semua penandatangan selesai. Diteruskan ke UPA untuk legalisasi",
+  "data": {
+    "id": "cmktcjvyk0001o9bg1uu3gam5",
+    "status": "UPA_NUMBERING",
+    "statusDisplay": "Proses Penomoran UPA",
+    "currentActiveRole": "UPA",
+    "allSignedAt": "2026-01-25T13:00:00.000Z",
+    "signatories": [
+      {
+        "role": "DEKAN",
+        "name": "Prof. Dr. Siti Aminah, M.Si.",
+        "signedAt": "2026-01-25T13:00:00.000Z"
+      }
+    ]
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Bukan giliran Anda untuk menandatangani",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+📍 API Endpoints - Signing (/api/signing)
+═══════════════════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════════════
+11. Get Pending Signatures (PEJABAT)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan daftar dokumen yang menunggu tanda tangan untuk role user yang login.
+
+Endpoint: GET /api/signing/pending
+
+Query Parameters (All Optional):
+{
+  "page": 1,                    // Default: 1
+  "limit": 10                   // Default: 10, Max: 100
+}
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/signing/pending?page=1&limit=10" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "signatures": [
+      {
+        "id": "sig123",
+        "letterInstanceId": "cmktcjvyk0001o9bg1uu3gam5",
+        "documentId": "doc123",
+        "signerRole": "DEKAN",
+        "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+        "order": 0,
+        "signedAt": null,
+        "letter": {
+          "letterType": {
+            "name": "Surat Tugas"
+          },
+          "submissionValues": {
+            "nama": "Ahmad Budi Santoso",
+            "keperluan": "Mengikuti Lomba Competitive Programming"
+          }
+        },
+        "document": {
+          "type": "SURAT_TUGAS",
+          "perihal": "Surat Tugas Mengikuti Lomba",
+          "content": {}
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "totalItems": 2,
+      "totalPages": 1
+    }
+  }
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Anda tidak memiliki role untuk menandatangani dokumen",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+12. Get Signature Detail (PEJABAT)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan detail signature untuk proses penandatanganan.
+
+Endpoint: GET /api/signing/:signatureId
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/signing/sig123" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "signature": {
+      "id": "sig123",
+      "signerRole": "DEKAN",
+      "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+      "order": 0,
+      "document": {
+        "id": "doc123",
+        "type": "SURAT_TUGAS",
+        "perihal": "Surat Tugas Mengikuti Lomba",
+        "content": {
+          "pembukaan": "Dekan FSM...",
+          "peserta": [],
+          "kegiatan": "Lomba CP"
+        },
+        "contentHtml": "<html>...</html>"
+      },
+      "letter": {
+        "id": "letter123",
+        "submissionValues": {},
+        "attachments": []
+      }
+    }
+  }
+}
+
+Response Error (404):
+{
+  "success": false,
+  "message": "Signature tidak ditemukan",
+  "statusCode": 404
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+13. Sign Document (PEJABAT) - Advanced
+═══════════════════════════════════════════════════════════════════════════════
+
+Menandatangani dokumen dengan 3 metode: UPLOAD (upload file), CANVAS (gambar langsung), SAVED (dari saved signature).
+
+Endpoint: POST /api/signing/sign
+
+Headers:
+Content-Type: multipart/form-data
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body (FormData):
+- signatureId: "sig123" (Required)
+- letterInstanceId: "letter123" (Required)
+- method: "UPLOAD" | "CANVAS" | "SAVED" (Required)
+- savedSignatureId: "saved123" (Required if method=SAVED)
+- signatureFile: File (Required if method=UPLOAD or CANVAS)
+- saveAsTemplate: true/false (Optional, save to signature library)
+- templateAlias: "TTD Formal" (Optional if saveAsTemplate=true)
+
+File Constraints (if applicable):
+- Max size: 2MB
+- Allowed formats: PNG, JPG, JPEG
+
+Request Example (Method: SAVED):
+curl -X POST "http://localhost:3079/api/signing/sign" \
+  -b cookies.txt \
+  -F "signatureId=sig123" \
+  -F "letterInstanceId=letter123" \
+  -F "method=SAVED" \
+  -F "savedSignatureId=saved456"
+
+Request Example (Method: UPLOAD):
+curl -X POST "http://localhost:3079/api/signing/sign" \
+  -b cookies.txt \
+  -F "signatureId=sig123" \
+  -F "letterInstanceId=letter123" \
+  -F "method=UPLOAD" \
+  -F "signatureFile=@my-signature.png" \
+  -F "saveAsTemplate=true" \
+  -F "templateAlias=TTD Dekan Formal"
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Dokumen berhasil ditandatangani",
+  "data": {
+    "signature": {
+      "id": "sig123",
+      "signedAt": "2026-01-25T13:00:00.000Z",
+      "signatureUrl": "https://minio.example.com/signatures/dekan-ttd.png"
+    },
+    "savedSignature": {
+      "id": "saved789",
+      "alias": "TTD Dekan Formal",
+      "created": true
+    }
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Format file tidak didukung. Gunakan: image/png, image/jpeg",
+  "statusCode": 400
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Ukuran file melebihi batas maksimal 2MB",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+14. Generate Draft HTML (STAF) - Helper
+═══════════════════════════════════════════════════════════════════════════════
+
+Generate HTML draft dari template dengan variable replacement dan tembusan.
+
+Endpoint: POST /api/signing/generate-draft
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "letterInstanceId": "letter123",
+  "templateHtml": "<html><body>Kepada: {{nama}}, NIM: {{nim}}</body></html>",
+  "variables": {
+    "nama": "Ahmad Budi Santoso",
+    "nim": "24060121130001",
+    "kegiatan": "Lomba CP"
+  },
+  "tembusan": [
+    {
+      "type": "TEXT",
+      "value": "Wakil Dekan I"
+    },
+    {
+      "type": "USER",
+      "value": "user123",
+      "label": "Ketua Departemen Informatika"
+    }
+  ]
+}
+
+Request Example:
+curl -X POST "http://localhost:3079/api/signing/generate-draft" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "letterInstanceId": "letter123",
+    "templateHtml": "<p>Kepada: {{nama}}</p>",
+    "variables": {"nama": "Ahmad Budi"},
+    "tembusan": [{"type": "TEXT", "value": "Wadek I"}]
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "html": "<html><body><p>Kepada: Ahmad Budi</p><div>Tembusan: Wadek I</div></body></html>",
+    "variables": {
+      "nama": "Ahmad Budi"
+    }
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Template HTML wajib diisi",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+🎨 Frontend Implementation Examples
+═══════════════════════════════════════════════════════════════════════════════
+
+React + Axios:
+
+// services/suratHasil.service.ts
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3079',
+  withCredentials: true
+});
+
+export const suratHasilService = {
+  // Get drafting queue
+  getDraftingQueue: async (params?: { page?: number; limit?: number; search?: string }) => {
+    const response = await api.get('/api/surat-hasil/queue', { params });
+    return response.data;
+  },
+
+  // Get my drafted letters
+  getMyDrafts: async (params?: { page?: number; limit?: number; documentType?: string }) => {
+    const response = await api.get('/api/surat-hasil/my-drafts', { params });
+    return response.data;
+  },
+
+  // Get letter detail
+  getLetterDetail: async (id: string) => {
+    const response = await api.get(`/api/surat-hasil/${id}`);
+    return response.data;
+  },
+
+  // Create draft
+  createDraft: async (letterId: string, data: {
+    documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
+    perihal?: string;
+    content: Record<string, any>;
+    tembusan?: string[];
+    signatories: Array<{
+      signerRole: string;
+      signerName: string;
+      signerNip?: string;
+      order: number;
+    }>;
+  }) => {
+    const response = await api.post(`/api/surat-hasil/${letterId}/draft`, data);
+    return response.data;
+  },
+
+  // Update draft
+  updateDraft: async (documentId: string, data: {
+    content?: Record<string, any>;
+    tembusan?: string[];
+    perihal?: string;
+  }) => {
+    const response = await api.put(`/api/surat-hasil/document/${documentId}`, data);
+    return response.data;
+  },
+
+  // Submit for verification
+  submitForVerification: async (letterId: string, targetSupervisor?: 'AKADEMIK' | 'SUMBER_DAYA') => {
+    const response = await api.post(`/api/surat-hasil/${letterId}/submit`, { targetSupervisor });
+    return response.data;
+  },
+
+  // Approve verification
+  approveVerification: async (letterId: string, notes?: string) => {
+    const response = await api.post(`/api/surat-hasil/${letterId}/approve`, { notes });
+    return response.data;
+  },
+
+  // Supervisor edit draft
+  supervisorEditDraft: async (letterId: string, data: {
+    content?: Record<string, any>;
+    perihal?: string;
+  }) => {
+    const response = await api.put(`/api/surat-hasil/${letterId}/supervisor-edit`, data);
+    return response.data;
+  },
+
+  // Return for revision
+  returnForRevision: async (letterId: string, reason: string) => {
+    const response = await api.post(`/api/surat-hasil/${letterId}/return`, { reason });
+    return response.data;
+  },
+
+  // Sign document
+  signDocument: async (letterId: string, data: {
+    signatureUrl: string;
+    signerName: string;
+    signerNip?: string;
+  }) => {
+    const response = await api.post(`/api/surat-hasil/${letterId}/sign`, data);
+    return response.data;
+  }
+};
+
+export const signingService = {
+  // Get pending signatures
+  getPendingSignatures: async (params?: { page?: number; limit?: number }) => {
+    const response = await api.get('/api/signing/pending', { params });
+    return response.data;
+  },
+
+  // Get signature detail
+  getSignatureDetail: async (signatureId: string) => {
+    const response = await api.get(`/api/signing/${signatureId}`);
+    return response.data;
+  },
+
+  // Sign document (advanced with 3 methods)
+  signDocument: async (data: {
+    signatureId: string;
+    letterInstanceId: string;
+    method: 'UPLOAD' | 'CANVAS' | 'SAVED';
+    savedSignatureId?: string;
+    signatureFile?: File;
+    saveAsTemplate?: boolean;
+    templateAlias?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append('signatureId', data.signatureId);
+    formData.append('letterInstanceId', data.letterInstanceId);
+    formData.append('method', data.method);
+    
+    if (data.savedSignatureId) formData.append('savedSignatureId', data.savedSignatureId);
+    if (data.signatureFile) formData.append('signatureFile', data.signatureFile);
+    if (data.saveAsTemplate !== undefined) formData.append('saveAsTemplate', String(data.saveAsTemplate));
+    if (data.templateAlias) formData.append('templateAlias', data.templateAlias);
+
+    const response = await api.post('/api/signing/sign', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Generate draft HTML
+  generateDraftHtml: async (data: {
+    letterInstanceId: string;
+    templateHtml: string;
+    variables: Record<string, any>;
+    tembusan?: Array<{ type: 'TEXT' | 'USER'; value: string; label?: string }>;
+  }) => {
+    const response = await api.post('/api/signing/generate-draft', data);
+    return response.data;
+  }
+};
+
+// components/DraftingQueue.tsx
+import { useEffect, useState } from 'react';
+import { suratHasilService } from '../services/suratHasil.service';
+
+export const DraftingQueue = () => {
+  const [letters, setLetters] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadQueue();
+  }, []);
+
+  const loadQueue = async () => {
+    setLoading(true);
+    try {
+      const response = await suratHasilService.getDraftingQueue({ page: 1, limit: 10 });
+      setLetters(response.data.letters);
+    } catch (err) {
+      console.error('Failed to load queue:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h2>Antrian Drafting SK/ST</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Pengaju</th>
+            <th>Jenis</th>
+            <th>Keperluan</th>
+            <th>Kategori</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {letters.map((letter: any) => (
+            <tr key={letter.id}>
+              <td>{new Date(letter.submittedAt).toLocaleDateString('id-ID')}</td>
+              <td>{letter.submitter.name}</td>
+              <td>{letter.letterType.name}</td>
+              <td>{letter.submissionValues.keperluan}</td>
+              <td>{letter.assignedCategory}</td>
+              <td>
+                <button onClick={() => window.location.href = `/surat-hasil/${letter.id}`}>
+                  Buat Draft
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// components/DraftEditor.tsx
+import { useState } from 'react';
+import { suratHasilService } from '../services/suratHasil.service';
+
+interface DraftEditorProps {
+  letterId: string;
+  letterType: string;
+  onSaved: () => void;
+}
+
+export const DraftEditor = ({ letterId, letterType, onSaved }: DraftEditorProps) => {
+  const [documentType, setDocumentType] = useState<'SURAT_TUGAS' | 'SURAT_KEPUTUSAN'>('SURAT_TUGAS');
+  const [perihal, setPerihal] = useState('');
+  const [content, setContent] = useState({
+    nomor: '-',
+    pembukaan: '',
+    peserta: [],
+    kegiatan: '',
+    tanggal: '',
+    tempat: '',
+    penutup: ''
+  });
+  const [tembusan, setTembusan] = useState<string[]>(['Wakil Dekan I', 'Arsip']);
+  const [signatories, setSignatories] = useState([
+    { signerRole: 'DEKAN', signerName: '', signerNip: '', order: 0 }
+  ]);
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateDraft = async () => {
+    setLoading(true);
+    try {
+      await suratHasilService.createDraft(letterId, {
+        documentType,
+        perihal,
+        content,
+        tembusan,
+        signatories
+      });
+      alert('Draft berhasil dibuat');
+      onSaved();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal membuat draft');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitForVerification = async () => {
+    if (!confirm('Apakah Anda yakin ingin mengajukan draft untuk verifikasi?')) return;
+
+    setLoading(true);
+    try {
+      await suratHasilService.submitForVerification(letterId, 'AKADEMIK');
+      alert('Draft berhasil diajukan untuk verifikasi');
+      onSaved();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal submit draft');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h3>Draft SK/ST</h3>
+      
+      <div>
+        <label>Tipe Dokumen</label>
+        <select value={documentType} onChange={(e) => setDocumentType(e.target.value as any)}>
+          <option value="SURAT_TUGAS">Surat Tugas</option>
+          <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Perihal</label>
+        <input
+          type="text"
+          value={perihal}
+          onChange={(e) => setPerihal(e.target.value)}
+          placeholder="Surat Tugas Mengikuti Lomba"
+        />
+      </div>
+
+      <div>
+        <label>Pembukaan</label>
+        <textarea
+          value={content.pembukaan}
+          onChange={(e) => setContent({...content, pembukaan: e.target.value})}
+          rows={3}
+        />
+      </div>
+
+      <div>
+        <label>Kegiatan</label>
+        <input
+          type="text"
+          value={content.kegiatan}
+          onChange={(e) => setContent({...content, kegiatan: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <label>Tanggal</label>
+        <input
+          type="text"
+          value={content.tanggal}
+          onChange={(e) => setContent({...content, tanggal: e.target.value})}
+          placeholder="15-16 Februari 2026"
+        />
+      </div>
+
+      <div>
+        <label>Tempat</label>
+        <input
+          type="text"
+          value={content.tempat}
+          onChange={(e) => setContent({...content, tempat: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <h4>Penandatangan</h4>
+        {signatories.map((sig, idx) => (
+          <div key={idx}>
+            <select
+              value={sig.signerRole}
+              onChange={(e) => {
+                const newSigs = [...signatories];
+                newSigs[idx].signerRole = e.target.value;
+                setSignatories(newSigs);
+              }}
+            >
+              <option value="DEKAN">Dekan</option>
+              <option value="WAKIL_DEKAN_1">Wadek I</option>
+              <option value="WAKIL_DEKAN_2">Wadek II</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Nama"
+              value={sig.signerName}
+              onChange={(e) => {
+                const newSigs = [...signatories];
+                newSigs[idx].signerName = e.target.value;
+                setSignatories(newSigs);
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <button onClick={handleCreateDraft} disabled={loading}>
+        {loading ? 'Menyimpan...' : 'Simpan Draft'}
+      </button>
+      <button onClick={handleSubmitForVerification} disabled={loading}>
+        {loading ? 'Mengajukan...' : 'Ajukan untuk Verifikasi'}
+      </button>
+    </div>
+  );
+};
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 Testing dengan cURL
+═══════════════════════════════════════════════════════════════════════════════
+
+# 1. Login as Staf Akademik
+curl -X POST "http://localhost:3079/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"staf.akademik1@fsm.undip.ac.id","password":"password1234"}' \
+  -c cookies.txt
+
+# 2. Get Drafting Queue
+curl -X GET "http://localhost:3079/api/surat-hasil/queue?page=1&limit=10" \
+  -b cookies.txt
+
+# 3. Get Letter Detail
+curl -X GET "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5" \
+  -b cookies.txt
+
+# 4. Create Draft
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/draft" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "documentType": "SURAT_TUGAS",
+    "perihal": "Surat Tugas Mengikuti Lomba",
+    "content": {
+      "pembukaan": "Dekan FSM memberikan tugas...",
+      "kegiatan": "Lomba CP"
+    },
+    "tembusan": ["Wadek I", "Arsip"],
+    "signatories": [
+      {"signerRole": "DEKAN", "signerName": "Prof. Dr. Siti Aminah", "order": 0}
+    ]
+  }'
+
+# 5. Update Draft
+curl -X PUT "http://localhost:3079/api/surat-hasil/document/doc123" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"content": {"kegiatan": "Lomba AI (Updated)"}}'
+
+# 6. Submit for Verification
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/submit" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"targetSupervisor": "AKADEMIK"}'
+
+# 7. Login as Supervisor
+curl -X POST "http://localhost:3079/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"spv.akademik@fsm.undip.ac.id","password":"password1234"}' \
+  -c cookies.txt
+
+# 8. Approve Verification (Supervisor)
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/approve" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"notes": "Disetujui"}'
+
+# 9. Supervisor Edit Draft
+curl -X PUT "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/supervisor-edit" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"content": {"penutup": "Revised"}}'
+
+# 10. Return for Revision
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/return" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"reason": "Format belum sesuai"}'
+
+# 11. Login as Manajer TU
+curl -X POST "http://localhost:3079/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"manajer.tu@fsm.undip.ac.id","password":"password1234"}' \
+  -c cookies.txt
+
+# 12. Approve Verification (Manajer TU → Signing)
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/approve" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"notes": "Approved for signing"}'
+
+# 13. Login as Dekan
+curl -X POST "http://localhost:3079/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dekan@fsm.undip.ac.id","password":"password1234"}' \
+  -c cookies.txt
+
+# 14. Sign Document (Simple)
+curl -X POST "http://localhost:3079/api/surat-hasil/cmktcjvyk0001o9bg1uu3gam5/sign" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "signatureUrl": "https://minio.example.com/signatures/dekan-ttd.png",
+    "signerName": "Prof. Dr. Siti Aminah, M.Si.",
+    "signerNip": "196305151988032001"
+  }'
+
+# 15. Get Pending Signatures
+curl -X GET "http://localhost:3079/api/signing/pending?page=1&limit=10" \
+  -b cookies.txt
+
+# 16. Get Signature Detail
+curl -X GET "http://localhost:3079/api/signing/sig123" \
+  -b cookies.txt
+
+# 17. Sign Document (Advanced - SAVED method)
+curl -X POST "http://localhost:3079/api/signing/sign" \
+  -b cookies.txt \
+  -F "signatureId=sig123" \
+  -F "letterInstanceId=letter123" \
+  -F "method=SAVED" \
+  -F "savedSignatureId=saved456"
+
+# 18. Sign Document (Advanced - UPLOAD method with save)
+curl -X POST "http://localhost:3079/api/signing/sign" \
+  -b cookies.txt \
+  -F "signatureId=sig123" \
+  -F "letterInstanceId=letter123" \
+  -F "method=UPLOAD" \
+  -F "signatureFile=@signature.png" \
+  -F "saveAsTemplate=true" \
+  -F "templateAlias=TTD Dekan Formal"
+
+═══════════════════════════════════════════════════════════════════════════════
+🚨 Common Errors
+═══════════════════════════════════════════════════════════════════════════════
+
+Status | Error                                          | Solusi
+-------+------------------------------------------------+----------------------------------------
+400    | Tipe dokumen harus SURAT_TUGAS atau SK         | Pastikan documentType valid
+400    | Minimal satu penandatangan                     | Tambahkan minimal 1 signatory
+400    | Draft belum dibuat                             | Buat draft terlebih dahulu
+400    | Alasan pengembalian wajib diisi                | Isi reason saat return
+400    | Bukan giliran Anda untuk menandatangani        | Tunggu giliran sesuai order
+400    | Format file tidak didukung                     | Gunakan PNG/JPG untuk signature
+400    | Ukuran file melebihi batas 2MB                 | Compress file signature
+400    | Template HTML wajib diisi                      | Isi templateHtml untuk generate-draft
+401    | Unauthorized                                   | Session expired, login ulang
+403    | Hanya STAF yang dapat membuat draft            | Login dengan akun STAF
+403    | Hanya SUPERVISOR yang dapat approve            | Login dengan akun SUPERVISOR/MANAJER_TU
+403    | Tidak memiliki role untuk menandatangani       | Login sebagai DEKAN/WADEK
+403    | Draft tidak dapat diubah pada status ini       | Cek status surat
+404    | Surat tidak ditemukan                          | ID surat tidak valid
+404    | Signature tidak ditemukan                      | ID signature tidak valid
+500    | Internal Server Error                          | Cek server logs
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 Validation Rules
+═══════════════════════════════════════════════════════════════════════════════
+
+Create Draft:
+- documentType: Required, SURAT_TUGAS | SURAT_KEPUTUSAN
+- content: Required, flexible JSON object
+- perihal: Optional, string
+- tembusan: Optional, array of strings
+- signatories: Required, array with min 1 item
+  - signerRole: Required, string
+  - signerName: Required, string
+  - signerNip: Optional, string
+  - order: Required, number >= 0
+
+Update Draft:
+- content: Optional, JSON object
+- tembusan: Optional, array of strings
+- perihal: Optional, string
+
+Submit for Verification:
+- targetSupervisor: Optional, AKADEMIK | SUMBER_DAYA
+
+Approve Verification:
+- notes: Optional, string
+
+Return for Revision:
+- reason: Required, min 1 character
+
+Sign Document (Simple):
+- signatureUrl: Required, min 1 character
+- signerName: Required, min 1 character
+- signerNip: Optional, string
+
+Sign Document (Advanced):
+- signatureId: Required, string
+- letterInstanceId: Required, string
+- method: Required, UPLOAD | CANVAS | SAVED
+- savedSignatureId: Required if method=SAVED
+- signatureFile: Required if method=UPLOAD or CANVAS (max 2MB, PNG/JPG)
+- saveAsTemplate: Optional, boolean
+- templateAlias: Optional, string
+
+Generate Draft HTML:
+- letterInstanceId: Required, string
+- templateHtml: Required, min 1 character
+- variables: Required, object with string/number/date values
+- tembusan: Optional, array of {type, value, label}
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 Frontend Checklist
+═══════════════════════════════════════════════════════════════════════════════
+
+Staf Dashboard:
+- [ ] Display drafting queue
+- [ ] Show my drafted letters
+- [ ] Create draft form (SK/ST selection)
+- [ ] Rich text editor for content
+- [ ] Manage signatories (add/remove)
+- [ ] Save draft (multiple times)
+- [ ] Submit for verification
+
+Supervisor Dashboard:
+- [ ] Display verification queue
+- [ ] 3 action buttons: Approve, Edit Draft, Return
+- [ ] Approve with optional notes
+- [ ] Edit draft inline
+- [ ] Return with mandatory reason
+
+Manajer TU Dashboard:
+- [ ] Display verification queue
+- [ ] Same 3 options as Supervisor
+- [ ] Approve → forward to signing
+
+Pejabat (Dekan/Wadek) Dashboard:
+- [ ] Display pending signatures
+- [ ] View document preview
+- [ ] 3 signing methods:
+  - [ ] Upload signature file
+  - [ ] Draw on canvas
+  - [ ] Select from saved signatures
+- [ ] Save uploaded/canvas signature as template
+- [ ] Sequential signing support
+
+Draft Editor:
+- [ ] Document type selector
+- [ ] Perihal input
+- [ ] Content fields (flexible based on type)
+- [ ] Tembusan management (add/remove)
+- [ ] Signatories management
+- [ ] Preview draft HTML
+- [ ] Save and submit buttons
+
+Signing Interface:
+- [ ] Document preview with HTML content
+- [ ] Signature method selector
+- [ ] File upload for UPLOAD method
+- [ ] Canvas drawing for CANVAS method
+- [ ] Signature selector for SAVED method
+- [ ] Save as template checkbox
+- [ ] Alias input if saving
+- [ ] Sign button with confirmation
+
+Error Handling:
+- [ ] Handle all 400/403/404 errors
+- [ ] Show field-specific validation errors
+- [ ] Confirm before submit/sign actions
+- [ ] Show success notifications
+
+State Management:
+- [ ] Loading states for all operations
+- [ ] Track draft save status
+- [ ] Update queue after actions
+- [ ] Maintain signature selection state
+
+Integration:
+- [ ] Link to signature management module
+- [ ] Support for saved signatures
+- [ ] HTML template rendering
+- [ ] Variable replacement in templates
+
+═══════════════════════════════════════════════════════════════════════════════
+👥 Test Accounts
+═══════════════════════════════════════════════════════════════════════════════
+
+All accounts use password: password1234
+
+Role                  | Email                              | Nama
+----------------------+------------------------------------+-------------------------
+STAF_AKADEMIK        | staf.akademik1@fsm.undip.ac.id     | Rina Handayani
+SUPERVISOR_AKADEMIK  | spv.akademik@fsm.undip.ac.id       | Dr. Budi Santoso
+MANAJER_TU           | manajer.tu@fsm.undip.ac.id         | Hendra Wijaya
+DEKAN                | dekan@fsm.undip.ac.id              | Prof. Dr. Siti Aminah
+WAKIL_DEKAN_1        | wadek1@fsm.undip.ac.id             | Dr. Ahmad Nur
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 Workflow Flow
+═══════════════════════════════════════════════════════════════════════════════
+
+1. After FAKULTAS_DISPOSITION → Status: FAKULTAS_DRAFTING
+   Active Role: STAF_AKADEMIK or STAF_SUMBER_DAYA
+
+2. STAF → Create Draft
+   Endpoint: POST /api/surat-hasil/:id/draft
+   Status: FAKULTAS_DRAFTING (still same, draft saved)
+
+3. STAF → Submit for Verification
+   Endpoint: POST /api/surat-hasil/:id/submit
+   Status: FAKULTAS_DRAFTING → FAKULTAS_VERIFICATION
+   Active Role: SUPERVISOR_AKADEMIK or SUPERVISOR_SUMBER_DAYA
+
+4. SUPERVISOR → 3 Options:
+   a. Approve → POST /api/surat-hasil/:id/approve
+      Status: FAKULTAS_VERIFICATION (still same)
+      Active Role: MANAJER_TU
+   
+   b. Edit Draft → PUT /api/surat-hasil/:id/supervisor-edit
+      Status: FAKULTAS_VERIFICATION (still same)
+      Can edit and then approve
+   
+   c. Return → POST /api/surat-hasil/:id/return
+      Status: FAKULTAS_VERIFICATION → FAKULTAS_DRAFTING
+      Active Role: STAF (back to staff)
+
+5. MANAJER_TU → 3 Options (same as Supervisor):
+   a. Approve → POST /api/surat-hasil/:id/approve
+      Status: FAKULTAS_VERIFICATION → FAKULTAS_SIGNING
+      Active Role: First Signer (DEKAN/WADEK)
+   
+   b. Edit Draft → PUT /api/surat-hasil/:id/supervisor-edit
+      Status: FAKULTAS_VERIFICATION (still same)
+   
+   c. Return → POST /api/surat-hasil/:id/return
+      Status: FAKULTAS_VERIFICATION → FAKULTAS_DRAFTING
+      Active Role: STAF
+
+6. PEJABAT → Sign Document
+   Endpoint: POST /api/surat-hasil/:id/sign OR POST /api/signing/sign
+   Status: FAKULTAS_SIGNING (sequential signing)
+   If all signatures complete:
+     Status: FAKULTAS_SIGNING → UPA_NUMBERING
+     Active Role: UPA
+
+7. UPA → Legalisasi (separate module)
+
+═══════════════════════════════════════════════════════════════════════════════
+📌 Important Notes
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **Two Signing Endpoints**:
+   - `/api/surat-hasil/:id/sign` - Simple signing (just URL, name, NIP)
+   - `/api/signing/sign` - Advanced signing (3 methods: UPLOAD, CANVAS, SAVED)
+
+2. **Supervisor 3 Options**:
+   - Verify → Forward to next role
+   - Edit Draft → Modify content then can verify
+   - Return → Send back to staff for revision
+
+3. **Sequential Signing**:
+   - Signatories must sign in order (0, 1, 2, ...)
+   - System tracks currentSignerOrder
+   - After all sign → forward to UPA
+
+4. **Draft Flexibility**:
+   - Content is flexible JSON (ST vs SK different structure)
+   - Frontend should have templates for each type
+   - Signatories array defines signing sequence
+
+5. **Saved Signatures Integration**:
+   - Pejabat can use saved signatures for faster signing
+   - Can save new signature as template during signing
+   - Reduces repeated file uploads
+
+6. **Status Transitions**:
+   - FAKULTAS_DRAFTING → FAKULTAS_VERIFICATION (after submit)
+   - FAKULTAS_VERIFICATION → FAKULTAS_SIGNING (after Manajer TU approve)
+   - FAKULTAS_SIGNING → UPA_NUMBERING (after all signatures)
+   - FAKULTAS_VERIFICATION → FAKULTAS_DRAFTING (if returned)
+
+7. **Best Practices**:
+   - Save draft frequently before submit
+   - Preview draft before submitting for verification
+   - Use saved signatures for consistency
+   - Track signing progress (who signed, who's next)
+   - Log all actions for audit trail

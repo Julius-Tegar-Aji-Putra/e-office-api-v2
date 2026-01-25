@@ -1,0 +1,923 @@
+🖊️ Dokumentasi API Signature Management - E-Office ST/SK Dekan
+
+🎯 Overview
+Modul Signature Management menyediakan fitur untuk menyimpan, mengelola, dan menggunakan kembali tanda tangan digital. User dapat mengunggah tanda tangan dari file atau canvas drawing, menyimpannya sebagai template, dan menggunakannya untuk penandatanganan dokumen tanpa perlu upload ulang.
+
+🌐 Base URL
+Local: http://localhost:3079
+Network: http://192.168.18.36:3079
+
+🔐 Authentication
+- Semua endpoint PRIVATE (perlu login)
+- User hanya dapat mengakses tanda tangan miliknya sendiri
+- Cookie: better-auth.session_token harus terkirim
+
+⚠️ IMPORTANT: Maksimal 10 tanda tangan tersimpan per user.
+
+📍 API Endpoints
+
+═══════════════════════════════════════════════════════════════════════════════
+1. Get My Signatures (PRIVATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan daftar semua tanda tangan tersimpan milik user yang sedang login.
+
+Endpoint: GET /api/signatures/me
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/signatures/me" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "signatures": [
+      {
+        "id": "sig123abc",
+        "userId": "user123",
+        "alias": "TTD Formal",
+        "method": "UPLOAD",
+        "storageUrl": "https://minio.example.com/signatures/user123/sig-formal.png",
+        "fileSize": 245678,
+        "mimeType": "image/png",
+        "createdAt": "2026-01-20T10:30:00.000Z",
+        "updatedAt": "2026-01-20T10:30:00.000Z"
+      },
+      {
+        "id": "sig456def",
+        "userId": "user123",
+        "alias": "TTD Canvas",
+        "method": "CANVAS",
+        "storageUrl": "https://minio.example.com/signatures/user123/sig-canvas.png",
+        "fileSize": 156789,
+        "mimeType": "image/png",
+        "createdAt": "2026-01-22T14:15:00.000Z",
+        "updatedAt": "2026-01-22T14:15:00.000Z"
+      }
+    ],
+    "count": 2,
+    "maxAllowed": 10
+  }
+}
+
+Response Success (200) - No signatures:
+{
+  "success": true,
+  "data": {
+    "signatures": [],
+    "count": 0,
+    "maxAllowed": 10
+  }
+}
+
+Response Error (401):
+{
+  "success": false,
+  "message": "Unauthorized",
+  "statusCode": 401
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+2. Get Signature by ID (PRIVATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mendapatkan detail tanda tangan berdasarkan ID (hanya tanda tangan milik sendiri).
+
+Endpoint: GET /api/signatures/:id
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X GET "http://localhost:3079/api/signatures/sig123abc" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "data": {
+    "signature": {
+      "id": "sig123abc",
+      "userId": "user123",
+      "alias": "TTD Formal",
+      "method": "UPLOAD",
+      "storageUrl": "https://minio.example.com/signatures/user123/sig-formal.png",
+      "fileSize": 245678,
+      "mimeType": "image/png",
+      "createdAt": "2026-01-20T10:30:00.000Z",
+      "updatedAt": "2026-01-20T10:30:00.000Z"
+    }
+  }
+}
+
+Response Error (404):
+{
+  "success": false,
+  "message": "Tanda tangan tidak ditemukan",
+  "statusCode": 404
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Anda tidak memiliki akses ke tanda tangan ini",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+3. Upload Signature (PRIVATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mengunggah tanda tangan baru dari file atau canvas drawing. Maksimal 10 tanda tangan per user.
+
+Endpoint: POST /api/signatures/upload
+
+Headers:
+Content-Type: multipart/form-data
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body (FormData):
+- file: File (Required, PNG/JPG/JPEG, max 2MB)
+- method: "UPLOAD" | "CANVAS" (Required, default: UPLOAD)
+- alias: "TTD Formal" (Optional, max 100 characters)
+
+File Constraints:
+- Max size: 2MB (2,097,152 bytes)
+- Allowed formats: PNG, JPG, JPEG
+- Allowed MIME types: image/png, image/jpeg, image/jpg
+
+Request Example (JavaScript):
+const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+formData.append('method', 'UPLOAD');
+formData.append('alias', 'TTD Formal');
+
+fetch('http://localhost:3079/api/signatures/upload', {
+  method: 'POST',
+  credentials: 'include',
+  body: formData
+});
+
+Request Example (cURL):
+curl -X POST "http://localhost:3079/api/signatures/upload" \
+  -b cookies.txt \
+  -F "file=@signature.png" \
+  -F "method=UPLOAD" \
+  -F "alias=TTD Formal"
+
+Response Success (201):
+{
+  "success": true,
+  "message": "Tanda tangan berhasil diunggah",
+  "data": {
+    "signature": {
+      "id": "sig789ghi",
+      "userId": "user123",
+      "alias": "TTD Formal",
+      "method": "UPLOAD",
+      "storageUrl": "https://minio.example.com/signatures/user123/uuid-signature.png",
+      "fileSize": 245678,
+      "mimeType": "image/png",
+      "createdAt": "2026-01-25T10:00:00.000Z"
+    }
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "File tanda tangan wajib diupload",
+  "statusCode": 400
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "File terlalu besar. Maksimal 2MB",
+  "statusCode": 400
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Format file tidak didukung. Hanya PNG dan JPG yang diperbolehkan",
+  "statusCode": 400
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Maksimal 10 tanda tangan per user. Hapus tanda tangan lama terlebih dahulu",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+4. Update Signature Alias (PRIVATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Memperbarui alias/nama tanda tangan tersimpan.
+
+Endpoint: PATCH /api/signatures/:id
+
+Headers:
+Content-Type: application/json
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Body:
+{
+  "alias": "TTD Resmi Baru" // Optional, max 100 characters
+}
+
+Request Example:
+curl -X PATCH "http://localhost:3079/api/signatures/sig123abc" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "alias": "TTD Resmi Baru"
+  }'
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Alias tanda tangan berhasil diperbarui",
+  "data": {
+    "signature": {
+      "id": "sig123abc",
+      "alias": "TTD Resmi Baru",
+      "updatedAt": "2026-01-25T11:00:00.000Z"
+    }
+  }
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Alias maksimal 100 karakter",
+  "statusCode": 400
+}
+
+Response Error (404):
+{
+  "success": false,
+  "message": "Tanda tangan tidak ditemukan",
+  "statusCode": 404
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Anda tidak memiliki akses untuk mengubah tanda tangan ini",
+  "statusCode": 403
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+5. Delete Signature (PRIVATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Menghapus tanda tangan tersimpan dari database dan storage.
+
+Endpoint: DELETE /api/signatures/:id
+
+Headers:
+Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Request Example:
+curl -X DELETE "http://localhost:3079/api/signatures/sig123abc" \
+  -H "Cookie: better-auth.session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Response Success (200):
+{
+  "success": true,
+  "message": "Tanda tangan berhasil dihapus"
+}
+
+Response Error (404):
+{
+  "success": false,
+  "message": "Tanda tangan tidak ditemukan",
+  "statusCode": 404
+}
+
+Response Error (403):
+{
+  "success": false,
+  "message": "Anda tidak memiliki akses untuk menghapus tanda tangan ini",
+  "statusCode": 403
+}
+
+Response Error (400):
+{
+  "success": false,
+  "message": "Tanda tangan sedang digunakan dalam dokumen aktif dan tidak dapat dihapus",
+  "statusCode": 400
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+🎨 Frontend Implementation Examples
+═══════════════════════════════════════════════════════════════════════════════
+
+React + Axios:
+
+// services/signature.service.ts
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3079',
+  withCredentials: true // WAJIB untuk cookie
+});
+
+export const signatureService = {
+  // Get all my signatures
+  getMySignatures: async () => {
+    const response = await api.get('/api/signatures/me');
+    return response.data;
+  },
+
+  // Get signature by ID
+  getSignatureById: async (id: string) => {
+    const response = await api.get(`/api/signatures/${id}`);
+    return response.data;
+  },
+
+  // Upload signature
+  uploadSignature: async (file: File, method: 'UPLOAD' | 'CANVAS', alias?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('method', method);
+    if (alias) formData.append('alias', alias);
+
+    const response = await api.post('/api/signatures/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  // Update signature alias
+  updateAlias: async (id: string, alias: string) => {
+    const response = await api.patch(`/api/signatures/${id}`, { alias });
+    return response.data;
+  },
+
+  // Delete signature
+  deleteSignature: async (id: string) => {
+    const response = await api.delete(`/api/signatures/${id}`);
+    return response.data;
+  }
+};
+
+// components/SignatureManager.tsx
+import { useEffect, useState } from 'react';
+import { signatureService } from '../services/signature.service';
+
+interface Signature {
+  id: string;
+  alias: string;
+  method: 'UPLOAD' | 'CANVAS';
+  storageUrl: string;
+  createdAt: string;
+}
+
+export const SignatureManager = () => {
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [maxAllowed, setMaxAllowed] = useState(10);
+
+  useEffect(() => {
+    loadSignatures();
+  }, []);
+
+  const loadSignatures = async () => {
+    setLoading(true);
+    try {
+      const response = await signatureService.getMySignatures();
+      setSignatures(response.data.signatures);
+      setMaxAllowed(response.data.maxAllowed);
+    } catch (err) {
+      console.error('Failed to load signatures:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File terlalu besar. Maksimal 2MB');
+      return;
+    }
+
+    // Validate file type
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+      alert('Format file tidak didukung. Hanya PNG dan JPG yang diperbolehkan');
+      return;
+    }
+
+    const alias = prompt('Nama tanda tangan (opsional):');
+
+    try {
+      await signatureService.uploadSignature(file, 'UPLOAD', alias || undefined);
+      alert('Tanda tangan berhasil diunggah');
+      loadSignatures();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal mengunggah tanda tangan');
+    }
+  };
+
+  const handleUpdateAlias = async (id: string, currentAlias: string) => {
+    const newAlias = prompt('Nama tanda tangan baru:', currentAlias);
+    if (!newAlias) return;
+
+    try {
+      await signatureService.updateAlias(id, newAlias);
+      alert('Alias berhasil diperbarui');
+      loadSignatures();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal memperbarui alias');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus tanda tangan ini?')) {
+      return;
+    }
+
+    try {
+      await signatureService.deleteSignature(id);
+      alert('Tanda tangan berhasil dihapus');
+      loadSignatures();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal menghapus tanda tangan');
+    }
+  };
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h2>Manajemen Tanda Tangan</h2>
+      
+      <div>
+        <p>Jumlah: {signatures.length} / {maxAllowed}</p>
+        {signatures.length < maxAllowed && (
+          <div>
+            <label htmlFor="upload-signature">
+              <input
+                id="upload-signature"
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={handleUpload}
+                style={{ display: 'none' }}
+              />
+              <button onClick={() => document.getElementById('upload-signature')?.click()}>
+                Upload Tanda Tangan Baru
+              </button>
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+        {signatures.map((sig) => (
+          <div key={sig.id} style={{ border: '1px solid #ccc', padding: '1rem', borderRadius: '8px' }}>
+            <img src={sig.storageUrl} alt={sig.alias} style={{ width: '100%', height: 'auto' }} />
+            <h4>{sig.alias || 'Tanpa Nama'}</h4>
+            <p>Method: {sig.method}</p>
+            <p>Upload: {new Date(sig.createdAt).toLocaleDateString('id-ID')}</p>
+            <button onClick={() => handleUpdateAlias(sig.id, sig.alias)}>
+              Edit Nama
+            </button>
+            <button onClick={() => handleDelete(sig.id)}>
+              Hapus
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {signatures.length === 0 && (
+        <p>Belum ada tanda tangan tersimpan. Upload tanda tangan pertama Anda!</p>
+      )}
+    </div>
+  );
+};
+
+// components/SignatureCanvas.tsx
+import { useRef, useState } from 'react';
+import { signatureService } from '../services/signature.service';
+
+export const SignatureCanvas = ({ onSaved }: { onSaved: () => void }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    setIsDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    ctx.beginPath();
+    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const saveSignature = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    setSaving(true);
+    try {
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/png');
+      });
+
+      // Create file from blob
+      const file = new File([blob], 'signature.png', { type: 'image/png' });
+
+      const alias = prompt('Nama tanda tangan (opsional):');
+
+      await signatureService.uploadSignature(file, 'CANVAS', alias || undefined);
+      alert('Tanda tangan berhasil disimpan');
+      clearCanvas();
+      onSaved();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Gagal menyimpan tanda tangan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <h3>Buat Tanda Tangan dengan Canvas</h3>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={200}
+        style={{ border: '1px solid #000', cursor: 'crosshair' }}
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+      />
+      <div>
+        <button onClick={clearCanvas}>Clear</button>
+        <button onClick={saveSignature} disabled={saving}>
+          {saving ? 'Menyimpan...' : 'Simpan Tanda Tangan'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// components/SignatureSelector.tsx
+import { useEffect, useState } from 'react';
+import { signatureService } from '../services/signature.service';
+
+interface SignatureSelectorProps {
+  onSelect: (signatureUrl: string, signatureId: string) => void;
+}
+
+export const SignatureSelector = ({ onSelect }: SignatureSelectorProps) => {
+  const [signatures, setSignatures] = useState([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSignatures();
+  }, []);
+
+  const loadSignatures = async () => {
+    setLoading(true);
+    try {
+      const response = await signatureService.getMySignatures();
+      setSignatures(response.data.signatures);
+    } catch (err) {
+      console.error('Failed to load signatures:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelect = (sig: any) => {
+    setSelected(sig.id);
+    onSelect(sig.storageUrl, sig.id);
+  };
+
+  if (loading) return <div>Loading signatures...</div>;
+
+  if (signatures.length === 0) {
+    return (
+      <div>
+        <p>Belum ada tanda tangan tersimpan.</p>
+        <p>Upload tanda tangan baru atau gunakan canvas untuk membuat tanda tangan.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h4>Pilih Tanda Tangan Tersimpan</h4>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+        {signatures.map((sig: any) => (
+          <div
+            key={sig.id}
+            onClick={() => handleSelect(sig)}
+            style={{
+              border: selected === sig.id ? '2px solid blue' : '1px solid #ccc',
+              padding: '0.5rem',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <img src={sig.storageUrl} alt={sig.alias} style={{ width: '100%', height: 'auto' }} />
+            <p style={{ textAlign: 'center', fontSize: '0.9rem' }}>{sig.alias || 'Tanpa Nama'}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+═══════════════════════════════════════════════════════════════════════════════
+🧪 Testing dengan cURL
+═══════════════════════════════════════════════════════════════════════════════
+
+# 1. Login first
+curl -X POST "http://localhost:3079/api/auth/sign-in/email" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"kaprodi.if@undip.ac.id","password":"password1234"}' \
+  -c cookies.txt
+
+# 2. Get My Signatures
+curl -X GET "http://localhost:3079/api/signatures/me" \
+  -b cookies.txt
+
+# 3. Upload Signature
+curl -X POST "http://localhost:3079/api/signatures/upload" \
+  -b cookies.txt \
+  -F "file=@my-signature.png" \
+  -F "method=UPLOAD" \
+  -F "alias=TTD Formal"
+
+# 4. Get Signature by ID
+curl -X GET "http://localhost:3079/api/signatures/sig123abc" \
+  -b cookies.txt
+
+# 5. Update Signature Alias
+curl -X PATCH "http://localhost:3079/api/signatures/sig123abc" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"alias": "TTD Resmi Baru"}'
+
+# 6. Delete Signature
+curl -X DELETE "http://localhost:3079/api/signatures/sig123abc" \
+  -b cookies.txt
+
+═══════════════════════════════════════════════════════════════════════════════
+🚨 Common Errors
+═══════════════════════════════════════════════════════════════════════════════
+
+Status | Error                                          | Solusi
+-------+------------------------------------------------+----------------------------------------
+400    | File tanda tangan wajib diupload               | Pastikan file terkirim dalam FormData
+400    | File terlalu besar. Maksimal 2MB               | Compress atau resize file < 2MB
+400    | Format file tidak didukung                     | Hanya PNG dan JPG yang diperbolehkan
+400    | Maksimal 10 tanda tangan per user              | Hapus tanda tangan lama dulu
+400    | Alias maksimal 100 karakter                    | Gunakan nama lebih pendek
+400    | Tanda tangan sedang digunakan                  | Tidak dapat dihapus jika sedang dipakai
+401    | Unauthorized                                   | Session expired, login ulang
+403    | Anda tidak memiliki akses                      | Hanya bisa akses TTD sendiri
+404    | Tanda tangan tidak ditemukan                   | ID tidak valid atau sudah dihapus
+500    | Internal Server Error                          | Cek server logs
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 Validation Rules
+═══════════════════════════════════════════════════════════════════════════════
+
+Upload Signature:
+- file: Required, File object
+  - Max size: 2MB (2,097,152 bytes)
+  - Allowed MIME types: image/png, image/jpeg, image/jpg
+  - Allowed extensions: .png, .jpg, .jpeg
+- method: Required, "UPLOAD" | "CANVAS" (default: UPLOAD)
+- alias: Optional, max 100 characters
+
+Update Alias:
+- alias: Optional, max 100 characters
+
+Limits:
+- Max signatures per user: 10
+- If user has 10 signatures, must delete one before uploading new
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 Frontend Checklist
+═══════════════════════════════════════════════════════════════════════════════
+
+Signature List:
+- [ ] Display all saved signatures with preview
+- [ ] Show alias/name for each signature
+- [ ] Show method (UPLOAD or CANVAS)
+- [ ] Show upload date
+- [ ] Show count (e.g., "3 / 10")
+- [ ] Edit alias button
+- [ ] Delete button with confirmation
+- [ ] Empty state when no signatures
+
+Upload Signature:
+- [ ] File input with accept=".png,.jpg,.jpeg"
+- [ ] Validate file size client-side (max 2MB)
+- [ ] Validate file type client-side
+- [ ] Show file preview before upload
+- [ ] Optional alias input
+- [ ] Upload progress indicator
+- [ ] Disable upload if limit reached (10/10)
+- [ ] Clear file input after upload
+
+Canvas Drawing:
+- [ ] Canvas element (400x200 or responsive)
+- [ ] Mouse/touch drawing support
+- [ ] Clear canvas button
+- [ ] Save button to upload canvas as PNG
+- [ ] Optional alias input
+- [ ] Preview before save
+- [ ] Disable if limit reached
+
+Signature Selector (for signing documents):
+- [ ] Grid display of all saved signatures
+- [ ] Click to select signature
+- [ ] Highlight selected signature
+- [ ] Show alias for each signature
+- [ ] Return selected signature URL and ID
+- [ ] Show message if no signatures available
+
+Error Handling:
+- [ ] Handle file size validation
+- [ ] Handle file type validation
+- [ ] Handle limit reached (10/10)
+- [ ] Handle network errors
+- [ ] Handle 401/403/404 errors
+- [ ] Show user-friendly error messages
+
+State Management:
+- [ ] Loading states for all operations
+- [ ] Error states with messages
+- [ ] Success states with notifications
+- [ ] Update list after upload/delete
+- [ ] Track selected signature in selector
+
+Security:
+- [ ] Always use withCredentials: true
+- [ ] Validate file on client before upload
+- [ ] Don't expose storage URLs publicly
+- [ ] Confirm before delete
+
+UX Improvements:
+- [ ] Drag & drop file upload
+- [ ] Image preview modal
+- [ ] Rename inline (double-click alias)
+- [ ] Sort by date/name
+- [ ] Filter by method
+- [ ] Bulk delete option
+- [ ] Export signature as PNG
+
+═══════════════════════════════════════════════════════════════════════════════
+👥 Test Accounts
+═══════════════════════════════════════════════════════════════════════════════
+
+All accounts use password: password1234
+
+Any authenticated user can use signature management. Test with:
+
+Role       | Email                              | Nama
+-----------+------------------------------------+-------------------------
+KAPRODI    | kaprodi.if@undip.ac.id             | Dr. Adi Wibowo
+KADEP      | kadep.if@undip.ac.id               | Prof. Dr. Budi Hartanto
+DEKAN      | dekan@fsm.undip.ac.id              | Prof. Dr. Siti Aminah
+STAF       | staf.akademik1@fsm.undip.ac.id     | Rina Handayani
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 Integration with Other Modules
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **Department Approval Module**:
+   - When signing surat pengantar, user can select saved signature
+   - POST /api/department-approval/:id/sign
+   - Use signatureUrl from selected saved signature
+
+2. **Surat Hasil Module**:
+   - When signing SK/ST, pejabat can use saved signature
+   - POST /api/surat-hasil/:id/sign
+   - Use signatureUrl from saved signature
+
+3. **Usage Pattern**:
+   ```javascript
+   // 1. User opens signature selector modal
+   // 2. User selects saved signature OR uploads new one
+   // 3. If new upload with "Save as template" checked:
+   const signature = await signatureService.uploadSignature(file, 'UPLOAD', 'TTD Formal');
+   // 4. Use signature URL for signing document
+   await documentService.sign(documentId, {
+     signatureUrl: signature.data.signature.storageUrl,
+     signerName: 'Dr. Adi Wibowo',
+     signerNip: '197601052005011001'
+   });
+   ```
+
+4. **Benefits**:
+   - No need to upload signature repeatedly
+   - Consistent signature across documents
+   - Faster signing process
+   - Better UX for frequent signers
+
+═══════════════════════════════════════════════════════════════════════════════
+📌 Important Notes
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **Storage**:
+   - Signatures stored in MinIO/S3 bucket
+   - Path: signatures/{userId}/{uuid}-{filename}
+   - Only accessible by owner
+   - Deleted from storage when deleted from DB
+
+2. **Security**:
+   - User can only access their own signatures
+   - Cannot view/use other user's signatures
+   - Storage URLs are signed/private
+   - Deletion validation prevents removing active signatures
+
+3. **File Constraints**:
+   - Max size: 2MB (smaller than attachment max of 5MB)
+   - Only PNG/JPG formats (for transparency and quality)
+   - Frontend should validate before upload
+
+4. **Limits**:
+   - Max 10 signatures per user (prevents storage abuse)
+   - Must delete old signatures to upload new ones
+   - No bulk upload supported
+
+5. **Methods**:
+   - UPLOAD: Uploaded from file system
+   - CANVAS: Created using canvas drawing
+   - Both stored as PNG in storage
+
+6. **Alias**:
+   - Optional friendly name for signature
+   - Max 100 characters
+   - Can be updated anytime
+   - Helps distinguish multiple signatures
+
+7. **Best Practices**:
+   - Recommend transparent PNG background
+   - Suggest standard signature size (e.g., 400x200px)
+   - Provide template/guide for manual signatures
+   - Auto-crop whitespace for canvas signatures
+   - Optimize file size before storage
+
+8. **Future Enhancements** (not implemented yet):
+   - Biometric signature capture
+   - Digital certificate integration
+   - Signature verification/validation
+   - Version history
+   - Signature expiry dates
+   - Multi-signature support (different roles)
