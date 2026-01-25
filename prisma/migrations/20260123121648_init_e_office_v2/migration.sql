@@ -5,6 +5,12 @@ CREATE TYPE "Jenjang" AS ENUM ('D3', 'S1', 'S2', 'S3');
 CREATE TYPE "signature_type" AS ENUM ('UPLOAD', 'HANDWRITING');
 
 -- CreateEnum
+CREATE TYPE "signature_status" AS ENUM ('PENDING', 'SIGNED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "legalisasi_status" AS ENUM ('PENDING', 'NOMOR_DIBERIKAN', 'STEMPEL_DIBERIKAN', 'QR_GENERATED', 'COMPLETED');
+
+-- CreateEnum
 CREATE TYPE "letter_category" AS ENUM ('AKADEMIK', 'SUMBER_DAYA', 'UMUM');
 
 -- CreateEnum
@@ -185,6 +191,7 @@ CREATE TABLE "saved_signature" (
     "type" "signature_type" NOT NULL DEFAULT 'UPLOAD',
     "fileUrl" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
+    "alias" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -233,6 +240,7 @@ CREATE TABLE "letter_instance" (
     "currentActiveRole" TEXT,
     "priority" "priority" NOT NULL DEFAULT 'NORMAL',
     "signatureConfig" JSONB,
+    "contentHtml" TEXT,
     "letterTypeId" TEXT NOT NULL,
     "createdById" TEXT NOT NULL,
     "submittedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -256,6 +264,10 @@ CREATE TABLE "letter_document" (
     "isSigned" BOOLEAN NOT NULL DEFAULT false,
     "fileUrl" TEXT,
     "qrCodeUrl" TEXT,
+    "legalisasiStatus" "legalisasi_status" NOT NULL DEFAULT 'PENDING',
+    "sealImageUrl" TEXT,
+    "barcodeData" TEXT,
+    "readyToDistribute" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -271,7 +283,8 @@ CREATE TABLE "document_signature" (
     "signerName" TEXT NOT NULL,
     "signerNip" TEXT,
     "signatureUrl" TEXT,
-    "signedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" "signature_status" NOT NULL DEFAULT 'PENDING',
+    "signedAt" TIMESTAMP(3),
     "notes" TEXT,
     "order" INTEGER NOT NULL DEFAULT 0,
 
@@ -302,7 +315,9 @@ CREATE TABLE "letter_attachment" (
     "id" TEXT NOT NULL,
     "letterInstanceId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
-    "fileUrl" TEXT NOT NULL,
+    "storageName" TEXT NOT NULL,
+    "storagePath" TEXT NOT NULL,
+    "fileUrl" TEXT,
     "fileSize" INTEGER,
     "mimeType" TEXT,
     "description" TEXT,
@@ -395,6 +410,12 @@ CREATE INDEX "letter_instance_currentActiveRole_idx" ON "letter_instance"("curre
 
 -- CreateIndex
 CREATE INDEX "letter_document_letterInstanceId_idx" ON "letter_document"("letterInstanceId");
+
+-- CreateIndex
+CREATE INDEX "letter_document_nomorSurat_idx" ON "letter_document"("nomorSurat");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "letter_document_nomorSurat_key" ON "letter_document"("nomorSurat");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "letter_document_letterInstanceId_type_key" ON "letter_document"("letterInstanceId", "type");
