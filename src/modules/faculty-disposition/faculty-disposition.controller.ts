@@ -1,10 +1,10 @@
 /**
- * Disposisi Controller
+ * Faculty Disposition Controller
  * HTTP handler untuk modul disposisi fakultas
  */
 
-import { disposisiService } from './disposisi.service';
-import { DisposisiListParams } from './disposisi.repository';
+import { facultyDispositionService } from './faculty-disposition.service';
+import { DispositionListParams } from './faculty-disposition.repository';
 import { successResponse, errorResponse } from '../../shared/utils/response';
 import { LetterCategory } from '../../generated/prisma/client';
 
@@ -12,13 +12,13 @@ import { LetterCategory } from '../../generated/prisma/client';
 // CONTROLLER CLASS
 // ============================================================================
 
-class DisposisiController {
+class FacultyDispositionController {
   /**
-   * GET /disposisi/incoming
+   * GET /faculty-disposition/incoming
    * Get incoming letters for Admin Fakultas
    */
-  async getIncomingLetters(params: DisposisiListParams) {
-    const result = await disposisiService.getIncomingLetters(params);
+  async getIncomingLetters(params: DispositionListParams) {
+    const result = await facultyDispositionService.getIncomingLetters(params);
     if (!result.success) {
       return errorResponse(result.error || 'Unknown error', result.code || 500);
     }
@@ -26,11 +26,11 @@ class DisposisiController {
   }
 
   /**
-   * GET /disposisi/queue
+   * GET /faculty-disposition/queue
    * Get disposition queue for pejabat
    */
-  async getDispositionQueue(userRole: string, params: DisposisiListParams) {
-    const result = await disposisiService.getDispositionQueue(userRole, params);
+  async getDispositionQueue(userRole: string, params: DispositionListParams) {
+    const result = await facultyDispositionService.getDispositionQueue(userRole, params);
     if (!result.success) {
       return errorResponse(result.error || 'Unknown error', result.code || 500);
     }
@@ -38,11 +38,11 @@ class DisposisiController {
   }
 
   /**
-   * GET /disposisi/:id
+   * GET /faculty-disposition/:id
    * Get letter detail with disposition context
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]) {
-    const result = await disposisiService.getLetterDetail(letterId, userId, userRoles);
+    const result = await facultyDispositionService.getLetterDetail(letterId, userId, userRoles);
     if (!result.success) {
       return errorResponse(result.error || 'Unknown error', result.code || 500);
     }
@@ -50,7 +50,7 @@ class DisposisiController {
   }
 
   /**
-   * POST /disposisi/:id/categorize
+   * POST /faculty-disposition/:id/categorize
    * Admin Fakultas categorizes incoming letter
    */
   async categorizeAndReceive(
@@ -59,7 +59,7 @@ class DisposisiController {
     userId: string,
     userRole: string
   ) {
-    const result = await disposisiService.receiveAndCategorize(
+    const result = await facultyDispositionService.receiveAndCategorize(
       letterId,
       body.category,
       userId,
@@ -72,7 +72,7 @@ class DisposisiController {
   }
 
   /**
-   * POST /disposisi/:id/forward
+   * POST /faculty-disposition/:id/forward
    * Forward/disposition letter to next role
    */
   async forwardLetter(
@@ -81,7 +81,7 @@ class DisposisiController {
     userId: string,
     userRole: string
   ) {
-    const result = await disposisiService.createDisposition(
+    const result = await facultyDispositionService.createDisposition(
       { letterId, targetRole: body.targetRole, notes: body.notes },
       userId,
       userRole
@@ -93,7 +93,7 @@ class DisposisiController {
   }
 
   /**
-   * POST /disposisi/:id/complete
+   * POST /faculty-disposition/:id/complete
    * Mark letter as complete at current level
    */
   async markComplete(
@@ -102,7 +102,7 @@ class DisposisiController {
     userId: string,
     userRole: string
   ) {
-    const result = await disposisiService.markAsComplete(
+    const result = await facultyDispositionService.markAsComplete(
       { letterId, notes: body.notes },
       userId,
       userRole
@@ -114,8 +114,9 @@ class DisposisiController {
   }
 
   /**
-   * POST /disposisi/:id/return
+   * POST /faculty-disposition/:id/return
    * Return letter to previous role
+   * CATATAN WAJIB DIISI
    */
   async returnLetter(
     letterId: string,
@@ -123,7 +124,7 @@ class DisposisiController {
     userId: string,
     userRole: string
   ) {
-    const result = await disposisiService.returnLetter(
+    const result = await facultyDispositionService.returnLetter(
       { letterId, reason: body.reason, targetRole: body.targetRole },
       userId,
       userRole
@@ -135,11 +136,11 @@ class DisposisiController {
   }
 
   /**
-   * GET /disposisi/users/:role
+   * GET /faculty-disposition/users/:role
    * Get users by role for dropdown
    */
   async getUsersByRole(role: string) {
-    const result = await disposisiService.getUsersForDisposition(role);
+    const result = await facultyDispositionService.getUsersForDisposition(role);
     if (!result.success) {
       return errorResponse(result.error || 'Unknown error', result.code || 500);
     }
@@ -147,4 +148,4 @@ class DisposisiController {
   }
 }
 
-export const disposisiController = new DisposisiController();
+export const facultyDispositionController = new FacultyDispositionController();

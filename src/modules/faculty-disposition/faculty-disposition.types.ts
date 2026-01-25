@@ -1,6 +1,6 @@
 /**
- * Disposisi Module Types
- * Types untuk modul disposisi (Lingkup Fakultas - Surat Masuk)
+ * Faculty Disposition Module Types
+ * Types untuk modul disposisi fakultas (Lingkup Fakultas - Surat Masuk)
  * Sesuai Prompting.md Modul C: DISPOSISI
  */
 

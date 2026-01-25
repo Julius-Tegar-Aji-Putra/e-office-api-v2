@@ -1,46 +1,46 @@
 /**
- * Disposisi Routes (Elysia)
+ * Faculty Disposition Routes (Elysia)
  * Route definition untuk modul disposisi fakultas
- * Path prefix: /api/disposisi
+ * Path prefix: /api/faculty-disposition
  */
 
 import { Elysia } from 'elysia';
-import { disposisiController } from './disposisi.controller';
+import { facultyDispositionController } from './faculty-disposition.controller';
 import {
-  disposisiQuerySchema,
+  dispositionQuerySchema,
   letterIdParamSchema,
   roleParamSchema,
   categorizeBodySchema,
   forwardBodySchema,
   completeBodySchema,
   returnBodySchema
-} from './disposisi.validation';
+} from './faculty-disposition.validation';
 import { ROLES, PEJABAT_ROLES, FAKULTAS_ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
-// Disposisi Routes
+// Faculty Disposition Routes
 // ============================================================================
 
-export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
+export const facultyDispositionRoutes = new Elysia({ prefix: '/faculty-disposition' })
   .use(authGuardPlugin)
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
 
   .get('/incoming', async ({ query }) => {
-    return disposisiController.getIncomingLetters({
+    return facultyDispositionController.getIncomingLetters({
       page: query.page,
       limit: query.limit,
       search: query.search
     });
   }, {
-    query: disposisiQuerySchema,
+    query: dispositionQuerySchema,
     detail: {
       summary: 'Get incoming letters',
       description: 'Mendapatkan daftar surat masuk untuk Admin Fakultas',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -52,18 +52,18 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
       r === ROLES.ADMIN_FAKULTAS
     ) || ROLES.ADMIN_FAKULTAS;
 
-    return disposisiController.getDispositionQueue(activeRole, {
+    return facultyDispositionController.getDispositionQueue(activeRole, {
       page: query.page,
       limit: query.limit,
       category: query.category as any,
       search: query.search
     });
   }, {
-    query: disposisiQuerySchema,
+    query: dispositionQuerySchema,
     detail: {
       summary: 'Get disposition queue',
       description: 'Mendapatkan antrian disposisi untuk pejabat',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -72,25 +72,25 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
   // ==========================================================================
 
   .get('/users/:role', async ({ params }) => {
-    return disposisiController.getUsersByRole(params.role);
+    return facultyDispositionController.getUsersByRole(params.role);
   }, {
     params: roleParamSchema,
     detail: {
       summary: 'Get users by role',
       description: 'Mendapatkan daftar user berdasarkan role untuk dropdown disposisi',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
   .get('/:id', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
-    return disposisiController.getLetterDetail(params.id, user.id, roles);
+    return facultyDispositionController.getLetterDetail(params.id, user.id, roles);
   }, {
     params: letterIdParamSchema,
     detail: {
       summary: 'Get letter detail',
       description: 'Mendapatkan detail surat dengan konteks disposisi',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -99,7 +99,7 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
   // ==========================================================================
 
   .post('/:id/categorize', async ({ params, body, user }) => {
-    return disposisiController.categorizeAndReceive(
+    return facultyDispositionController.categorizeAndReceive(
       params.id,
       body,
       user.id,
@@ -111,7 +111,7 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
     detail: {
       summary: 'Categorize incoming letter',
       description: 'Admin Fakultas mengkategorikan surat masuk',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -122,14 +122,14 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
       (FAKULTAS_ROLES as readonly string[]).includes(r)
     ) || ROLES.ADMIN_FAKULTAS;
 
-    return disposisiController.forwardLetter(params.id, body, user.id, activeRole);
+    return facultyDispositionController.forwardLetter(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: forwardBodySchema,
     detail: {
       summary: 'Forward letter',
       description: 'Meneruskan/disposisi surat ke role berikutnya',
-      tags: ['Disposisi']
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -139,14 +139,14 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
       (PEJABAT_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return disposisiController.markComplete(params.id, body, user.id, activeRole);
+    return facultyDispositionController.markComplete(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: completeBodySchema,
     detail: {
       summary: 'Mark as complete',
-      description: 'Pejabat menyelesaikan surat tanpa output ST/SK',
-      tags: ['Disposisi']
+      description: 'Pejabat menyelesaikan surat tanpa output ST/SK (catatan WAJIB)',
+      tags: ['Faculty Disposition']
     }
   })
 
@@ -156,13 +156,13 @@ export const disposisiRoutes = new Elysia({ prefix: '/disposisi' })
       (FAKULTAS_ROLES as readonly string[]).includes(r)
     ) || roles[0];
 
-    return disposisiController.returnLetter(params.id, body, user.id, activeRole);
+    return facultyDispositionController.returnLetter(params.id, body, user.id, activeRole);
   }, {
     params: letterIdParamSchema,
     body: returnBodySchema,
     detail: {
       summary: 'Return letter',
-      description: 'Mengembalikan surat ke role sebelumnya',
-      tags: ['Disposisi']
+      description: 'Mengembalikan surat ke role sebelumnya (alasan WAJIB). Jika dikembalikan ke ADMIN_PRODI = surat selesai (dead end)',
+      tags: ['Faculty Disposition']
     }
   });

@@ -1,9 +1,14 @@
 /**
- * Disposisi Service
+ * Faculty Disposition Service
  * Business logic untuk modul disposisi fakultas
+ * 
+ * PERBAIKAN LOGIC RETURN TARGETS:
+ * - Ambil dari history disposisi (siapa yang pernah handle)
+ * - Default: ADMIN_PRODI (dead end jika dipilih)
+ * - ADMIN_FAKULTAS selalu tersedia (bisa lanjut)
  */
 
-import { disposisiRepository, DisposisiListParams, DisposisiInput, ReturnInput, CompleteInput } from './disposisi.repository';
+import { facultyDispositionRepository, DispositionListParams, DispositionInput, ReturnInput, CompleteInput } from './faculty-disposition.repository';
 import { LetterStatus, LetterCategory } from '../../generated/prisma/client';
 import {
   ROLES,
@@ -28,13 +33,13 @@ export interface ServiceResult<T = any> {
 // SERVICE CLASS
 // ============================================================================
 
-class DisposisiService {
+class FacultyDispositionService {
   /**
    * Get incoming letters for Admin Fakultas
    */
-  async getIncomingLetters(params: DisposisiListParams): Promise<ServiceResult> {
+  async getIncomingLetters(params: DispositionListParams): Promise<ServiceResult> {
     try {
-      const result = await disposisiRepository.getIncomingLettersForAdmin(params);
+      const result = await facultyDispositionRepository.getIncomingLettersForAdmin(params);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -44,9 +49,9 @@ class DisposisiService {
   /**
    * Get letters in disposition queue for pejabat
    */
-  async getDispositionQueue(userRole: string, params: DisposisiListParams): Promise<ServiceResult> {
+  async getDispositionQueue(userRole: string, params: DispositionListParams): Promise<ServiceResult> {
     try {
-      const result = await disposisiRepository.getLettersForDisposition(userRole, params);
+      const result = await facultyDispositionRepository.getLettersForDisposition(userRole, params);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -58,7 +63,7 @@ class DisposisiService {
    */
   async getLetterDetail(letterId: string, userId: string, userRoles: string[]): Promise<ServiceResult> {
     try {
-      const letter = await disposisiRepository.getLetterById(letterId);
+      const letter = await facultyDispositionRepository.getLetterById(letterId);
 
       if (!letter) {
         return { success: false, error: 'Surat tidak ditemukan', code: 404 };
@@ -72,8 +77,9 @@ class DisposisiService {
         ? this.getAvailableDispositionTargets(currentRole, category)
         : [];
 
+      // PERBAIKAN: Return targets berdasarkan history
       const returnTargets = currentRole
-        ? this.getAvailableReturnTargets(currentRole, category)
+        ? await this.getAvailableReturnTargets(letterId, currentRole)
         : [];
 
       const permissions = this.getActionPermissions(letter, userRoles);
@@ -102,7 +108,7 @@ class DisposisiService {
     userRole: string
   ): Promise<ServiceResult> {
     try {
-      const letter = await disposisiRepository.getLetterById(letterId);
+      const letter = await facultyDispositionRepository.getLetterById(letterId);
 
       if (!letter) {
         return { success: false, error: 'Surat tidak ditemukan', code: 404 };
@@ -112,7 +118,7 @@ class DisposisiService {
         return { success: false, error: 'Surat tidak dalam status yang dapat dikategorikan', code: 400 };
       }
 
-      const result = await disposisiRepository.receiveAndCategorize(letterId, category, userId, userRole);
+      const result = await facultyDispositionRepository.receiveAndCategorize(letterId, category, userId, userRole);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -123,12 +129,12 @@ class DisposisiService {
    * Create disposition to next role
    */
   async createDisposition(
-    input: DisposisiInput,
+    input: DispositionInput,
     userId: string,
     userRole: string
   ): Promise<ServiceResult> {
     try {
-      const letter = await disposisiRepository.getLetterById(input.letterId);
+      const letter = await facultyDispositionRepository.getLetterById(input.letterId);
 
       if (!letter) {
         return { success: false, error: 'Surat tidak ditemukan', code: 404 };
@@ -146,7 +152,7 @@ class DisposisiService {
 
       // Check if target is staff -> change status to DRAFTING
       if ((STAF_ROLES as readonly string[]).includes(input.targetRole)) {
-        const result = await disposisiRepository.dispositionToStaff(
+        const result = await facultyDispositionRepository.dispositionToStaff(
           input.letterId,
           input.targetRole,
           userId,
@@ -157,7 +163,7 @@ class DisposisiService {
       }
 
       const fromStatus = letter.status as LetterStatus;
-      const result = await disposisiRepository.createDisposition(input, userId, userRole, fromStatus);
+      const result = await facultyDispositionRepository.createDisposition(input, userId, userRole, fromStatus);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -169,7 +175,7 @@ class DisposisiService {
    */
   async markAsComplete(input: CompleteInput, userId: string, userRole: string): Promise<ServiceResult> {
     try {
-      const letter = await disposisiRepository.getLetterById(input.letterId);
+      const letter = await facultyDispositionRepository.getLetterById(input.letterId);
 
       if (!letter) {
         return { success: false, error: 'Surat tidak ditemukan', code: 404 };
@@ -183,7 +189,7 @@ class DisposisiService {
         return { success: false, error: 'Catatan wajib diisi untuk menyelesaikan surat', code: 400 };
       }
 
-      const result = await disposisiRepository.markAsComplete(input, userId, userRole);
+      const result = await facultyDispositionRepository.markAsComplete(input, userId, userRole);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -195,7 +201,7 @@ class DisposisiService {
    */
   async returnLetter(input: ReturnInput, userId: string, userRole: string): Promise<ServiceResult> {
     try {
-      const letter = await disposisiRepository.getLetterById(input.letterId);
+      const letter = await facultyDispositionRepository.getLetterById(input.letterId);
 
       if (!letter) {
         return { success: false, error: 'Surat tidak ditemukan', code: 404 };
@@ -205,11 +211,18 @@ class DisposisiService {
         return { success: false, error: 'Bukan giliran Anda', code: 403 };
       }
 
+      // VALIDASI: Alasan pengembalian WAJIB
       if (!input.reason || input.reason.trim() === '') {
         return { success: false, error: 'Alasan pengembalian wajib diisi', code: 400 };
       }
 
-      const result = await disposisiRepository.returnLetter(input, userId, userRole);
+      // Validasi target role
+      const validTargets = await this.getAvailableReturnTargets(input.letterId, userRole);
+      if (!validTargets.includes(input.targetRole)) {
+        return { success: false, error: 'Target pengembalian tidak valid', code: 400 };
+      }
+
+      const result = await facultyDispositionRepository.returnLetter(input, userId, userRole);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -221,7 +234,7 @@ class DisposisiService {
    */
   async getUsersForDisposition(role: string): Promise<ServiceResult> {
     try {
-      const result = await disposisiRepository.getUsersByRole(role);
+      const result = await facultyDispositionRepository.getUsersByRole(role);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error', code: 500 };
@@ -246,23 +259,51 @@ class DisposisiService {
     }) as string[];
   }
 
-  private getAvailableReturnTargets(
-    currentRole: string,
-    _category: LetterCategory
-  ): string[] {
-    // Can return to Admin Fakultas or previous disposer
-    const targets: string[] = [ROLES.ADMIN_FAKULTAS];
+  /**
+   * PERBAIKAN: Get available return targets berdasarkan history disposisi
+   * 
+   * Logic:
+   * 1. Query history siapa saja yang pernah handle surat ini
+   * 2. Admin Prodi SELALU tersedia (default, tapi jadi dead end)
+   * 3. Admin Fakultas tersedia jika surat pernah lewat sana
+   * 4. Pejabat lain tersedia jika ada di history dan levelnya lebih tinggi
+   */
+  private async getAvailableReturnTargets(
+    letterId: string,
+    currentRole: string
+  ): Promise<string[]> {
+    // ADMIN_PRODI selalu jadi default target (akan menjadi DEAD END)
+    const targets: string[] = [ROLES.ADMIN_PRODI];
 
-    // For non-admin roles, can also return to Admin Prodi
+    // Get history actors dari repository
+    const historyActors = await facultyDispositionRepository.getDispositionHistoryActors(letterId);
+
+    // Admin Fakultas selalu tersedia untuk return (kecuali current role sudah Admin Fakultas)
     if (currentRole !== ROLES.ADMIN_FAKULTAS) {
-      targets.push(ROLES.ADMIN_PRODI);
+      targets.push(ROLES.ADMIN_FAKULTAS);
+    }
+
+    // Tambahkan pejabat dari history yang levelnya lebih tinggi dari current
+    const currentLevel = ROLE_HIERARCHY[currentRole] ?? 0;
+    for (const actor of historyActors) {
+      // Skip jika sudah ada di targets atau sama dengan current role
+      if (targets.includes(actor) || actor === currentRole) continue;
+
+      // Skip Admin Prodi dan Admin Fakultas (sudah ditangani di atas)
+      if (actor === ROLES.ADMIN_PRODI || actor === ROLES.ADMIN_FAKULTAS) continue;
+
+      // Hanya tambahkan jika level lebih tinggi (nilai ROLE_HIERARCHY lebih besar)
+      const actorLevel = ROLE_HIERARCHY[actor] ?? 0;
+      if (actorLevel > currentLevel) {
+        targets.push(actor);
+      }
     }
 
     return targets;
   }
 
   private getActionPermissions(
-    letter: Awaited<ReturnType<typeof disposisiRepository.getLetterById>>,
+    letter: Awaited<ReturnType<typeof facultyDispositionRepository.getLetterById>>,
     userRoles: string[]
   ): Record<string, boolean> {
     if (!letter) {
@@ -305,4 +346,4 @@ class DisposisiService {
   }
 }
 
-export const disposisiService = new DisposisiService();
+export const facultyDispositionService = new FacultyDispositionService();

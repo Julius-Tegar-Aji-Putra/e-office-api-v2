@@ -1,6 +1,11 @@
 /**
- * Disposisi Repository
+ * Faculty Disposition Repository
  * Data access layer untuk modul disposisi fakultas
+ * 
+ * PERBAIKAN LOGIC RETURN:
+ * - Return ke ADMIN_PRODI = DEAD END (surat selesai/rejected)
+ * - Return ke ADMIN_FAKULTAS = surat bisa lanjut lagi
+ * - Return ke Pejabat lain = disposisi lanjut
  */
 
 import { prisma } from '../../db';
@@ -10,7 +15,7 @@ import { Prisma, LetterStatus, LogAction, LetterCategory } from '../../generated
 // TYPES
 // ============================================================================
 
-export interface DisposisiListParams {
+export interface DispositionListParams {
   page?: number;
   limit?: number;
   status?: LetterStatus;
@@ -18,7 +23,7 @@ export interface DisposisiListParams {
   search?: string;
 }
 
-export interface DisposisiInput {
+export interface DispositionInput {
   letterId: string;
   targetRole: string;
   notes?: string;
@@ -39,11 +44,11 @@ export interface CompleteInput {
 // REPOSITORY CLASS
 // ============================================================================
 
-class DisposisiRepository {
+class FacultyDispositionRepository {
   /**
    * Get incoming letters for Admin Fakultas (status: SURAT_PENGANTAR_SIGNED)
    */
-  async getIncomingLettersForAdmin(params: DisposisiListParams) {
+  async getIncomingLettersForAdmin(params: DispositionListParams) {
     const { page = 1, limit = 10, search } = params;
     const skip = (page - 1) * limit;
 
@@ -89,7 +94,7 @@ class DisposisiRepository {
    */
   async getLettersForDisposition(
     userRole: string,
-    params: DisposisiListParams
+    params: DispositionListParams
   ) {
     const { page = 1, limit = 10, category, search } = params;
     const skip = (page - 1) * limit;
@@ -162,6 +167,39 @@ class DisposisiRepository {
   }
 
   /**
+   * Get disposition history actors (untuk return targets)
+   * Returns unique roles yang pernah handle surat ini di level fakultas
+   */
+  async getDispositionHistoryActors(letterId: string): Promise<string[]> {
+    const logs = await prisma.letterLog.findMany({
+      where: {
+        letterInstanceId: letterId,
+        action: {
+          in: [LogAction.DISPOSITION, LogAction.RETURN, LogAction.STATUS_CHANGE]
+        },
+        // Hanya ambil yang terkait level fakultas
+        actorRole: {
+          in: [
+            'ADMIN_FAKULTAS',
+            'DEKAN',
+            'WADEK_1',
+            'WADEK_2',
+            'MANAJER_TU',
+            'SPV_AKADEMIK',
+            'SPV_SUMBER_DAYA',
+            'STAF_AKADEMIK',
+            'STAF_SUMBER_DAYA'
+          ]
+        }
+      },
+      select: { actorRole: true },
+      distinct: ['actorRole']
+    });
+
+    return logs.map(log => log.actorRole);
+  }
+
+  /**
    * Admin Fakultas receives letter and assigns category -> FAKULTAS_RECEIVED
    */
   async receiveAndCategorize(
@@ -211,7 +249,7 @@ class DisposisiRepository {
    * Admin/Pejabat disposisi to next role
    */
   async createDisposition(
-    input: DisposisiInput,
+    input: DispositionInput,
     actorId: string,
     actorRole: string,
     fromStatus: LetterStatus
@@ -280,7 +318,12 @@ class DisposisiRepository {
   }
 
   /**
-   * Return letter to previous role/Admin Prodi
+   * Return letter to previous role
+   * 
+   * PERBAIKAN LOGIC:
+   * - Return ke ADMIN_PRODI = DEAD END (status COMPLETED dengan flag rejected)
+   * - Return ke ADMIN_FAKULTAS = FAKULTAS_RECEIVED (bisa lanjut)
+   * - Return ke Pejabat lain = FAKULTAS_DISPOSITION (lanjut disposisi)
    */
   async returnLetter(
     input: ReturnInput,
@@ -288,13 +331,19 @@ class DisposisiRepository {
     actorRole: string
   ) {
     return prisma.$transaction(async (tx) => {
-      // Determine new status based on target
       let newStatus: LetterStatus;
+      let newActiveRole: string | null = input.targetRole;
+
+      // PERBAIKAN: Jika dikembalikan ke Admin Prodi, surat berhenti (DEAD END)
       if (input.targetRole === 'ADMIN_PRODI') {
-        newStatus = LetterStatus.SURAT_PENGANTAR_DRAFT; // Return to prodi for revision
+        // Surat selesai/rejected - dikembalikan ke prodi tanpa tindak lanjut
+        newStatus = LetterStatus.COMPLETED;
+        newActiveRole = null; // Tidak ada yang perlu action lagi
       } else if (input.targetRole === 'ADMIN_FAKULTAS') {
+        // Dikembalikan ke Admin Fakultas - masih bisa lanjut
         newStatus = LetterStatus.FAKULTAS_RECEIVED;
       } else {
+        // Dikembalikan ke pejabat lain - lanjut disposisi
         newStatus = LetterStatus.FAKULTAS_DISPOSITION;
       }
 
@@ -302,11 +351,15 @@ class DisposisiRepository {
         where: { id: input.letterId },
         data: {
           status: newStatus,
-          currentActiveRole: input.targetRole,
+          currentActiveRole: newActiveRole,
+          ...(input.targetRole === 'ADMIN_PRODI' && {
+            completedAt: new Date() // Mark as completed
+          }),
           updatedAt: new Date()
         }
       });
 
+      // Create return log dengan catatan pengembalian
       await tx.letterLog.create({
         data: {
           letterInstanceId: input.letterId,
@@ -316,8 +369,12 @@ class DisposisiRepository {
           fromStatus: LetterStatus.FAKULTAS_DISPOSITION,
           toStatus: newStatus,
           targetRole: input.targetRole,
-          notes: input.reason,
-          metadata: { returnReason: input.reason }
+          notes: input.reason, // Catatan pengembalian WAJIB
+          metadata: {
+            returnReason: input.reason,
+            returnedTo: input.targetRole,
+            isDeadEnd: input.targetRole === 'ADMIN_PRODI'
+          }
         }
       });
 
@@ -395,4 +452,4 @@ class DisposisiRepository {
   }
 }
 
-export const disposisiRepository = new DisposisiRepository();
+export const facultyDispositionRepository = new FacultyDispositionRepository();

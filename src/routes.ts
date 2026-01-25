@@ -10,7 +10,7 @@ import { Elysia } from 'elysia';
 // Import module routes
 import { submissionRoutes } from './modules/submission/submission.route';
 import { departmentApprovalRoutes } from './modules/department-approval/department-approval.route';
-import { disposisiRoutes } from './modules/disposisi/disposisi.route';
+import { facultyDispositionRoutes } from './modules/faculty-disposition/faculty-disposition.route';
 import { facultyApprovalRoutes } from './modules/faculty-approval/faculty-approval.route';
 import { hasilRoutes } from './modules/surat-hasil/hasil.route';
 import { signingRoutes } from './modules/surat-hasil/signing.route';
@@ -58,8 +58,8 @@ export function createApiRoutes() {
     // Module B: DEPARTMENT APPROVAL (formerly: pengantar)
     .group('/api', (api) => api.use(departmentApprovalRoutes))
 
-    // Module C: DISPOSISI
-    .group('/api', (api) => api.use(disposisiRoutes))
+    // Module C: FACULTY DISPOSITION (formerly: disposisi)
+    .group('/api', (api) => api.use(facultyDispositionRoutes))
 
     // Module D: SURAT HASIL
     .group('/api', (api) => api.use(hasilRoutes))
