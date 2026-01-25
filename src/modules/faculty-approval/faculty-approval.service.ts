@@ -55,9 +55,8 @@ class FacultyApprovalService {
       s => s.signerRole === currentRole && !s.signatureUrl
     );
 
-    // For UMUM at Manajer TU level, show multi-select options
-    const isUmumAtMTU = category === 'UMUM' && currentRole === ROLES.MANAJER_TU;
-    const wadekOptions = isUmumAtMTU ? [ROLES.WADEK_1, ROLES.WADEK_2] : [];
+    // NOTE: Routing otomatis - tidak ada pilihan manual
+    // Sistem akan cek signature configuration untuk menentukan next role
 
     const permissions = this.getActionPermissions(letter, userRoles);
 
@@ -66,7 +65,6 @@ class FacultyApprovalService {
       category,
       returnTargets,
       needsToSign,
-      wadekOptions,
       permissions
     };
   }
@@ -95,24 +93,53 @@ class FacultyApprovalService {
 
     const category = letter.letterType.category as LetterCategory;
 
-    // Determine next verifier
+    // Get SK/ST document to check signature configuration
+    const skstDoc = letter.documents.find(
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+    );
+
+    // Determine next role AUTOMATICALLY based on:
+    // 1. Verification flow (jenis surat)
+    // 2. Signature configuration (siapa saja yang TTD)
     let nextRole: string;
     let nextStatus: LetterStatus = LetterStatus.FAKULTAS_VERIFICATION;
 
-    // Special handling for UMUM category at Manajer TU
-    if (category === 'UMUM' && userRole === ROLES.MANAJER_TU && input.nextTargets) {
-      // Multi-select: always go to WADEK_2 first if both selected
-      if (input.nextTargets.includes(ROLES.WADEK_2)) {
-        nextRole = ROLES.WADEK_2;
+    // Get default next verifier from flow
+    const defaultNextVerifier = getNextVerifier(userRole, category);
+
+    // Special handling: setelah Manajer TU, cek signature config untuk UMUM
+    if (userRole === ROLES.MANAJER_TU && category === 'UMUM' && skstDoc) {
+      // Cari penandatangan pertama yang belum TTD (berdasarkan order)
+      const unsignedSigners = skstDoc.signatures
+        .filter(s => !s.signatureUrl)
+        .sort((a, b) => a.order - b.order);
+
+      if (unsignedSigners.length > 0) {
+        const firstUnsigned = unsignedSigners[0];
+        // Untuk UMUM: jika ada Wadek 2 di daftar TTD, selalu ke Wadek 2 dulu
+        const hasWadek2 = unsignedSigners.some(s => s.signerRole === ROLES.WADEK_2);
+        const hasWadek1 = unsignedSigners.some(s => s.signerRole === ROLES.WADEK_1);
+        
+        if (hasWadek2) {
+          // Wadek 2 ada di daftar TTD → ke Wadek 2 dulu
+          nextRole = ROLES.WADEK_2;
+        } else if (hasWadek1) {
+          // Hanya Wadek 1 yang ada
+          nextRole = ROLES.WADEK_1;
+        } else {
+          // Fallback ke Dekan langsung jika hanya Dekan yang TTD
+          nextRole = firstUnsigned.signerRole;
+        }
       } else {
-        nextRole = input.nextTargets[0] || ROLES.WADEK_1;
+        // Tidak ada yang perlu TTD, lanjut ke default flow
+        nextRole = defaultNextVerifier || ROLES.DEKAN;
       }
     } else {
-      const nextVerifier = getNextVerifier(userRole, category);
-      if (!nextVerifier) {
+      // Non-UMUM atau bukan Manajer TU: ikuti flow standar
+      if (!defaultNextVerifier) {
         throw new AppError('Tidak ada verifier selanjutnya', HTTP_STATUS.BAD_REQUEST);
       }
-      nextRole = nextVerifier;
+      nextRole = defaultNextVerifier;
     }
 
     // Check if next role is a signatory -> change to SIGNING
@@ -273,8 +300,7 @@ class FacultyApprovalService {
         canVerify: false,
         canSign: false,
         canReturn: false,
-        canEditDraft: false,
-        showWadekOptions: false
+        canEditDraft: false
       };
     }
 
@@ -297,14 +323,12 @@ class FacultyApprovalService {
       s => s.signerRole === currentRole && !s.signatureUrl
     );
 
-    const category = letter.letterType.category;
-
     return {
       canVerify: isPejabat && isVerification && isCurrentRole && !needsToSign,
       canSign: isSignatory && (isVerification || isSigning) && isCurrentRole && (needsToSign ?? false),
       canReturn: isPejabat && (isVerification || isSigning) && isCurrentRole,
-      canEditDraft: isSupervisor && isVerification && isCurrentRole,
-      showWadekOptions: category === 'UMUM' && currentRole === ROLES.MANAJER_TU && isVerification
+      canEditDraft: isSupervisor && isVerification && isCurrentRole
+      // NOTE: showWadekOptions dihapus - routing otomatis berdasarkan signature config
     };
   }
 }

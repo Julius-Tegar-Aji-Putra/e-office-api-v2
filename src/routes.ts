@@ -56,22 +56,22 @@ export function createApiRoutes() {
     .group('/api', (api) => api.use(submissionRoutes))
 
     // Module B: DEPARTMENT APPROVAL (formerly: pengantar)
-    .use(departmentApprovalRoutes)
+    .group('/api', (api) => api.use(departmentApprovalRoutes))
 
     // Module C: DISPOSISI
-    .use(disposisiRoutes)
+    .group('/api', (api) => api.use(disposisiRoutes))
 
     // Module D: SURAT HASIL
-    .use(hasilRoutes)
+    .group('/api', (api) => api.use(hasilRoutes))
 
     // Module D.1: SIGNING (Part of Surat Hasil)
     .group('/api', (api) => api.use(signingRoutes))
 
     // Module E: FACULTY APPROVAL (formerly: leadership)
-    .use(facultyApprovalRoutes)
+    .group('/api', (api) => api.use(facultyApprovalRoutes))
 
     // Module F: LEGALISASI (UPA Finishing)
-    .use(legalisasiRoute)
+    .group('/api', (api) => api.use(legalisasiRoute))
 
     // Module G: SIGNATURE (Saved Signatures Management)
     .group('/api', (api) => api.use(signatureRoutes))

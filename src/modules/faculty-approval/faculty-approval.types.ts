@@ -72,13 +72,8 @@ export interface ReturnDocumentDTO {
   alasan: string;
 }
 
-/**
- * DTO untuk Manajer TU memilih jalur UMUM
- */
-export interface SelectUmumRouteDTO {
-  letterInstanceId: string;
-  route: 'WADEK_1' | 'WADEK_2' | 'BOTH';
-}
+// NOTE: Routing untuk UMUM sekarang OTOMATIS berdasarkan signature configuration
+// Tidak ada lagi SelectUmumRouteDTO karena pejabat tidak memilih manual
 
 // ============================================================================
 // Response Types

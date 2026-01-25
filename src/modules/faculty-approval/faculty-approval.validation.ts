@@ -37,8 +37,9 @@ export const documentIdParamSchema = t.Object({
 // ============================================================================
 
 export const verifyBodySchema = t.Object({
-  notes: t.Optional(t.String()),
-  nextTargets: t.Optional(t.Array(t.String())) // For UMUM multi-select
+  notes: t.Optional(t.String())
+  // Routing otomatis berdasarkan jenis surat & konfigurasi TTD
+  // Tidak ada pilihan manual
 });
 
 export const signBodySchema = t.Object({
