@@ -24,6 +24,9 @@ import meRoutes from './routes/me';
 // Import Better Auth routes
 import betterAuthRoutes from './routes/public/auth';
 
+// Import Public Verification routes
+import verificationRoute from './routes/public/verification';
+
 // Import master routes - disabled for now
 // import masterDepartemenRoutes from './routes/master/departemen';
 // import masterMahasiswaRoutes from './routes/master/mahasiswa';
@@ -102,7 +105,9 @@ export function createApiRoutes() {
 export function createPublicRoutes() {
   return new Elysia()
     // Better Auth routes (handles sign-up, sign-in, sign-out, etc.)
-    .use(betterAuthRoutes);
+    .use(betterAuthRoutes)
+    // Public verification routes (no auth required)
+    .use(verificationRoute);
 }
 
 // ============================================================================

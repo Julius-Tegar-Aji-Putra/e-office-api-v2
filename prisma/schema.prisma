@@ -289,12 +289,17 @@ model LetterDocument {
   type             DocumentType
   content          Json?
   tembusan         Json?
-  nomorSurat       String?
+  nomorSurat       String?             @unique
   tanggalSurat     DateTime?
   perihal          String?
   isSigned         Boolean             @default(false)
   fileUrl          String?
   qrCodeUrl        String?
+  // Legalisasi fields
+  legalisasiStatus LegalisasiStatus    @default(PENDING)
+  sealImageUrl     String?             // URL gambar stempel resmi
+  barcodeData      String?             // Encrypted verification data
+  readyToDistribute Boolean            @default(false)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   signatures       DocumentSignature[]
@@ -302,6 +307,7 @@ model LetterDocument {
 
   @@unique([letterInstanceId, type])
   @@index([letterInstanceId])
+  @@index([nomorSurat])
   @@map("letter_document")
 }
 
@@ -455,4 +461,14 @@ enum LetterStatus {
   CANCELLED
 
   @@map("letter_status")
+}
+
+enum LegalisasiStatus {
+  PENDING          // Belum diproses UPA
+  NOMOR_DIBERIKAN  // Nomor surat sudah diberikan
+  STEMPEL_DIBERIKAN // Stempel sudah dibubuhkan
+  QR_GENERATED     // QR Code sudah di-generate
+  COMPLETED        // Semua proses legalisasi selesai
+
+  @@map("legalisasi_status")
 }

@@ -1,21 +1,21 @@
 /**
  * Legalisasi Repository
- * Data access layer untuk modul UPA (penomoran, stempel, finalisasi)
+ * Data access layer untuk modul UPA (penomoran, stempel, QR code, finalisasi)
  */
 
 import { prisma } from '../../db';
-import { Prisma, LetterStatus, LogAction, DocumentType } from '../../generated/prisma/client';
+import { 
+  Prisma, 
+  LetterStatus, 
+  LogAction, 
+  DocumentType,
+  LegalisasiStatus 
+} from '../../generated/prisma/client';
+import type { UpaQueueFilter, UsedNumberRecord } from './legalisasi.types';
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export interface LegalisasiListParams {
-  page?: number;
-  limit?: number;
-  status?: LetterStatus;
-  search?: string;
-}
 
 export interface AssignNumberInput {
   documentId: string;
@@ -23,10 +23,21 @@ export interface AssignNumberInput {
   tanggalSurat: Date;
 }
 
+export interface ApplyStempelInput {
+  documentId: string;
+  sealImageUrl: string;
+}
+
+export interface GenerateQRInput {
+  documentId: string;
+  barcodeData: string;
+  qrCodeUrl: string;
+}
+
 export interface FinalizeInput {
   documentId: string;
-  qrCodeUrl: string;
   fileUrl: string;
+  notes?: string;
 }
 
 // ============================================================================
@@ -35,26 +46,44 @@ export interface FinalizeInput {
 
 class LegalisasiRepository {
   /**
-   * Get letters for UPA processing
+   * Get UPA processing queue
    */
-  async getLettersForUPA(params: LegalisasiListParams) {
-    const { page = 1, limit = 10, status, search } = params;
+  async getUPAQueue(params: UpaQueueFilter) {
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
+      legalisasiStatus,
+      kategori,
+      search 
+    } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.LetterInstanceWhereInput = {
+      // Filter letters in UPA stages OR completed
       status: status ?? {
         in: [
           LetterStatus.UPA_NUMBERING,
           LetterStatus.UPA_STAMPING,
-          LetterStatus.UPA_FINALIZING
+          LetterStatus.UPA_FINALIZING,
+          LetterStatus.COMPLETED
         ]
       },
-      currentActiveRole: 'UPA',
+      // Only show letters that have reached UPA
+      currentActiveRole: status === LetterStatus.COMPLETED ? undefined : 'UPA',
+      // Filter by category if specified
+      ...(kategori && { letterType: { category: kategori } }),
+      // Search filter
       ...(search && {
         OR: [
           { createdBy: { name: { contains: search, mode: 'insensitive' } } },
-          { documents: { some: { nomorSurat: { contains: search } } } }
+          { documents: { some: { nomorSurat: { contains: search } } } },
+          { documents: { some: { perihal: { contains: search, mode: 'insensitive' } } } }
         ]
+      }),
+      // Legalisasi status filter on documents
+      ...(legalisasiStatus && {
+        documents: { some: { legalisasiStatus } }
       })
     };
 
@@ -70,11 +99,21 @@ class LegalisasiRepository {
             }
           },
           documents: {
-            where: { type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] } },
-            include: { signatures: { orderBy: { order: 'asc' } } }
+            where: { 
+              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] } 
+            },
+            include: { 
+              signatures: { 
+                orderBy: { order: 'asc' },
+                where: { status: 'SIGNED' }
+              } 
+            }
           }
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [
+          { status: 'asc' }, // UPA_NUMBERING first
+          { updatedAt: 'desc' }
+        ],
         skip,
         take: limit
       }),
@@ -85,7 +124,7 @@ class LegalisasiRepository {
   }
 
   /**
-   * Get letter by ID
+   * Get letter by ID with full details
    */
   async getLetterById(letterId: string) {
     return prisma.letterInstance.findUnique({
@@ -99,12 +138,41 @@ class LegalisasiRepository {
           }
         },
         documents: {
-          include: { signatures: { orderBy: { order: 'asc' } } }
+          include: { 
+            signatures: { orderBy: { order: 'asc' } } 
+          }
         },
         attachments: true,
         logs: {
           include: { actor: { select: { id: true, name: true } } },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take: 20
+        }
+      }
+    });
+  }
+
+  /**
+   * Get document by ID
+   */
+  async getDocumentById(documentId: string) {
+    return prisma.letterDocument.findUnique({
+      where: { id: documentId },
+      include: {
+        letterInstance: {
+          include: {
+            letterType: true,
+            createdBy: {
+              include: {
+                mahasiswa: { include: { programStudi: true, departemen: true } },
+                pegawai: { include: { programStudi: true, departemen: true } }
+              }
+            }
+          }
+        },
+        signatures: { 
+          orderBy: { order: 'asc' },
+          include: { signer: { select: { id: true, name: true, email: true } } }
         }
       }
     });
@@ -124,26 +192,89 @@ class LegalisasiRepository {
   }
 
   /**
-   * Get recent nomor surat for reference
+   * Get existing document by nomor surat
    */
-  async getRecentNomorSurat(documentType: DocumentType, limit: number = 10) {
-    return prisma.letterDocument.findMany({
-      where: {
-        type: documentType,
-        nomorSurat: { not: null }
-      },
-      select: {
-        nomorSurat: true,
-        tanggalSurat: true,
+  async getDocumentByNomorSurat(nomorSurat: string) {
+    return prisma.letterDocument.findFirst({
+      where: { nomorSurat },
+      include: {
         letterInstance: {
-          select: {
-            letterType: { select: { name: true, code: true } }
-          }
+          include: { letterType: true }
         }
-      },
-      orderBy: { tanggalSurat: 'desc' },
-      take: limit
+      }
     });
+  }
+
+  /**
+   * Get used nomor surat list with pagination
+   */
+  async getUsedNumbers(params: { 
+    page?: number; 
+    limit?: number; 
+    year?: number;
+    search?: string;
+  }): Promise<{ data: UsedNumberRecord[]; total: number; page: number; limit: number; totalPages: number }> {
+    const { page = 1, limit = 20, year, search } = params;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.LetterDocumentWhereInput = {
+      nomorSurat: { not: null },
+      ...(year && {
+        tanggalSurat: {
+          gte: new Date(`${year}-01-01`),
+          lte: new Date(`${year}-12-31`)
+        }
+      }),
+      ...(search && {
+        OR: [
+          { nomorSurat: { contains: search } },
+          { perihal: { contains: search, mode: 'insensitive' } }
+        ]
+      })
+    };
+
+    const [documents, total] = await Promise.all([
+      prisma.letterDocument.findMany({
+        where,
+        select: {
+          nomorSurat: true,
+          tanggalSurat: true,
+          perihal: true,
+          createdAt: true,
+          letterInstance: {
+            select: {
+              letterType: { select: { name: true } }
+            }
+          }
+        },
+        orderBy: { tanggalSurat: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.letterDocument.count({ where })
+    ]);
+
+    const data: UsedNumberRecord[] = documents.map(doc => ({
+      nomorSurat: doc.nomorSurat!,
+      tanggalSurat: doc.tanggalSurat,
+      perihal: doc.perihal,
+      letterType: doc.letterInstance.letterType.name,
+      createdAt: doc.createdAt
+    }));
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  /**
+   * Get last nomor surat for suggestion
+   */
+  async getLastNomorSurat(): Promise<string | null> {
+    const lastDoc = await prisma.letterDocument.findFirst({
+      where: { nomorSurat: { not: null } },
+      orderBy: { tanggalSurat: 'desc' },
+      select: { nomorSurat: true }
+    });
+    return lastDoc?.nomorSurat ?? null;
   }
 
   /**
@@ -155,17 +286,30 @@ class LegalisasiRepository {
     actorRole: string
   ) {
     return prisma.$transaction(async (tx) => {
-      const document = await tx.letterDocument.update({
+      // Get document with letter instance
+      const document = await tx.letterDocument.findUnique({
+        where: { id: input.documentId },
+        include: { letterInstance: true }
+      });
+
+      if (!document) throw new Error('Document not found');
+
+      // Update document with nomor surat
+      const updatedDoc = await tx.letterDocument.update({
         where: { id: input.documentId },
         data: {
           nomorSurat: input.nomorSurat,
           tanggalSurat: input.tanggalSurat,
+          legalisasiStatus: LegalisasiStatus.NOMOR_DIBERIKAN,
           updatedAt: new Date()
         },
-        include: { letterInstance: true }
+        include: { 
+          letterInstance: true,
+          signatures: { orderBy: { order: 'asc' } }
+        }
       });
 
-      // Update letter status to STAMPING
+      // Update letter instance status to STAMPING
       await tx.letterInstance.update({
         where: { id: document.letterInstanceId },
         data: {
@@ -174,6 +318,7 @@ class LegalisasiRepository {
         }
       });
 
+      // Log action
       await tx.letterLog.create({
         data: {
           letterInstanceId: document.letterInstanceId,
@@ -183,27 +328,48 @@ class LegalisasiRepository {
           fromStatus: LetterStatus.UPA_NUMBERING,
           toStatus: LetterStatus.UPA_STAMPING,
           notes: `Nomor surat: ${input.nomorSurat}`,
-          metadata: { nomorSurat: input.nomorSurat, tanggalSurat: input.tanggalSurat }
+          metadata: { 
+            nomorSurat: input.nomorSurat, 
+            tanggalSurat: input.tanggalSurat.toISOString() 
+          }
         }
       });
 
-      return document;
+      return updatedDoc;
     });
   }
 
   /**
-   * Apply stamp to document
+   * Apply stempel to document
    */
-  async applyStamp(documentId: string, actorId: string, actorRole: string) {
+  async applyStempel(
+    input: ApplyStempelInput,
+    actorId: string,
+    actorRole: string
+  ) {
     return prisma.$transaction(async (tx) => {
       const document = await tx.letterDocument.findUnique({
-        where: { id: documentId },
+        where: { id: input.documentId },
         include: { letterInstance: true }
       });
 
       if (!document) throw new Error('Document not found');
 
-      // Update letter status to FINALIZING
+      // Update document with seal
+      const updatedDoc = await tx.letterDocument.update({
+        where: { id: input.documentId },
+        data: {
+          sealImageUrl: input.sealImageUrl,
+          legalisasiStatus: LegalisasiStatus.STEMPEL_DIBERIKAN,
+          updatedAt: new Date()
+        },
+        include: { 
+          letterInstance: true,
+          signatures: { orderBy: { order: 'asc' } }
+        }
+      });
+
+      // Update letter instance status to FINALIZING
       await tx.letterInstance.update({
         where: { id: document.letterInstanceId },
         data: {
@@ -212,6 +378,7 @@ class LegalisasiRepository {
         }
       });
 
+      // Log action
       await tx.letterLog.create({
         data: {
           letterInstanceId: document.letterInstanceId,
@@ -220,16 +387,66 @@ class LegalisasiRepository {
           action: LogAction.STAMP,
           fromStatus: LetterStatus.UPA_STAMPING,
           toStatus: LetterStatus.UPA_FINALIZING,
-          notes: 'Stempel resmi telah dibubuhkan'
+          notes: 'Stempel resmi telah dibubuhkan',
+          metadata: { sealImageUrl: input.sealImageUrl }
         }
       });
 
-      return document;
+      return updatedDoc;
     });
   }
 
   /**
-   * Finalize document (generate QR, PDF, mark complete)
+   * Save QR code data to document
+   */
+  async saveQRCode(
+    input: GenerateQRInput,
+    actorId: string,
+    actorRole: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const document = await tx.letterDocument.findUnique({
+        where: { id: input.documentId },
+        include: { letterInstance: true }
+      });
+
+      if (!document) throw new Error('Document not found');
+
+      // Update document with QR data
+      const updatedDoc = await tx.letterDocument.update({
+        where: { id: input.documentId },
+        data: {
+          barcodeData: input.barcodeData,
+          qrCodeUrl: input.qrCodeUrl,
+          legalisasiStatus: LegalisasiStatus.QR_GENERATED,
+          updatedAt: new Date()
+        },
+        include: { 
+          letterInstance: true,
+          signatures: { orderBy: { order: 'asc' } }
+        }
+      });
+
+      // Log action
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: document.letterInstanceId,
+          actorId,
+          actorRole,
+          action: LogAction.GENERATE_QR,
+          fromStatus: document.letterInstance.status,
+          toStatus: document.letterInstance.status,
+          notes: 'QR Code verifikasi telah di-generate',
+          metadata: { qrCodeUrl: input.qrCodeUrl }
+        }
+      });
+
+      return updatedDoc;
+    });
+  }
+
+  /**
+   * Finalize document (mark as COMPLETED)
    */
   async finalizeDocument(
     input: FinalizeInput,
@@ -237,20 +454,32 @@ class LegalisasiRepository {
     actorRole: string
   ) {
     return prisma.$transaction(async (tx) => {
-      const document = await tx.letterDocument.update({
+      const document = await tx.letterDocument.findUnique({
         where: { id: input.documentId },
-        data: {
-          qrCodeUrl: input.qrCodeUrl,
-          fileUrl: input.fileUrl,
-          updatedAt: new Date()
-        },
-        include: {
+        include: { 
           letterInstance: true,
           signatures: true
         }
       });
 
-      // Mark letter as COMPLETED
+      if (!document) throw new Error('Document not found');
+
+      // Update document
+      const updatedDoc = await tx.letterDocument.update({
+        where: { id: input.documentId },
+        data: {
+          fileUrl: input.fileUrl,
+          legalisasiStatus: LegalisasiStatus.COMPLETED,
+          readyToDistribute: true,
+          updatedAt: new Date()
+        },
+        include: {
+          letterInstance: true,
+          signatures: { orderBy: { order: 'asc' } }
+        }
+      });
+
+      // Update letter instance to COMPLETED
       const letter = await tx.letterInstance.update({
         where: { id: document.letterInstanceId },
         data: {
@@ -261,6 +490,7 @@ class LegalisasiRepository {
         }
       });
 
+      // Log action
       await tx.letterLog.create({
         data: {
           letterInstanceId: document.letterInstanceId,
@@ -269,35 +499,69 @@ class LegalisasiRepository {
           action: LogAction.FINALIZE,
           fromStatus: LetterStatus.UPA_FINALIZING,
           toStatus: LetterStatus.COMPLETED,
-          notes: 'Surat telah selesai diproses dan siap didistribusikan',
-          metadata: { fileUrl: input.fileUrl, qrCodeUrl: input.qrCodeUrl }
+          notes: input.notes || 'Surat telah selesai diproses dan siap didistribusikan',
+          metadata: { fileUrl: input.fileUrl }
         }
       });
 
-      return { document, letter };
+      return { document: updatedDoc, letter };
     });
   }
 
   /**
-   * Get document by ID
+   * Get document by verification token (barcodeData)
    */
-  async getDocumentById(documentId: string) {
+  async getDocumentByBarcodeData(barcodeData: string) {
+    return prisma.letterDocument.findFirst({
+      where: { barcodeData },
+      include: {
+        letterInstance: {
+          include: {
+            letterType: true,
+            createdBy: {
+              include: {
+                mahasiswa: true,
+                pegawai: true
+              }
+            }
+          }
+        },
+        signatures: {
+          where: { status: 'SIGNED' },
+          orderBy: { order: 'asc' }
+        }
+      }
+    });
+  }
+
+  /**
+   * Get document by ID (for public verification)
+   */
+  async getDocumentForVerification(documentId: string) {
     return prisma.letterDocument.findUnique({
       where: { id: documentId },
       include: {
         letterInstance: {
           include: {
             letterType: true,
-            createdBy: true
+            createdBy: {
+              include: {
+                mahasiswa: true,
+                pegawai: true
+              }
+            }
           }
         },
-        signatures: { orderBy: { order: 'asc' } }
+        signatures: {
+          where: { status: 'SIGNED' },
+          orderBy: { order: 'asc' }
+        }
       }
     });
   }
 
   /**
-   * Get tembusan recipients for distribution
+   * Get tembusan recipients
    */
   async getTembusanRecipients(documentId: string) {
     const document = await prisma.letterDocument.findUnique({
@@ -307,16 +571,19 @@ class LegalisasiRepository {
 
     if (!document?.tembusan) return [];
 
-    const tembusanIds = document.tembusan as string[];
+    // Tembusan bisa berupa array of IDs atau array of objects
+    const tembusanData = document.tembusan as unknown[];
     
-    return prisma.user.findMany({
-      where: { id: { in: tembusanIds } },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      }
-    });
+    // If it's array of IDs
+    if (typeof tembusanData[0] === 'string') {
+      return prisma.user.findMany({
+        where: { id: { in: tembusanData as string[] } },
+        select: { id: true, name: true, email: true }
+      });
+    }
+
+    // If it's already array of objects
+    return tembusanData;
   }
 }
 

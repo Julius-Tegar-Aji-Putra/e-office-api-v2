@@ -1,31 +1,52 @@
 /**
  * Legalisasi Types
  * Types untuk modul Legalisasi (UPA Finishing)
- * Sesuai Prompting.md Modul F: LEGALISASI
+ * 
+ * Workflow:
+ * 1. UPA_NUMBERING: Berikan nomor surat & tanggal
+ * 2. UPA_STAMPING: Bubuhkan stempel resmi
+ * 3. UPA_FINALIZING: Generate QR Code & finalisasi
+ * 4. COMPLETED: Siap didistribusikan
  */
 
-import type { LetterStatus, LetterCategory, DocumentType } from '../../generated/prisma/enums';
+import type { 
+  LetterStatus, 
+  LetterCategory, 
+  DocumentType,
+  LegalisasiStatus 
+} from '../../generated/prisma/enums';
 
 // ============================================================================
 // Enums & Constants
 // ============================================================================
 
 /**
- * Format nomor surat
- * Contoh: 001/ST/FTI/I/2024
+ * Format nomor surat standar Undip
+ * Contoh: 001/UN7.5/TU/I/2026
  */
 export interface NomorSuratFormat {
-  nomor: string; // 001
-  jenis: string; // ST atau SK
-  unit: string; // FTI
-  bulanRomawi: string; // I, II, ... XII
-  tahun: number; // 2024
+  nomor: string;        // 001 (sequence)
+  kodeUnit: string;     // UN7.5 (kode fakultas)
+  jenisKode: string;    // TU, HK, AK, KP (kode jenis surat)
+  bulanRomawi: string;  // I, II, ... XII
+  tahun: number;        // 2026
 }
 
 /**
- * Distribution method
+ * Distribution method for completed letters
  */
 export type DistributionMethod = 'EMAIL' | 'PICKUP' | 'COURIER';
+
+/**
+ * Seal position configuration
+ */
+export interface SealPosition {
+  x: number;      // X coordinate (from left, percentage or pixel)
+  y: number;      // Y coordinate (from top, percentage or pixel)
+  width: number;  // Seal width
+  height: number; // Seal height
+  page: number;   // Page number (usually last page)
+}
 
 // ============================================================================
 // Input Types
@@ -34,34 +55,42 @@ export type DistributionMethod = 'EMAIL' | 'PICKUP' | 'COURIER';
 /**
  * DTO untuk penomoran surat
  */
-export interface PenomoranDTO {
+export interface PenomoranInput {
   letterInstanceId: string;
+  documentId: string;
   nomorSurat: string;
   tanggalSurat: Date;
 }
 
 /**
- * DTO untuk legalisasi (stempel & barcode)
+ * DTO untuk stempel
  */
-export interface LegalisasiDTO {
-  letterInstanceId: string;
-  stampPosition?: StampPosition;
-  includeBarcode?: boolean;
+export interface StempelInput {
+  documentId: string;
+  sealImageUrl?: string;      // Custom seal image URL
+  sealPosition?: SealPosition;
 }
 
 /**
- * Posisi stempel
+ * DTO untuk generate barcode/QR
  */
-export interface StampPosition {
-  x: number;
-  y: number;
-  page?: number; // Default last page
+export interface GenerateBarcodeInput {
+  documentId: string;
+}
+
+/**
+ * DTO untuk finalisasi
+ */
+export interface FinalizeInput {
+  documentId: string;
+  fileUrl: string;  // Final PDF URL
+  notes?: string;
 }
 
 /**
  * DTO untuk terbitkan & distribusi
  */
-export interface TerbitkanDTO {
+export interface TerbitkanInput {
   letterInstanceId: string;
   distributionMethod: DistributionMethod;
   recipientEmails?: string[]; // Untuk EMAIL
@@ -76,20 +105,39 @@ export interface TerbitkanDTO {
  * Item di dashboard UPA
  */
 export interface UpaDashboardItem {
-  id: string;
-  judulSurat: string;
-  nomorSurat: string | null; // '-' jika belum ada
-  tipeSurat: string; // ST/SK
-  jenisSurat: LetterCategory;
+  id: string;                           // Letter Instance ID
+  documentId: string;                   // Document ID
+  judulSurat: string;                   // Judul/Perihal surat
+  nomorSurat: string | null;            // '-' jika belum ada
+  tipeSurat: DocumentType;              // SURAT_TUGAS/SURAT_KEPUTUSAN
+  kategoriSurat: LetterCategory;
   tanggalMasuk: Date;
   status: LetterStatus;
-  displayStatus: string;
+  legalisasiStatus: LegalisasiStatus;
+  displayStatus: string;                // Human-readable status
   needsAction: boolean;
-  actionType: 'PENOMORAN' | 'LEGALISASI' | 'TERBITKAN' | 'NONE';
+  actionType: 'PENOMORAN' | 'STEMPEL' | 'FINALISASI' | 'COMPLETED';
+  pemohon: {
+    id: string;
+    name: string;
+    nim?: string;
+    prodi?: string;
+  };
+  signatures: SignatureInfo[];
 }
 
 /**
- * Detail legalisasi
+ * Signature info untuk display
+ */
+export interface SignatureInfo {
+  signerName: string;
+  signerRole: string;
+  signedAt: Date | null;
+  status: string;
+}
+
+/**
+ * Detail lengkap untuk halaman legalisasi
  */
 export interface LegalisasiDetail {
   letterInstance: {
@@ -97,27 +145,53 @@ export interface LegalisasiDetail {
     status: LetterStatus;
     letterCategory: LetterCategory;
     submissionValues: unknown;
+    createdAt: Date;
     createdBy: {
       id: string;
       name: string;
       nim?: string;
       email: string;
+      prodi?: string;
+      departemen?: string;
+    };
+    letterType: {
+      id: string;
+      name: string;
+      code: string;
     };
   };
   document: {
     id: string;
-    documentType: DocumentType;
-    content: unknown;
-    fileUrl: string | null;
+    type: DocumentType;
+    perihal: string | null;
     nomorSurat: string | null;
     tanggalSurat: Date | null;
-    isSigned: boolean;
-    isStamped: boolean;
-    barcodeUrl: string | null;
-  } | null;
+    fileUrl: string | null;
+    legalisasiStatus: LegalisasiStatus;
+    sealImageUrl: string | null;
+    barcodeData: string | null;
+    qrCodeUrl: string | null;
+    readyToDistribute: boolean;
+    signatures: DocumentSignatureInfo[];
+  };
   tembusan: TembusanInfo[];
   permissions: LegalisasiPermissions;
-  nomorSuggestion: string | null; // Suggested next number
+  nomorSuggestion: string | null;
+}
+
+/**
+ * Document signature info
+ */
+export interface DocumentSignatureInfo {
+  id: string;
+  signerId: string;
+  signerName: string;
+  signerRole: string;
+  signerNip: string | null;
+  signatureUrl: string | null;
+  status: string;
+  signedAt: Date | null;
+  order: number;
 }
 
 /**
@@ -134,11 +208,13 @@ export interface TembusanInfo {
  */
 export interface LegalisasiPermissions {
   canPenomoran: boolean;
-  canLegalisasi: boolean;
-  canTerbitkan: boolean;
+  canStempel: boolean;
+  canGenerateQR: boolean;
+  canFinalize: boolean;
   showPenomoranForm: boolean;
   showStempelButton: boolean;
-  showTerbitkanButton: boolean;
+  showQRButton: boolean;
+  showFinalizeButton: boolean;
 }
 
 // ============================================================================
@@ -148,10 +224,10 @@ export interface LegalisasiPermissions {
 /**
  * Filter untuk dashboard UPA
  */
-export interface UpaFilter {
-  status?: 'UPA_PROCESSING' | 'COMPLETED';
-  jenisSurat?: LetterCategory;
-  hasNomor?: boolean;
+export interface UpaQueueFilter {
+  status?: LetterStatus;
+  legalisasiStatus?: LegalisasiStatus;
+  kategori?: LetterCategory;
   search?: string;
   dateFrom?: Date;
   dateTo?: Date;
@@ -173,43 +249,59 @@ export interface NomorValidationResult {
   suggestion?: string;
 }
 
+/**
+ * Used number record
+ */
+export interface UsedNumberRecord {
+  nomorSurat: string;
+  tanggalSurat: Date | null;
+  perihal: string | null;
+  letterType: string;
+  createdAt: Date;
+}
+
+/**
+ * QR Code generation result
+ */
+export interface QRCodeResult {
+  qrCodeBase64: string;      // Base64 encoded QR code image
+  qrCodeDataUrl: string;     // Data URL for direct embedding
+  encryptedToken: string;    // Encrypted verification token
+  verificationUrl: string;   // Full verification URL
+}
+
+/**
+ * Verification result (for public endpoint)
+ */
+export interface VerificationResult {
+  valid: boolean;
+  status: 'VERIFIED' | 'NOT_FOUND' | 'INVALID_TOKEN' | 'EXPIRED';
+  message: string;
+  data?: {
+    nomorSurat: string;
+    tanggalSurat: string;
+    perihal: string;
+    jenisDocument: string;
+    penandatangan: {
+      nama: string;
+      jabatan: string;
+    }[];
+    pemohon?: {
+      nama: string;
+      nim?: string;
+    };
+    dibuatPada: string;
+  };
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
- * Generate nomor surat suggestion
- */
-export function generateNomorSuggestion(
-  lastNomor: string | null,
-  jenisKode: string,
-  unit: string = 'FTI'
-): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const monthRoman = toRoman(month);
-
-  let sequence = 1;
-  if (lastNomor) {
-    // Extract sequence from last nomor
-    const parts = lastNomor.split('/');
-    if (parts.length > 0) {
-      const lastSeq = parseInt(parts[0], 10);
-      if (!isNaN(lastSeq)) {
-        sequence = lastSeq + 1;
-      }
-    }
-  }
-
-  const seqStr = sequence.toString().padStart(3, '0');
-  return `${seqStr}/${jenisKode}/${unit}/${monthRoman}/${year}`;
-}
-
-/**
  * Convert number to Roman numeral
  */
-function toRoman(num: number): string {
+export function toRoman(num: number): string {
   const romanMap: [number, string][] = [
     [12, 'XII'], [11, 'XI'], [10, 'X'],
     [9, 'IX'], [8, 'VIII'], [7, 'VII'],
@@ -224,27 +316,109 @@ function toRoman(num: number): string {
 }
 
 /**
+ * Generate nomor surat suggestion
+ * Format: XXX/UN7.5/TU/MONTH_ROMAN/YEAR
+ */
+export function generateNomorSuggestion(
+  lastNomor: string | null,
+  jenisKode: string = 'TU',
+  kodeUnit: string = 'UN7.5'
+): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const monthRoman = toRoman(month);
+
+  let sequence = 1;
+  if (lastNomor) {
+    // Extract sequence from last nomor (format: XXX/...)
+    const parts = lastNomor.split('/');
+    if (parts.length > 0) {
+      const lastSeq = parseInt(parts[0], 10);
+      if (!isNaN(lastSeq)) {
+        sequence = lastSeq + 1;
+      }
+    }
+  }
+
+  const seqStr = sequence.toString().padStart(3, '0');
+  return `${seqStr}/${kodeUnit}/${jenisKode}/${monthRoman}/${year}`;
+}
+
+/**
  * Validate nomor surat format
+ * Acceptable formats:
+ * - XXX/UN7.5/TU/I/2026  (3 segment)
+ * - 001/UN7.5.1/HK/XII/2026 (with sub-unit)
+ * - 050/UN7.5/SK/2026 (without month)
  */
 export function validateNomorFormat(nomor: string): { valid: boolean; error?: string } {
-  const pattern = /^\d{3}\/[A-Z]{2}\/[A-Z]{2,5}\/[IVX]{1,4}\/\d{4}$/;
+  // More flexible pattern: sequence/unit-code/type-code[/month-roman]/year
+  // Allow optional month roman numeral
+  const pattern = /^\d{1,4}\/[A-Z0-9.]+\/[A-Z]{2,4}(\/[IVX]{1,4})?\/\d{4}$/;
+  
   if (!pattern.test(nomor)) {
     return {
       valid: false,
-      error: 'Format nomor surat tidak valid. Contoh: 001/ST/FTI/I/2024',
+      error: 'Format nomor surat tidak valid. Contoh: 001/UN7.5/TU/I/2026 atau 050/UN7.5/SK/2026',
     };
   }
   return { valid: true };
 }
 
 /**
- * Generate barcode data for validation
+ * Get action type based on legalisasi status
  */
-export function generateBarcodeData(
-  nomorSurat: string,
-  documentId: string
+export function getActionType(
+  letterStatus: LetterStatus,
+  legalisasiStatus: LegalisasiStatus
+): 'PENOMORAN' | 'STEMPEL' | 'FINALISASI' | 'COMPLETED' {
+  switch (letterStatus) {
+    case 'UPA_NUMBERING':
+      return 'PENOMORAN';
+    case 'UPA_STAMPING':
+      return 'STEMPEL';
+    case 'UPA_FINALIZING':
+      return 'FINALISASI';
+    case 'COMPLETED':
+      return 'COMPLETED';
+    default:
+      // Fallback based on legalisasi status
+      switch (legalisasiStatus) {
+        case 'PENDING':
+          return 'PENOMORAN';
+        case 'NOMOR_DIBERIKAN':
+          return 'STEMPEL';
+        case 'STEMPEL_DIBERIKAN':
+        case 'QR_GENERATED':
+          return 'FINALISASI';
+        case 'COMPLETED':
+          return 'COMPLETED';
+        default:
+          return 'PENOMORAN';
+      }
+  }
+}
+
+/**
+ * Get display status text
+ */
+export function getDisplayStatus(
+  letterStatus: LetterStatus,
+  legalisasiStatus: LegalisasiStatus
 ): string {
-  // Generate URL for QR verification
-  const baseUrl = process.env.VERIFICATION_BASE_URL || 'https://verify.example.com';
-  return `${baseUrl}/verify/${documentId}?n=${encodeURIComponent(nomorSurat)}`;
+  switch (letterStatus) {
+    case 'UPA_NUMBERING':
+      return 'Menunggu Penomoran';
+    case 'UPA_STAMPING':
+      return 'Menunggu Stempel';
+    case 'UPA_FINALIZING':
+      return legalisasiStatus === 'QR_GENERATED' 
+        ? 'Siap Finalisasi' 
+        : 'Generate QR Code';
+    case 'COMPLETED':
+      return 'Selesai';
+    default:
+      return letterStatus;
+  }
 }

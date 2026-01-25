@@ -1,11 +1,10 @@
 /**
  * Legalisasi Controller
- * HTTP handlers untuk modul UPA (penomoran, stempel, finalisasi)
+ * HTTP handlers untuk modul UPA (penomoran, stempel, QR code, finalisasi)
  */
 
 import { Context } from 'elysia';
 import { legalisasiService } from './legalisasi.service';
-import { DocumentType } from '../../generated/prisma/client';
 
 // ============================================================================
 // TYPES
@@ -36,11 +35,13 @@ class LegalisasiController {
       return { success: false, error: 'Unauthorized' };
     }
 
-    const query = ctx.query as any;
+    const query = ctx.query as Record<string, string>;
     const params = {
       page: query.page ? parseInt(query.page) : 1,
       limit: query.limit ? parseInt(query.limit) : 10,
-      status: query.status,
+      status: query.status as any,
+      legalisasiStatus: query.legalisasiStatus as any,
+      kategori: query.kategori as any,
       search: query.search
     };
 
@@ -55,7 +56,7 @@ class LegalisasiController {
   }
 
   /**
-   * GET /:id - Get letter detail
+   * GET /:id - Get letter detail for legalisasi
    */
   async getLetterDetail(ctx: ControllerContext) {
     const user = ctx.user;
@@ -76,25 +77,23 @@ class LegalisasiController {
   }
 
   /**
-   * GET /recent-numbers/:type - Get recent nomor surat for reference
+   * GET /check-number - Check if nomor surat is available
    */
-  async getRecentNumbers(ctx: ControllerContext) {
+  async checkNumber(ctx: ControllerContext) {
     const user = ctx.user;
     if (!user) {
       ctx.set.status = 401;
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { type } = ctx.params as { type: string };
-    
-    // Validate document type
-    if (!Object.values(DocumentType).includes(type as DocumentType)) {
+    const query = ctx.query as { nomorSurat?: string };
+    if (!query.nomorSurat) {
       ctx.set.status = 400;
-      return { success: false, error: 'Invalid document type' };
+      return { success: false, error: 'Parameter nomorSurat wajib diisi' };
     }
 
-    const result = await legalisasiService.getRecentNomorSurat(
-      type as DocumentType,
+    const result = await legalisasiService.checkNomorSurat(
+      query.nomorSurat,
       user.id,
       user.role
     );
@@ -108,7 +107,35 @@ class LegalisasiController {
   }
 
   /**
-   * POST /:id/assign-number - Assign nomor surat
+   * GET /used-numbers - Get list of used nomor surat
+   */
+  async getUsedNumbers(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const query = ctx.query as Record<string, string>;
+    const params = {
+      page: query.page ? parseInt(query.page) : 1,
+      limit: query.limit ? parseInt(query.limit) : 20,
+      year: query.year ? parseInt(query.year) : undefined,
+      search: query.search
+    };
+
+    const result = await legalisasiService.getUsedNumbers(params, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
+  }
+
+  /**
+   * POST /:documentId/assign-number - Assign nomor surat to document
    */
   async assignNumber(ctx: ControllerContext) {
     const user = ctx.user;
@@ -117,17 +144,17 @@ class LegalisasiController {
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { id } = ctx.params as { id: string };
+    const { documentId } = ctx.params as { documentId: string };
     const body = ctx.body as { nomorSurat: string; tanggalSurat: string };
 
     if (!body.nomorSurat || !body.tanggalSurat) {
       ctx.set.status = 400;
-      return { success: false, error: 'Missing required fields: nomorSurat, tanggalSurat' };
+      return { success: false, error: 'Field nomorSurat dan tanggalSurat wajib diisi' };
     }
 
     const result = await legalisasiService.assignNomorSurat(
       {
-        documentId: id,
+        documentId,
         nomorSurat: body.nomorSurat,
         tanggalSurat: new Date(body.tanggalSurat)
       },
@@ -144,49 +171,22 @@ class LegalisasiController {
   }
 
   /**
-   * POST /:id/stamp - Apply stamp to document
+   * POST /:documentId/stamp - Apply stempel to document
    */
-  async applyStamp(ctx: ControllerContext) {
+  async applyStempel(ctx: ControllerContext) {
     const user = ctx.user;
     if (!user) {
       ctx.set.status = 401;
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { id } = ctx.params as { id: string };
-    const result = await legalisasiService.applyStamp(id, user.id, user.role);
+    const { documentId } = ctx.params as { documentId: string };
+    const body = ctx.body as { sealImageUrl?: string } | undefined;
 
-    if (!result.success) {
-      ctx.set.status = result.code || 500;
-      return { success: false, error: result.error };
-    }
-
-    return result;
-  }
-
-  /**
-   * POST /:id/finalize - Finalize document (QR, PDF)
-   */
-  async finalizeDocument(ctx: ControllerContext) {
-    const user = ctx.user;
-    if (!user) {
-      ctx.set.status = 401;
-      return { success: false, error: 'Unauthorized' };
-    }
-
-    const { id } = ctx.params as { id: string };
-    const body = ctx.body as { qrCodeUrl: string; fileUrl: string };
-
-    if (!body.qrCodeUrl || !body.fileUrl) {
-      ctx.set.status = 400;
-      return { success: false, error: 'Missing required fields: qrCodeUrl, fileUrl' };
-    }
-
-    const result = await legalisasiService.finalizeDocument(
+    const result = await legalisasiService.applyStempel(
       {
-        documentId: id,
-        qrCodeUrl: body.qrCodeUrl,
-        fileUrl: body.fileUrl
+        documentId,
+        sealImageUrl: body?.sealImageUrl
       },
       user.id,
       user.role
@@ -201,7 +201,64 @@ class LegalisasiController {
   }
 
   /**
-   * GET /:id/tembusan - Get tembusan recipients
+   * POST /:documentId/generate-qr - Generate QR code for verification
+   */
+  async generateQRCode(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { documentId } = ctx.params as { documentId: string };
+    const result = await legalisasiService.generateQRCode(documentId, user.id, user.role);
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
+  }
+
+  /**
+   * POST /:documentId/finalize - Finalize document (complete legalisasi)
+   */
+  async finalizeDocument(ctx: ControllerContext) {
+    const user = ctx.user;
+    if (!user) {
+      ctx.set.status = 401;
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const { documentId } = ctx.params as { documentId: string };
+    const body = ctx.body as { fileUrl: string; notes?: string };
+
+    if (!body.fileUrl) {
+      ctx.set.status = 400;
+      return { success: false, error: 'Field fileUrl wajib diisi' };
+    }
+
+    const result = await legalisasiService.finalizeDocument(
+      {
+        documentId,
+        fileUrl: body.fileUrl,
+        notes: body.notes
+      },
+      user.id,
+      user.role
+    );
+
+    if (!result.success) {
+      ctx.set.status = result.code || 500;
+      return { success: false, error: result.error };
+    }
+
+    return result;
+  }
+
+  /**
+   * GET /:documentId/tembusan - Get tembusan recipients
    */
   async getTembusanRecipients(ctx: ControllerContext) {
     const user = ctx.user;
@@ -210,8 +267,12 @@ class LegalisasiController {
       return { success: false, error: 'Unauthorized' };
     }
 
-    const { id } = ctx.params as { id: string };
-    const result = await legalisasiService.getTembusanRecipients(id, user.id, user.role);
+    const { documentId } = ctx.params as { documentId: string };
+    const result = await legalisasiService.getTembusanRecipients(
+      documentId,
+      user.id,
+      user.role
+    );
 
     if (!result.success) {
       ctx.set.status = result.code || 500;

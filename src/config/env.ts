@@ -8,27 +8,41 @@ import { z } from 'zod';
 const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().default('3000'),
+  PORT: z.string().default('3079'),
+  BASE_URL: z.string().default('http://localhost:3079'),
   
   // Database
   DATABASE_URL: z.string(),
   
-  // JWT
+  // JWT & Security
   JWT_SECRET: z.string(),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  DEFAULT_PASSWORD: z.string().default('pagidatangsorehilang'),
+  AVATAR_DEFAULT: z.string().default('https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png'),
+  SSO_URL: z.string().optional(),
   
   // MinIO / Storage
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.string().default('9000'),
   MINIO_ACCESS_KEY: z.string().default('minioadmin'),
   MINIO_SECRET_KEY: z.string().default('minioadmin'),
+  MINIO_BUCKET_NAME: z.string().default('e-office-storage'),
+  MINIO_REGION: z.string().default('us-east-1'),
   MINIO_USE_SSL: z.string().default('false'),
-  MINIO_BUCKET: z.string().default('e-office-attachments'),
-  
-  // OAuth / SSO
-  OAUTH_CLIENT_ID: z.string().optional(),
-  OAUTH_CLIENT_SECRET: z.string().optional(),
-  OAUTH_CALLBACK_URL: z.string().optional(),
+  MINIO_FOLDER_LAMPIRAN: z.string().default('lampiran'),
+  MINIO_FOLDER_SIGNATURE: z.string().default('signature'),
+  MINIO_EXPIRY_URL: z.string().default('604800'),
+
+  // Encryption & Verification (untuk QR Code legalisasi)
+  APP_KEY: z.string().min(32, 'APP_KEY harus minimal 32 karakter untuk keamanan'),
+  VERIFICATION_BASE_URL: z.string().url('VERIFICATION_BASE_URL harus berupa URL yang valid'),
+
+  // Email (Optional)
+  MAIL_ENABLED: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
