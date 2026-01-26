@@ -208,6 +208,29 @@ export interface SubmissionPermissions {
   showFormulirAwal: boolean;
   showRiwayat: boolean;
   showAlasanDitolak: boolean;
+  // Department approval actions
+  canApprove?: boolean;
+  canReject?: boolean;
+  canSign?: boolean;
+  canDraft?: boolean;
+  canSubmitDraft?: boolean;
+  // Faculty actions
+  canReceive?: boolean;
+  canForward?: boolean;
+  canDispose?: boolean;
+  canComplete?: boolean;
+  canVerify?: boolean;
+  canReturn?: boolean;
+  canFinish?: boolean;
+  canAssignNumber?: boolean;
+  canStamp?: boolean;
+  // Surat Hasil (Staf)
+  canDraftSuratHasil?: boolean; // Staf bisa buat draft SK/ST
+  canEditDraft?: boolean; // Staf/Supervisor bisa edit draft yang dikembalikan
+  canSubmitVerification?: boolean; // Staf submit untuk verifikasi naik
+  // Verification actions (Pejabat)
+  canVerifySuratHasil?: boolean; // Pejabat verifikasi surat hasil
+  canSignSuratHasil?: boolean; // Pejabat yang menjadi target TTD
 }
 
 // ============================================================================

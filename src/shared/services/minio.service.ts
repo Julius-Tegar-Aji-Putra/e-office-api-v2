@@ -21,7 +21,7 @@ const MINIO_CONFIG = {
   secretKey: env.MINIO_SECRET_KEY,
 };
 
-const DEFAULT_BUCKET = env.MINIO_BUCKET;
+const DEFAULT_BUCKET = env.MINIO_BUCKET_NAME;
 const SIGNED_URL_EXPIRY = 60 * 60; // 1 hour in seconds
 
 // ============================================================================

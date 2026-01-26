@@ -498,7 +498,7 @@ async function getDashboardPengaju(
 
   const mappedItems: DashboardItem[] = items.map((item) => ({
     id: item.id,
-    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.nama_kegiatan || '-',
+    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
     tipeSurat: getTipeSurat(item.letterType?.code),
     tanggalSurat: item.createdAt,
     status: item.status,
@@ -651,7 +651,7 @@ async function getDashboardDepartemen(
   const mappedItems: DashboardItem[] = items.map((item) => ({
     id: item.id,
     namaPengaju: item.createdBy?.name || '-',
-    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.nama_kegiatan || '-',
+    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
     tipeSurat: getTipeSurat(item.letterType?.code),
     tanggalSurat: item.createdAt,
     status: item.status,
@@ -686,17 +686,37 @@ async function getDashboardFakultas(
 
   const where: any = {};
 
+  // Check if user is a pejabat/supervisor/staf (not Admin Fakultas)
+  const isPejabatOrBelow = [
+    ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2,
+    ROLES.MANAJER_TU, ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA,
+    ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA
+  ].includes(user.role as any);
+
   if (type === 'masuk') {
-    // Surat Masuk = surat pengantar yang masuk ke fakultas
-    where.status = {
-      in: [
-        LetterStatus.SURAT_PENGANTAR_SIGNED,
-        LetterStatus.FAKULTAS_RECEIVED,
-        LetterStatus.FAKULTAS_DISPOSITION,
-        LetterStatus.FAKULTAS_VERIFICATION,
-        LetterStatus.FAKULTAS_SIGNING,
-      ],
-    };
+    if (user.role === ROLES.ADMIN_FAKULTAS) {
+      // Admin Fakultas sees incoming letters (SURAT_PENGANTAR_SIGNED) or received letters
+      where.status = {
+        in: [
+          LetterStatus.SURAT_PENGANTAR_SIGNED,
+          LetterStatus.FAKULTAS_RECEIVED,
+        ],
+      };
+      where.currentActiveRole = ROLES.ADMIN_FAKULTAS;
+    } else if (isPejabatOrBelow) {
+      // Pejabat/Supervisor/Staf ONLY see letters assigned to them
+      // They should NOT see letters that are still with Admin Fakultas
+      where.status = {
+        in: [
+          LetterStatus.FAKULTAS_DISPOSITION,
+          LetterStatus.FAKULTAS_VERIFICATION,
+          LetterStatus.FAKULTAS_SIGNING,
+          LetterStatus.FAKULTAS_DRAFTING,
+        ],
+      };
+      // CRITICAL: Filter by currentActiveRole to prevent "leaking" letters
+      where.currentActiveRole = user.role;
+    }
   } else {
     // Surat Keluar = surat hasil (ST/SK)
     where.status = {
@@ -710,16 +730,11 @@ async function getDashboardFakultas(
         LetterStatus.COMPLETED,
       ],
     };
-  }
-
-  // Filter untuk pejabat/supervisor berdasarkan currentActiveRole
-  if ([
-    ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2,
-    ROLES.MANAJER_TU, ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA,
-    ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA
-  ].includes(user.role as any)) {
-    // Tambahkan filter OR untuk melihat semua atau yang ditugaskan
-    // Untuk sekarang tampilkan semua, bisa di-filter di frontend
+    
+    // For keluar tab, still filter by role for pejabat
+    if (isPejabatOrBelow) {
+      where.currentActiveRole = user.role;
+    }
   }
 
   if (filters.status) {
@@ -803,7 +818,7 @@ async function getDashboardFakultas(
     return {
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
-      judulSurat: doc?.perihal || (item.submissionValues as any)?.nama_kegiatan || '-',
+      judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       tipeSurat: getTipeSurat(item.letterType?.code),
       jenisSurat: item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
@@ -908,7 +923,7 @@ async function getDashboardUPA(
 
     return {
       id: item.id,
-      judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.nama_kegiatan || '-',
+      judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code),
       jenisSurat: item.letterType?.category || '-',
@@ -1104,7 +1119,7 @@ export default new Elysia()
       action: log.action,
       notes: log.notes,
       letterTitle: log.letterInstance?.documents[0]?.perihal ||
-                   (log.letterInstance?.submissionValues as any)?.nama_kegiatan || '-',
+                   (log.letterInstance?.submissionValues as any)?.judulAcara || '-',
       documentType: log.letterInstance?.letterType?.name,
       actorName: log.actor?.name,
       timestamp: log.createdAt,

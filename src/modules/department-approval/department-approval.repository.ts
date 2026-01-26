@@ -331,6 +331,56 @@ class DepartmentApprovalRepository {
   }
 
   /**
+   * Admin Prodi creates initial surat pengantar draft
+   */
+  async createInitialDraft(
+    input: CreateDepartmentApprovalDraftInput,
+    actorId: string,
+    actorRole: string
+  ) {
+    const { letterInstanceId, content, tembusan, signatories } = input;
+
+    return prisma.$transaction(async (tx) => {
+      // Create document
+      const document = await tx.letterDocument.create({
+        data: {
+          letterInstanceId,
+          type: DocumentType.SURAT_PENGANTAR,
+          content: content as any,
+          tembusan: (tembusan ?? []) as any
+        }
+      });
+
+      // Create signature placeholders
+      for (const sig of signatories) {
+        await tx.documentSignature.create({
+          data: {
+            documentId: document.id,
+            signerId: actorId, // Will be updated when actual signer signs
+            signerRole: sig.signerRole,
+            signerName: sig.signerName,
+            signerNip: sig.signerNip,
+            order: sig.order
+          }
+        });
+      }
+
+      // Log the action
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId,
+          actorId,
+          actorRole,
+          action: LogAction.DRAFT_CREATE,
+          notes: 'Surat pengantar dibuat'
+        }
+      });
+
+      return document;
+    });
+  }
+
+  /**
    * Admin Prodi creates/updates surat pengantar draft
    */
   async savePengantarDraft(

@@ -231,7 +231,14 @@ export class SubmissionService {
       })),
       submittedAt: submission.submittedAt,
       completedAt: submission.completedAt,
-      permissions: this.computePermissions(submission.status, viewerRole, submission.createdById, rejectionLog?.notes),
+      permissions: this.computePermissions(
+        submission.status, 
+        viewerRole, 
+        submission.currentActiveRole,
+        submission.createdById, 
+        rejectionLog?.notes,
+        submission.documents
+      ),
     };
   }
 
@@ -595,8 +602,10 @@ export class SubmissionService {
   private computePermissions(
     status: LetterStatus,
     viewerRole: string,
+    currentActiveRole: string | null,
     createdById: string,
-    rejectionReason?: string | null
+    rejectionReason?: string | null,
+    documents?: Array<{ type: string }>
   ): SubmissionPermissions {
     const isSubmitter = viewerRole === ROLES.MAHASISWA || viewerRole === ROLES.DOSEN;
     const isCompleted = status === 'COMPLETED';
@@ -629,16 +638,130 @@ export class SubmissionService {
       'COMPLETED',
     ].includes(status);
 
+    // Role-based action permissions
+    const isKaprodi = viewerRole === ROLES.KETUA_PRODI;
+    const isAdminProdi = viewerRole === ROLES.ADMIN_PRODI;
+    const isKadep = viewerRole === ROLES.KETUA_DEPARTEMEN;
+    const isAdminFakultas = viewerRole === ROLES.ADMIN_FAKULTAS;
+    const isPejabat = [ROLES.DEKAN, ROLES.WAKIL_DEKAN_1, ROLES.WAKIL_DEKAN_2].includes(viewerRole as any);
+    const isManajerTU = viewerRole === ROLES.MANAJER_TU;
+    const isSupervisor = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(viewerRole as any);
+    const isStaf = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(viewerRole as any);
+    const isUPA = viewerRole === ROLES.UPA;
+
+    // Kaprodi can approve/reject when status is SUBMITTED
+    const canApprove = isKaprodi && status === 'SUBMITTED';
+    const canReject = isKaprodi && status === 'SUBMITTED';
+
+    // Admin Prodi can draft when status is SURAT_PENGANTAR_DRAFT
+    const canDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';
+    const canSubmitDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';
+
+    // Kaprodi/Kadep can sign when status is SURAT_PENGANTAR_REVIEW and it's their turn
+    // Must check viewerRole matches the current active role to prevent showing button after signing
+    const canSign = status === 'SURAT_PENGANTAR_REVIEW' && 
+      currentActiveRole !== null &&
+      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
+       (isKadep && currentActiveRole === 'KADEP'));
+
+    // Faculty actions
+    // Admin Fakultas can receive when surat pengantar is fully signed
+    const canReceive = isAdminFakultas && status === 'SURAT_PENGANTAR_SIGNED' && currentActiveRole === 'ADMIN_FAKULTAS';
+    // Admin Fakultas can forward after receiving (FAKULTAS_RECEIVED)
+    const canForward = isAdminFakultas && status === 'FAKULTAS_RECEIVED' && currentActiveRole === 'ADMIN_FAKULTAS';
+    
+    // Pejabat can dispose when letter is assigned to them (FAKULTAS_DISPOSITION)
+    // Note: Staf cannot dispose - they are at the bottom of hierarchy
+    const canDispose = (isPejabat || isManajerTU || isSupervisor) && 
+      status === 'FAKULTAS_DISPOSITION' && 
+      currentActiveRole === viewerRole;
+    
+    // Pejabat/Supervisor/Staf can complete (finish processing at their level)
+    const canComplete = (isPejabat || isManajerTU || isSupervisor || isStaf) && 
+      status === 'FAKULTAS_DISPOSITION' && 
+      currentActiveRole === viewerRole;
+    
+    // Pejabat/Supervisor/Staf can return to previous handler
+    const canReturn = (isPejabat || isManajerTU || isSupervisor || isStaf) && 
+      status === 'FAKULTAS_DISPOSITION' && 
+      currentActiveRole === viewerRole;
+    
+    // Check if SK/ST draft exists
+    const hasSkstDraft = documents?.some(d => 
+      d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+    );
+    
+    // Staf-specific actions for Surat Hasil
+    // Staf can draft surat hasil when status is FAKULTAS_DRAFTING and assigned to them
+    // Note: When pejabat dispositions to staf, status becomes FAKULTAS_DRAFTING directly
+    // Only show "Draft Surat" if no SK/ST draft exists yet
+    const canDraftSuratHasil = isStaf && 
+      status === 'FAKULTAS_DRAFTING' && 
+      currentActiveRole === viewerRole &&
+      !hasSkstDraft;
+    
+    // Staf/Supervisor can edit draft when status is FAKULTAS_DRAFTING and assigned to them
+    const canEditDraft = (isStaf || isSupervisor) && 
+      status === 'FAKULTAS_DRAFTING' && 
+      currentActiveRole === viewerRole &&
+      hasSkstDraft;
+    
+    // Staf can submit for verification after drafting (only if draft exists)
+    const canSubmitVerification = isStaf && 
+      status === 'FAKULTAS_DRAFTING' && 
+      currentActiveRole === viewerRole &&
+      hasSkstDraft;
+    
+    // Pejabat verify surat hasil (alur naik)
+    const canVerifySuratHasil = (isSupervisor || isManajerTU) && 
+      status === 'FAKULTAS_VERIFICATION' && 
+      currentActiveRole === viewerRole;
+    
+    // Pejabat sign surat hasil (if they are the target signer)
+    // TODO: Check if viewerRole is in the target signers list
+    const canSignSuratHasil = isPejabat && 
+      status === 'FAKULTAS_SIGNING' && 
+      currentActiveRole === viewerRole;
+    
+    const canVerify = isSupervisor && status === 'FAKULTAS_VERIFICATION';
+    const canFinish = isStaf && status === 'FAKULTAS_DRAFTING';
+
+    // UPA actions
+    const canAssignNumber = isUPA && status === 'UPA_NUMBERING';
+    const canStamp = isUPA && status === 'UPA_STAMPING';
+
     return {
       canEdit: isSubmitter && this.canEditSubmission(status),
       canCancel: isSubmitter && this.canCancelSubmission(status),
-      canDownload: isSubmitter && isCompleted,
-      canResubmit: false, // Will be true when returned
+      canDownload: isCompleted,
+      canResubmit: isSubmitter && isRejected,
       showSuratPengantar: hasPengantar,
-      showSuratHasil: hasHasil && isCompleted, // For submitter, only show when completed
-      showFormulirAwal: true, // Always show
-      showRiwayat: true, // Always show
+      showSuratHasil: hasHasil,
+      showFormulirAwal: true,
+      showRiwayat: true,
       showAlasanDitolak: isRejected && !!rejectionReason,
+      // Department approval actions
+      canApprove,
+      canReject,
+      canSign,
+      canDraft,
+      canSubmitDraft,
+      // Faculty actions
+      canReceive,
+      canForward,
+      canDispose,
+      canComplete,
+      canVerify,
+      canReturn,
+      canFinish,
+      canAssignNumber,
+      canStamp,
+      // Surat Hasil permissions
+      canDraftSuratHasil,
+      canEditDraft,
+      canSubmitVerification,
+      canVerifySuratHasil,
+      canSignSuratHasil,
     };
   }
 }

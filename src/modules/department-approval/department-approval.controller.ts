@@ -116,6 +116,19 @@ class DepartmentApprovalController {
   }
 
   /**
+   * POST /department-approval/:id/create-draft
+   * Admin Prodi creates initial draft (first time)
+   */
+  async createInitialDraft(letterId: string, userId: string, userRole: string) {
+    try {
+      const result = await departmentApprovalService.createInitialDraft(letterId, userId, userRole);
+      return successResponse('Surat pengantar berhasil dibuat', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
    * POST /department-approval/:id/draft
    * Admin Prodi saves draft
    */

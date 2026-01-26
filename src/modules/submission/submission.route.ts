@@ -16,6 +16,7 @@ import {
   uploadAttachmentSchema,
 } from './submission.validation';
 import { authGuardPlugin } from '../../middlewares/auth';
+import { getUserRoles } from '../../lib/casbin';
 
 // ============================================================================
 // Submission Routes
@@ -75,7 +76,9 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   })
 
   .get('/:id', async ({ params, user }) => {
-    return submissionController.getSubmissionById(params.id, user.id, []);
+    // Get user roles from Casbin
+    const userRoles = await getUserRoles(user.id);
+    return submissionController.getSubmissionById(params.id, user.id, userRoles);
   }, {
     params: submissionIdParamSchema,
     detail: {

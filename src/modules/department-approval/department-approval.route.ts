@@ -124,6 +124,17 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
     }
   })
 
+  .post('/:id/create-draft', async ({ params, user }) => {
+    return departmentApprovalController.createInitialDraft(params.id, user.id, ROLES.ADMIN_PRODI);
+  }, {
+    params: letterIdParamSchema,
+    detail: {
+      summary: 'Create initial draft',
+      description: 'Admin Prodi membuat draft surat pengantar pertama kali',
+      tags: ['Department Approval']
+    }
+  })
+
   .post('/:id/draft', async ({ params, body, user }) => {
     return departmentApprovalController.saveDraft(params.id, body, user.id, ROLES.ADMIN_PRODI);
   }, {

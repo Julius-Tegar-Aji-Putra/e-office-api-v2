@@ -144,6 +144,72 @@ class DepartmentApprovalService {
   }
 
   /**
+   * Admin Prodi creates initial draft surat pengantar
+   * Creates an empty document ready for editing
+   */
+  async createInitialDraft(letterId: string, userId: string, userRole: string) {
+    const letter = await departmentApprovalRepository.getLetterById(letterId);
+
+    if (!letter) {
+      throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    if (letter.status !== LetterStatus.SURAT_PENGANTAR_DRAFT) {
+      throw new AppError('Surat tidak dalam status drafting', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    if (letter.currentActiveRole !== 'ADMIN_PRODI') {
+      throw new AppError('Surat tidak sedang di meja Admin Prodi', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Check if document already exists
+    const existingDoc = letter.documents.find(d => d.type === 'SURAT_PENGANTAR');
+    if (existingDoc) {
+      throw new AppError('Surat pengantar sudah dibuat sebelumnya', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Get signature config from submission
+    const signatureConfig = letter.signatureConfig as { requestKadepSign?: boolean } | null;
+    const needsKadepSignature = signatureConfig?.requestKadepSign || false;
+
+    // Default signatories based on request
+    const defaultSignatories = [
+      {
+        signerRole: 'KAPRODI',
+        signerName: '', // Will be filled when signing
+        signerNip: '',
+        order: 1
+      }
+    ];
+
+    if (needsKadepSignature) {
+      defaultSignatories.push({
+        signerRole: 'KADEP',
+        signerName: '',
+        signerNip: '',
+        order: 2
+      });
+    }
+
+    // Create initial empty draft
+    const draftInput: CreateDepartmentApprovalDraftInput = {
+      letterInstanceId: letterId,
+      content: {
+        // Empty template - will be filled by Admin Prodi
+        perihal: letter.submissionValues && typeof letter.submissionValues === 'object' 
+          ? (letter.submissionValues as any).keperluan || '' 
+          : '',
+        body: '',
+        lampiran: '-'
+      },
+      tembusan: [],
+      signatories: defaultSignatories
+    };
+
+    return departmentApprovalRepository.createInitialDraft(draftInput, userId, userRole);
+  }
+
+  /**
    * Admin Prodi saves draft surat pengantar
    */
   async saveDraft(input: SaveDraftInput, userId: string, userRole: string) {
