@@ -15,11 +15,28 @@ export interface SignaturePosition {
   signerNip?: string;
 }
 
+export interface SignaturePlaceholder {
+  positionX: number;
+  positionY: number;
+  positionPage: number;
+  signerName: string;
+  signerRole: string;
+  signerNip?: string;
+  order: number;
+}
+
 export interface EmbedSignatureOptions {
   pdfBytes: Uint8Array;
   signatures: SignaturePosition[];
   signatureWidth?: number;
   signatureHeight?: number;
+}
+
+export interface EmbedSignaturePlaceholdersOptions {
+  pdfBytes: Uint8Array;
+  placeholders: SignaturePlaceholder[];
+  blockWidth?: number;
+  blockHeight?: number;
 }
 
 /**
@@ -90,6 +107,105 @@ export async function embedSignaturesIntoPdf(options: EmbedSignatureOptions): Pr
       }
     } catch (error) {
       console.error(`Error embedding signature for ${sig.signerName}:`, error);
+    }
+  }
+
+  return pdfDoc.save();
+}
+
+/**
+ * Embed signature placeholder blocks into PDF at specified positions
+ * These are the "boxes" that show where signatures will be placed,
+ * containing role, placeholder line, name, and NIP
+ */
+export async function embedSignaturePlaceholdersIntoPdf(options: EmbedSignaturePlaceholdersOptions): Promise<Uint8Array> {
+  const { pdfBytes, placeholders, blockWidth = 160, blockHeight = 80 } = options;
+
+  // Load the PDF
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+
+  // Embed fonts
+  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+
+  // Sort placeholders by order
+  const sortedPlaceholders = [...placeholders].sort((a, b) => a.order - b.order);
+
+  for (const placeholder of sortedPlaceholders) {
+    // Validate page number
+    const pageIndex = (placeholder.positionPage || 1) - 1;
+    if (pageIndex < 0 || pageIndex >= pages.length) {
+      console.warn(`Invalid page number ${placeholder.positionPage} for placeholder, skipping`);
+      continue;
+    }
+
+    const page = pages[pageIndex];
+    const pageHeight = page.getHeight();
+
+    // Convert Y coordinate (origin at bottom-left in PDF)
+    // Frontend uses top-left origin, so we need to flip Y
+    const pdfY = pageHeight - placeholder.positionY - blockHeight;
+
+    try {
+      const x = placeholder.positionX;
+      let currentY = pdfY + blockHeight - 12; // Start from top of block
+
+      // Draw role/position title (e.g., "Dekan")
+      page.drawText(placeholder.signerRole, {
+        x,
+        y: currentY,
+        size: 11,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+      currentY -= 20;
+
+      // Draw placeholder line for signature (dashed line effect using dots/dashes)
+      // We'll draw a simple underline to indicate signature area
+      const lineY = currentY + 5;
+      const lineWidth = blockWidth - 20;
+      page.drawLine({
+        start: { x, y: lineY },
+        end: { x: x + lineWidth, y: lineY },
+        thickness: 0.5,
+        color: rgb(0.5, 0.5, 0.5),
+        dashArray: [3, 3],
+      });
+      currentY -= 25;
+
+      // Draw signer name with underline
+      const displayName = placeholder.signerName || '(Nama Pejabat)';
+      page.drawText(displayName, {
+        x,
+        y: currentY,
+        size: 11,
+        font,
+        color: rgb(0, 0, 0),
+      });
+      
+      // Underline the name
+      const nameWidth = font.widthOfTextAtSize(displayName, 11);
+      page.drawLine({
+        start: { x, y: currentY - 2 },
+        end: { x: x + nameWidth, y: currentY - 2 },
+        thickness: 0.5,
+        color: rgb(0, 0, 0),
+      });
+      currentY -= 14;
+
+      // Draw NIP if available
+      if (placeholder.signerNip) {
+        page.drawText(`NIP. ${placeholder.signerNip}`, {
+          x,
+          y: currentY,
+          size: 9,
+          font,
+          color: rgb(0, 0, 0),
+        });
+      }
+    } catch (error) {
+      console.error(`Error embedding placeholder for ${placeholder.signerName}:`, error);
     }
   }
 
