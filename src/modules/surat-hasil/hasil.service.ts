@@ -4,10 +4,13 @@
  */
 
 import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, SURAT_HASIL_TYPES } from './hasil.repository';
-import { LetterStatus, DocumentType, LetterCategory, Prisma } from '../../generated/prisma/client';
+import { LetterStatus, DocumentType, LetterCategory, Prisma, SignatureType } from '../../generated/prisma/client';
 import { ROLES, STAF_ROLES, SUPERVISOR_ROLES } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
+import { MinioService } from '../../shared/services/minio.service';
+import { signatureRepository } from '../signature/signature.repository';
+import { prisma } from '../../db';
 
 // ============================================================================
 // TYPES
@@ -41,6 +44,25 @@ export interface UpdateDraftServiceInput {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Normalize signer role to constant format
+ */
+const SIGNER_ROLE_NORMALIZATION: Record<string, string> = {
+  'Dekan': 'DEKAN',
+  'dekan': 'DEKAN',
+  'Wakil Dekan I': 'WADEK_1',
+  'Wakil Dekan 1': 'WADEK_1',
+  'Wakil Dekan II': 'WADEK_2',
+  'Wakil Dekan 2': 'WADEK_2',
+  'DEKAN': 'DEKAN',
+  'WADEK_1': 'WADEK_1',
+  'WADEK_2': 'WADEK_2',
+};
+
+function normalizeRole(role: string): string {
+  return SIGNER_ROLE_NORMALIZATION[role] || role.toUpperCase().replace(/\s+/g, '_');
+}
 
 /**
  * Check if document type is a surat hasil type
@@ -300,12 +322,18 @@ class HasilService {
 
   /**
    * Sign SK/ST document (Dekan/Wadek)
+   * Supports:
+   * - signatureData: base64 image from canvas/upload (preferred)
+   * - signatureUrl: URL to existing signature (legacy)
+   * - saveSignature: save the signature to user's saved signatures
    */
   async signDocument(
     letterId: string,
-    signatureUrl: string,
-    signerName: string,
+    signatureData: string | undefined,
+    signatureUrl: string | undefined,
+    signerName: string | undefined,
     signerNip: string | undefined,
+    saveSignature: boolean,
     userId: string,
     userRole: string
   ) {
@@ -319,24 +347,97 @@ class HasilService {
       throw new AppError('Surat tidak dalam status penandatanganan', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (letter.currentActiveRole !== userRole) {
+    // Normalize roles for comparison
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole);
+    const normalizedUserRole = normalizeRole(userRole);
+
+    console.log('[signDocument] Role check:', {
+      letterCurrentActiveRole: letter.currentActiveRole,
+      normalizedActiveRole,
+      userRole,
+      normalizedUserRole
+    });
+
+    if (normalizedActiveRole !== normalizedUserRole) {
       throw new AppError('Bukan giliran Anda untuk menandatangani', HTTP_STATUS.FORBIDDEN);
     }
 
     // Validate is pejabat that can sign
     const canSign = [
       ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2
-    ].includes(userRole as any);
+    ].includes(normalizedUserRole as any);
 
     if (!canSign) {
       throw new AppError('Anda tidak memiliki wewenang untuk menandatangani', HTTP_STATUS.FORBIDDEN);
     }
 
+    // Must have either signatureData or signatureUrl
+    if (!signatureData && !signatureUrl) {
+      throw new AppError('Data tanda tangan wajib diisi', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Get user info for signer name/nip if not provided
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { pegawai: true }
+    });
+
+    const finalSignerName = signerName || user?.name || 'Penandatangan';
+    const finalSignerNip = signerNip || user?.pegawai?.nip || '';
+
+    let finalSignatureUrl = signatureUrl || '';
+
+    // If signatureData is provided (base64), upload it
+    if (signatureData) {
+      try {
+        const minio = new MinioService();
+        
+        // Parse base64 data
+        const matches = signatureData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
+        if (!matches) {
+          throw new AppError('Format tanda tangan tidak valid', HTTP_STATUS.BAD_REQUEST);
+        }
+        
+        const mimeType = matches[1];
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // Create file name for upload
+        const fileName = `signature-${Date.now()}.${mimeType}`;
+        
+        // Upload to MinIO using uploadFile method
+        const uploadResult = await minio.uploadFile(
+          buffer,
+          fileName,
+          `image/${mimeType}`,
+          `signatures/${userId}`
+        );
+        
+        // Get signed URL for the uploaded file
+        finalSignatureUrl = await minio.getFileUrl(uploadResult.path);
+
+        // Save to user's saved signatures if requested
+        if (saveSignature) {
+          await signatureRepository.createSavedSignature({
+            userId,
+            type: SignatureType.DRAW, // Canvas drawing
+            fileUrl: uploadResult.path, // Store the path, not the signed URL
+            fileName: fileName,
+            alias: `TTD ${new Date().toLocaleDateString('id-ID')}`
+          });
+        }
+      } catch (err) {
+        console.error('Failed to upload signature:', err);
+        if (err instanceof AppError) throw err;
+        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      }
+    }
+
     return hasilRepository.signDocument(
       letterId,
-      signatureUrl,
-      signerName,
-      signerNip,
+      finalSignatureUrl,
+      finalSignerName,
+      finalSignerNip,
       userId,
       userRole
     );

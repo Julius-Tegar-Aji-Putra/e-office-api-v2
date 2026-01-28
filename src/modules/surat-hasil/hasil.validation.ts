@@ -85,8 +85,17 @@ export const returnRevisionBodySchema = t.Object({
 });
 
 // Sign document (Dekan/Wadek)
+// Supports two modes:
+// 1. signatureData (base64) - For new signatures from canvas/upload
+// 2. signatureUrl - For using saved signatures (legacy support)
 export const signDocumentBodySchema = t.Object({
-  signatureUrl: t.String({ minLength: 1, error: 'URL tanda tangan wajib diisi' }),
-  signerName: t.String({ minLength: 1, error: 'Nama penandatangan wajib diisi' }),
-  signerNip: t.Optional(t.String())
+  // Base64 image data (from canvas drawing or file upload)
+  signatureData: t.Optional(t.String({ minLength: 1 })),
+  // Legacy: URL to signature image (for backward compatibility)
+  signatureUrl: t.Optional(t.String({ minLength: 1 })),
+  // Signer information (auto-filled from user if not provided)
+  signerName: t.Optional(t.String()),
+  signerNip: t.Optional(t.String()),
+  // Save signature to user's saved signatures
+  saveSignature: t.Optional(t.Boolean({ default: false }))
 });
