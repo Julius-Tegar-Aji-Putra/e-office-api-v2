@@ -167,6 +167,7 @@ export interface SignatureSummary {
   signerName: string;
   signedAt: Date;
   order: number;
+  signatureUrl: string | null;
 }
 
 /**

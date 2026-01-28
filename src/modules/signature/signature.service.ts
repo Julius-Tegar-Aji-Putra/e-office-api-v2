@@ -45,15 +45,32 @@ class SignatureService {
   async getMySignatures(userId: string): Promise<SavedSignatureListResponse> {
     const signatures = await signatureRepository.getSavedSignaturesByUser(userId);
 
-    const data: SavedSignatureItem[] = signatures.map((sig) => ({
-      id: sig.id,
-      type: sig.type,
-      fileUrl: sig.fileUrl,
-      fileName: sig.fileName,
-      alias: sig.alias,
-      isActive: sig.isActive,
-      createdAt: sig.createdAt,
-    }));
+    // Convert storage paths to signed URLs
+    const data: SavedSignatureItem[] = await Promise.all(
+      signatures.map(async (sig) => {
+        let signedUrl = sig.fileUrl;
+        
+        // If fileUrl is a storage path (not a full URL), get signed URL
+        if (sig.fileUrl && !sig.fileUrl.startsWith('http')) {
+          try {
+            signedUrl = await this.minio.getFileUrl(sig.fileUrl);
+          } catch (err) {
+            console.error('Failed to get signed URL for signature:', sig.id, err);
+            // Keep original path if failed
+          }
+        }
+
+        return {
+          id: sig.id,
+          type: sig.type,
+          fileUrl: signedUrl,
+          fileName: sig.fileName,
+          alias: sig.alias,
+          isActive: sig.isActive,
+          createdAt: sig.createdAt,
+        };
+      })
+    );
 
     return {
       data,
@@ -71,10 +88,20 @@ class SignatureService {
       throw new AppError('Tanda tangan tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
+    // Convert storage path to signed URL
+    let signedUrl = signature.fileUrl;
+    if (signature.fileUrl && !signature.fileUrl.startsWith('http')) {
+      try {
+        signedUrl = await this.minio.getFileUrl(signature.fileUrl);
+      } catch (err) {
+        console.error('Failed to get signed URL for signature:', signature.id, err);
+      }
+    }
+
     return {
       id: signature.id,
       type: signature.type,
-      fileUrl: signature.fileUrl,
+      fileUrl: signedUrl,
       fileName: signature.fileName,
       alias: signature.alias,
       isActive: signature.isActive,

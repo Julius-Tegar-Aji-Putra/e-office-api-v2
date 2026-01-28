@@ -217,6 +217,7 @@ export class SubmissionService {
           signerRole: sig.signerRole,
           signerName: sig.signerName,
           signerNip: sig.signerNip || null,
+          signatureUrl: sig.signatureUrl || null, // URL of the actual signature image
           signedAt: sig.signedAt,
           order: sig.order,
           // Position data for signature placement on PDF

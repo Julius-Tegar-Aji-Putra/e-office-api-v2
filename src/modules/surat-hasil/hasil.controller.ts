@@ -234,13 +234,19 @@ class HasilController {
   /**
    * POST /surat-hasil/:id/sign
    * Pejabat (Dekan/Wadek) signs SK/ST document
+   * Supports:
+   * - signatureData: base64 image from canvas/upload
+   * - signatureUrl: URL to saved signature (legacy)
+   * - saveSignature: save the signature to user's saved signatures
    */
   async signDocument(
     letterId: string,
     body: {
-      signatureUrl: string;
-      signerName: string;
+      signatureData?: string;
+      signatureUrl?: string;
+      signerName?: string;
       signerNip?: string;
+      saveSignature?: boolean;
     },
     userId: string,
     userRole: string
@@ -248,9 +254,11 @@ class HasilController {
     try {
       const result = await hasilService.signDocument(
         letterId,
+        body.signatureData,
         body.signatureUrl,
         body.signerName,
         body.signerNip,
+        body.saveSignature ?? false,
         userId,
         userRole
       );

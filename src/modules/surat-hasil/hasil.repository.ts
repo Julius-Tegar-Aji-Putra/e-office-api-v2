@@ -60,6 +60,20 @@ function normalizeSignerRole(role: string): string {
   return SIGNER_ROLE_NORMALIZATION[role] || role.toUpperCase().replace(/\s+/g, '_');
 }
 
+/**
+ * Helper untuk menentukan hierarki penandatangan
+ * Lower number = Higher Priority (harus TTD lebih dulu)
+ * Urutan: WADEK_2 -> WADEK_1 -> DEKAN
+ */
+function getSignerHierarchy(role: string): number {
+  const HIERARCHY: Record<string, number> = {
+    'WADEK_2': 1,
+    'WADEK_1': 2,
+    'DEKAN': 3
+  };
+  return HIERARCHY[role] ?? 99;
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -405,7 +419,7 @@ class HasilRepository {
 
   /**
    * Manajer TU approve verification -> FAKULTAS_SIGNING
-   * Flow: MANAJER_TU → approve → First Signer (DEKAN/WADEK)
+   * Flow: MANAJER_TU → approve → First Signer by HIERARCHY (WADEK_2 -> WADEK_1 -> DEKAN)
    */
   async manajerTuApproveVerification(
     letterId: string,
@@ -414,7 +428,7 @@ class HasilRepository {
     notes?: string
   ) {
     return prisma.$transaction(async (tx) => {
-      // Get first signer from ST/SK document
+      // Get signers from ST/SK document
       const letter = await tx.letterInstance.findUnique({
         where: { id: letterId },
         include: {
@@ -423,7 +437,7 @@ class HasilRepository {
               type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
             },
             include: {
-              signatures: { orderBy: { order: 'asc' } }
+              signatures: true // Get all signatures, we'll sort by hierarchy
             }
           }
         }
@@ -433,15 +447,20 @@ class HasilRepository {
         throw new Error('Surat atau dokumen tidak ditemukan');
       }
 
-      const firstSignature = letter.documents[0].signatures[0];
-      // Normalize the signer role to ensure it matches the user role format
-      const rawRole = firstSignature?.signerRole || 'DEKAN';
+      // Sort signatures by hierarchy: WADEK_2 (1) -> WADEK_1 (2) -> DEKAN (3)
+      const sortedSignatures = [...letter.documents[0].signatures]
+        .filter(s => !s.signatureUrl) // Only unsigned
+        .sort((a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole));
+
+      // Get first signer by hierarchy (lowest rank = first to sign)
+      const firstByHierarchy = sortedSignatures[0];
+      const rawRole = firstByHierarchy?.signerRole || 'DEKAN';
       const nextRole = normalizeSignerRole(rawRole);
 
       // Also update the signature record if it needs normalization
-      if (firstSignature && firstSignature.signerRole !== nextRole) {
+      if (firstByHierarchy && firstByHierarchy.signerRole !== nextRole) {
         await tx.documentSignature.update({
-          where: { id: firstSignature.id },
+          where: { id: firstByHierarchy.id },
           data: { signerRole: nextRole }
         });
       }
@@ -537,20 +556,47 @@ class HasilRepository {
         }
       });
 
-      if (!letter || !letter.documents[0]) {
+      if (!letter || letter.documents.length === 0) {
         throw new Error('Surat atau dokumen tidak ditemukan');
       }
 
-      const document = letter.documents[0];
+      // Normalize actor role for comparison
+      const normalizedActorRole = normalizeSignerRole(actorRole);
       
-      // Find pending signature for current role
-      const pendingSignature = document.signatures.find(
-        s => s.signerRole === actorRole && s.status === 'PENDING'
-      );
+      // Find the document that has a pending signature for this role
+      // (can't just use documents[0] because there might be multiple documents)
+      let targetDocument = null;
+      let pendingSignature = null;
 
-      if (!pendingSignature) {
+      for (const doc of letter.documents) {
+        const sig = doc.signatures.find(
+          s => normalizeSignerRole(s.signerRole) === normalizedActorRole && s.status === 'PENDING'
+        );
+        if (sig) {
+          targetDocument = doc;
+          pendingSignature = sig;
+          break;
+        }
+      }
+      
+      // Debug: Log signature states
+      console.log('[signDocument] Looking for signature:', {
+        letterId,
+        actorRole,
+        normalizedActorRole,
+        documentsCount: letter.documents.length,
+        allSignatures: letter.documents.flatMap(d => d.signatures.map(s => ({
+          docType: d.type,
+          signerRole: s.signerRole,
+          status: s.status
+        })))
+      });
+
+      if (!targetDocument || !pendingSignature) {
         throw new Error('Tidak ada tanda tangan yang pending untuk role ini');
       }
+
+      const document = targetDocument;
 
       // Update signature
       await tx.documentSignature.update({
