@@ -16,6 +16,16 @@ import {
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
 
+// Helper for hierarchy priority (Lower = Higher Priority/Earlier in flow)
+const getSignerHierarchy = (role: string): number => {
+  const HIERARCHY: Record<string, number> = {
+    [ROLES.WADEK_2]: 1,
+    [ROLES.WADEK_1]: 2,
+    [ROLES.DEKAN]: 3
+  };
+  return HIERARCHY[role] ?? 99;
+};
+
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
@@ -107,35 +117,23 @@ class FacultyApprovalService {
     // Get default next verifier from flow
     const defaultNextVerifier = getNextVerifier(userRole, category);
 
-    // Special handling: setelah Manajer TU, cek signature config untuk UMUM
-    if (userRole === ROLES.MANAJER_TU && category === 'UMUM' && skstDoc) {
-      // Cari penandatangan pertama yang belum TTD (berdasarkan order)
+    // Special handling: setelah Manajer TU, cek signature config untuk routing ke penandatangan (Hierarchical Signing)
+    if (userRole === ROLES.MANAJER_TU && skstDoc) {
+      // Ambil daftar penandatangan yang belum tanda tangan
       const unsignedSigners = skstDoc.signatures
         .filter(s => !s.signatureUrl)
-        .sort((a, b) => a.order - b.order);
+        // Sort berdasarkan hierarki: Wadek 2 -> Wadek 1 -> Dekan
+        .sort((a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole));
 
       if (unsignedSigners.length > 0) {
-        const firstUnsigned = unsignedSigners[0];
-        // Untuk UMUM: jika ada Wadek 2 di daftar TTD, selalu ke Wadek 2 dulu
-        const hasWadek2 = unsignedSigners.some(s => s.signerRole === ROLES.WADEK_2);
-        const hasWadek1 = unsignedSigners.some(s => s.signerRole === ROLES.WADEK_1);
-        
-        if (hasWadek2) {
-          // Wadek 2 ada di daftar TTD → ke Wadek 2 dulu
-          nextRole = ROLES.WADEK_2;
-        } else if (hasWadek1) {
-          // Hanya Wadek 1 yang ada
-          nextRole = ROLES.WADEK_1;
-        } else {
-          // Fallback ke Dekan langsung jika hanya Dekan yang TTD
-          nextRole = firstUnsigned.signerRole;
-        }
+        // Assign ke penandatangan dengan prioritas tertinggi (rank terendah)
+        nextRole = unsignedSigners[0].signerRole;
       } else {
-        // Tidak ada yang perlu TTD, lanjut ke default flow
+        // Tidak ada yang perlu TTD, lanjut ke default flow atau Dekan jika tidak ada
         nextRole = defaultNextVerifier || ROLES.DEKAN;
       }
     } else {
-      // Non-UMUM atau bukan Manajer TU: ikuti flow standar
+      // Non-Manajer TU: ikuti flow standar verifikasi
       if (!defaultNextVerifier) {
         throw new AppError('Tidak ada verifier selanjutnya', HTTP_STATUS.BAD_REQUEST);
       }
@@ -208,17 +206,17 @@ class FacultyApprovalService {
       nextRole = ROLES.UPA;
       nextStatus = LetterStatus.UPA_NUMBERING;
     } else {
-      // Find next signer
-      const currentOrder = mySig.order;
-      const nextSigner = skstDoc.signatures.find(
-        s => s.order > currentOrder && !s.signatureUrl
+      // Find next signer based on hierarchy (Wadek 2 -> Wadek 1 -> Dekan)
+      const sortedRemaining = unsignedSigs.sort(
+        (a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole)
       );
 
-      if (nextSigner) {
-        nextRole = nextSigner.signerRole;
+      if (sortedRemaining.length > 0) {
+        nextRole = sortedRemaining[0].signerRole;
         nextStatus = LetterStatus.FAKULTAS_SIGNING;
       } else {
-        // No more signers in order, might need to continue verification
+        // Fallback checks (should be covered by length check above)
+        // No more signers in hierarchy, might need to continue verification if mixed flow
         const nextVerifier = getNextVerifier(userRole, category);
         if (nextVerifier) {
           nextRole = nextVerifier;
@@ -226,7 +224,6 @@ class FacultyApprovalService {
             ? LetterStatus.FAKULTAS_SIGNING
             : LetterStatus.FAKULTAS_VERIFICATION;
         } else {
-          // Shouldn't happen, but fallback to UPA
           nextRole = ROLES.UPA;
           nextStatus = LetterStatus.UPA_NUMBERING;
         }

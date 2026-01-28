@@ -5,4 +5,4 @@
 
 */
 -- AlterTable
--- ALTER TABLE "letter_instance" DROP COLUMN "instanceCategory";
+ALTER TABLE "letter_instance" DROP COLUMN "instanceCategory";

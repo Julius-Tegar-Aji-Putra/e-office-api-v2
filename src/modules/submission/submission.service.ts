@@ -216,8 +216,13 @@ export class SubmissionService {
         signatures: doc.signatures.map((sig: any) => ({
           signerRole: sig.signerRole,
           signerName: sig.signerName,
+          signerNip: sig.signerNip || null,
           signedAt: sig.signedAt,
           order: sig.order,
+          // Position data for signature placement on PDF
+          positionX: sig.positionX,
+          positionY: sig.positionY,
+          positionPage: sig.positionPage,
         })),
       })),
       attachments: attachmentsWithUrls,
