@@ -60,12 +60,12 @@ class HasilController {
 
   /**
    * POST /surat-hasil/:id/draft
-   * Create new SK/ST draft
+   * Create new SK/ST/SP draft
    */
   async createDraft(
     letterId: string,
     body: {
-      documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
+      documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_PENGANTAR' | 'SURAT_TUGAS_TABEL';
       content: Record<string, unknown>;
       tembusan?: string[];
       perihal?: string;

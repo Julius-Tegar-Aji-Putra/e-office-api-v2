@@ -154,6 +154,8 @@ export interface DocumentSummary {
   perihal: string | null;
   isSigned: boolean;
   fileUrl: string | null;
+  content: Record<string, unknown> | null; // Form data untuk generate preview
+  contentHtml: string | null; // HTML content jika sudah di-generate
   signatures: SignatureSummary[];
 }
 

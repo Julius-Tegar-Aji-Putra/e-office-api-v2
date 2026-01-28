@@ -8,6 +8,40 @@ import { prisma } from '../../db';
 import { Prisma, LetterStatus, LogAction, DocumentType } from '../../generated/prisma/client';
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Normalize signer role to uppercase constant format
+ * Handles both display text (e.g., "Dekan") and role constants (e.g., "DEKAN")
+ */
+const SIGNER_ROLE_NORMALIZATION: Record<string, string> = {
+  'Dekan': 'DEKAN',
+  'dekan': 'DEKAN',
+  'Wakil Dekan I': 'WADEK_1',
+  'Wakil Dekan 1': 'WADEK_1',
+  'wakil dekan i': 'WADEK_1',
+  'Wakil Dekan II': 'WADEK_2',
+  'Wakil Dekan 2': 'WADEK_2',
+  'wakil dekan ii': 'WADEK_2',
+  'Ketua Departemen': 'KADEP',
+  'ketua departemen': 'KADEP',
+  'Ketua Program Studi': 'KAPRODI',
+  'Ketua Prodi': 'KAPRODI',
+  'ketua prodi': 'KAPRODI',
+  // Already in constant format
+  'DEKAN': 'DEKAN',
+  'WADEK_1': 'WADEK_1',
+  'WADEK_2': 'WADEK_2',
+  'KADEP': 'KADEP',
+  'KAPRODI': 'KAPRODI',
+};
+
+function normalizeSignerRole(role: string): string {
+  return SIGNER_ROLE_NORMALIZATION[role] || role.toUpperCase().replace(/\s+/g, '_');
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -27,6 +61,10 @@ export interface CreateDepartmentApprovalDraftInput {
     signerName: string;
     signerNip?: string;
     order: number;
+    // Position data for signature placement on PDF
+    x?: number;
+    y?: number;
+    page?: number;
   }>;
 }
 
@@ -351,16 +389,19 @@ class DepartmentApprovalRepository {
         }
       });
 
-      // Create signature placeholders
+      // Create signature placeholders with position data
       for (const sig of signatories) {
         await tx.documentSignature.create({
           data: {
             documentId: document.id,
             signerId: actorId, // Will be updated when actual signer signs
-            signerRole: sig.signerRole,
+            signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
-            order: sig.order
+            order: sig.order,
+            positionX: sig.x,
+            positionY: sig.y,
+            positionPage: sig.page
           }
         });
       }
@@ -417,16 +458,19 @@ class DepartmentApprovalRepository {
         where: { documentId: document.id }
       });
 
-      // Create signature placeholders
+      // Create signature placeholders with position data
       for (const sig of signatories) {
         await tx.documentSignature.create({
           data: {
             documentId: document.id,
             signerId: actorId, // Will be updated when actual signer signs
-            signerRole: sig.signerRole,
+            signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
-            order: sig.order
+            order: sig.order,
+            positionX: sig.x,
+            positionY: sig.y,
+            positionPage: sig.page
           }
         });
       }

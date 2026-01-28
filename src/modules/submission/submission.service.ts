@@ -211,6 +211,8 @@ export class SubmissionService {
         perihal: doc.perihal,
         isSigned: doc.isSigned,
         fileUrl: doc.fileUrl,
+        content: doc.content || null, // Form data untuk generate preview
+        contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
         signatures: doc.signatures.map((sig: any) => ({
           signerRole: sig.signerRole,
           signerName: sig.signerName,

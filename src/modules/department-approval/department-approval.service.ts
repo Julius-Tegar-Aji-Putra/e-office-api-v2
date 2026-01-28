@@ -33,6 +33,10 @@ export interface SaveDraftInput {
     signerName: string;
     signerNip?: string;
     order: number;
+    // Position data for signature placement on PDF
+    x?: number;
+    y?: number;
+    page?: number;
   }>;
 }
 

@@ -14,7 +14,9 @@ export const hasilQuerySchema = t.Object({
   status: t.Optional(t.String()),
   documentType: t.Optional(t.Union([
     t.Literal('SURAT_TUGAS'),
-    t.Literal('SURAT_KEPUTUSAN')
+    t.Literal('SURAT_KEPUTUSAN'),
+    t.Literal('SURAT_PENGANTAR'),
+    t.Literal('SURAT_TUGAS_TABEL')
   ])),
   search: t.Optional(t.String())
 });
@@ -39,14 +41,20 @@ export const signatorySchema = t.Object({
   signerRole: t.String({ minLength: 1 }),
   signerName: t.String({ minLength: 1 }),
   signerNip: t.Optional(t.String()),
-  order: t.Number({ minimum: 0 })
+  order: t.Number({ minimum: 0 }),
+  // Position data for signature placement on PDF
+  x: t.Optional(t.Number()),
+  y: t.Optional(t.Number()),
+  page: t.Optional(t.Number({ minimum: 1 }))
 });
 
 export const createDraftBodySchema = t.Object({
   documentType: t.Union([
     t.Literal('SURAT_TUGAS'),
-    t.Literal('SURAT_KEPUTUSAN')
-  ], { error: 'Tipe dokumen harus SURAT_TUGAS atau SURAT_KEPUTUSAN' }),
+    t.Literal('SURAT_KEPUTUSAN'),
+    t.Literal('SURAT_PENGANTAR'),
+    t.Literal('SURAT_TUGAS_TABEL')
+  ], { error: 'Tipe dokumen harus SURAT_TUGAS, SURAT_KEPUTUSAN, SURAT_PENGANTAR, atau SURAT_TUGAS_TABEL' }),
   content: t.Record(t.String(), t.Any()),
   tembusan: t.Optional(t.Array(t.String())),
   perihal: t.Optional(t.String()),

@@ -323,6 +323,10 @@ model DocumentSignature {
   signedAt        DateTime?
   notes           String?
   order           Int              @default(0)
+  // Position data for signature placement on PDF
+  positionX       Float?           // X coordinate on PDF (0-1 normalized)
+  positionY       Float?           // Y coordinate on PDF (0-1 normalized)
+  positionPage    Int?             // Page number for signature
   document        LetterDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
   signer          User             @relation("SignatureOwner", fields: [signerId], references: [id])
 
@@ -407,6 +411,7 @@ enum DocumentType {
   SURAT_PENGANTAR
   SURAT_KEPUTUSAN
   SURAT_TUGAS
+  SURAT_TUGAS_TABEL
 
   @@map("document_type")
 }

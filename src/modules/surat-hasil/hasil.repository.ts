@@ -1,10 +1,64 @@
 /**
  * Surat Hasil Repository
- * Data access layer untuk modul drafting SK/ST oleh staf
+ * Data access layer untuk modul drafting SK/ST/SP oleh staf
  */
 
 import { prisma } from '../../db';
 import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '../../generated/prisma/client';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/**
+ * All document types that are considered "Surat Hasil"
+ */
+export const SURAT_HASIL_TYPES = [
+  DocumentType.SURAT_TUGAS, 
+  DocumentType.SURAT_KEPUTUSAN,
+  DocumentType.SURAT_PENGANTAR,
+  DocumentType.SURAT_TUGAS_TABEL
+] as const;
+
+/**
+ * Map document type to label
+ */
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  [DocumentType.SURAT_TUGAS]: 'Surat Tugas',
+  [DocumentType.SURAT_KEPUTUSAN]: 'Surat Keputusan',
+  [DocumentType.SURAT_PENGANTAR]: 'Surat Pengantar',
+  [DocumentType.SURAT_TUGAS_TABEL]: 'Surat Tugas (Tabel)'
+};
+
+/**
+ * Normalize signer role to uppercase constant format
+ * Handles both display text (e.g., "Dekan") and role constants (e.g., "DEKAN")
+ */
+const SIGNER_ROLE_NORMALIZATION: Record<string, string> = {
+  'Dekan': 'DEKAN',
+  'dekan': 'DEKAN',
+  'Wakil Dekan I': 'WADEK_1',
+  'Wakil Dekan 1': 'WADEK_1',
+  'wakil dekan i': 'WADEK_1',
+  'Wakil Dekan II': 'WADEK_2',
+  'Wakil Dekan 2': 'WADEK_2',
+  'wakil dekan ii': 'WADEK_2',
+  'Ketua Departemen': 'KADEP',
+  'ketua departemen': 'KADEP',
+  'Ketua Program Studi': 'KAPRODI',
+  'Ketua Prodi': 'KAPRODI',
+  'ketua prodi': 'KAPRODI',
+  // Already in constant format
+  'DEKAN': 'DEKAN',
+  'WADEK_1': 'WADEK_1',
+  'WADEK_2': 'WADEK_2',
+  'KADEP': 'KADEP',
+  'KAPRODI': 'KAPRODI',
+};
+
+function normalizeSignerRole(role: string): string {
+  return SIGNER_ROLE_NORMALIZATION[role] || role.toUpperCase().replace(/\s+/g, '_');
+}
 
 // ============================================================================
 // TYPES
@@ -29,6 +83,10 @@ export interface CreateDraftInput {
     signerName: string;
     signerNip?: string;
     order: number;
+    // Position data for signature placement on PDF
+    x?: number;
+    y?: number;
+    page?: number;
   }>;
 }
 
@@ -99,7 +157,7 @@ class HasilRepository {
     const where: Prisma.LetterInstanceWhereInput = {
       documents: {
         some: {
-          type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
+          type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
         }
       },
       logs: {
@@ -120,7 +178,7 @@ class HasilRepository {
           letterType: true,
           createdBy: { select: { id: true, name: true } },
           documents: {
-            where: { type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] } }
+            where: { type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] } }
           }
         },
         orderBy: { updatedAt: 'desc' },
@@ -181,16 +239,19 @@ class HasilRepository {
         }
       });
 
-      // Create signature placeholders
+      // Create signature placeholders with position data
       for (const sig of signatories) {
         await tx.documentSignature.create({
           data: {
             documentId: document.id,
             signerId: actorId,
-            signerRole: sig.signerRole,
+            signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
-            order: sig.order
+            order: sig.order,
+            positionX: sig.x,
+            positionY: sig.y,
+            positionPage: sig.page
           }
         });
       }
@@ -202,7 +263,7 @@ class HasilRepository {
           actorId,
           actorRole,
           action: LogAction.DRAFT_CREATE,
-          notes: `Draft ${documentType === DocumentType.SURAT_TUGAS ? 'Surat Tugas' : 'Surat Keputusan'} dibuat`
+          notes: `Draft ${DOCUMENT_TYPE_LABELS[documentType]} dibuat`
         }
       });
 
@@ -359,7 +420,7 @@ class HasilRepository {
         include: {
           documents: {
             where: {
-              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
+              type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
             },
             include: {
               signatures: { orderBy: { order: 'asc' } }
@@ -373,7 +434,17 @@ class HasilRepository {
       }
 
       const firstSignature = letter.documents[0].signatures[0];
-      const nextRole = firstSignature?.signerRole || 'DEKAN';
+      // Normalize the signer role to ensure it matches the user role format
+      const rawRole = firstSignature?.signerRole || 'DEKAN';
+      const nextRole = normalizeSignerRole(rawRole);
+
+      // Also update the signature record if it needs normalization
+      if (firstSignature && firstSignature.signerRole !== nextRole) {
+        await tx.documentSignature.update({
+          where: { id: firstSignature.id },
+          data: { signerRole: nextRole }
+        });
+      }
 
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
@@ -393,7 +464,7 @@ class HasilRepository {
           fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
           toStatus: LetterStatus.FAKULTAS_SIGNING,
           targetRole: nextRole,
-          notes: notes || 'Draft diverifikasi Manajer TU, siap untuk ditandatangani'
+          notes: notes || `Draft diverifikasi Manajer TU, diteruskan ke ${nextRole} untuk ditandatangani`
         }
       });
 
@@ -457,7 +528,7 @@ class HasilRepository {
         include: {
           documents: {
             where: {
-              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
+              type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
             },
             include: {
               signatures: { orderBy: { order: 'asc' } }

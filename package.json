@@ -28,6 +28,7 @@
     "hono": "^4.11.4",
     "jsonwebtoken": "^9.0.3",
     "minio": "^8.0.6",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "zod": "^4.2.1"
   },
@@ -45,5 +46,8 @@
     "prismabox": "^1.1.26",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "seed": "bun run src/db/seed.ts"
   }
 }

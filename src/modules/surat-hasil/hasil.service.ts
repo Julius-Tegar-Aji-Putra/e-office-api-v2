@@ -1,9 +1,9 @@
 /**
  * Surat Hasil Service
- * Business logic untuk modul drafting SK/ST oleh staf
+ * Business logic untuk modul drafting SK/ST/SP oleh staf
  */
 
-import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput } from './hasil.repository';
+import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, SURAT_HASIL_TYPES } from './hasil.repository';
 import { LetterStatus, DocumentType, LetterCategory, Prisma } from '../../generated/prisma/client';
 import { ROLES, STAF_ROLES, SUPERVISOR_ROLES } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
@@ -15,7 +15,7 @@ import { HTTP_STATUS } from '../../shared/constants/http';
 
 export interface CreateDraftServiceInput {
   letterId: string;
-  documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN';
+  documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_PENGANTAR' | 'SURAT_TUGAS_TABEL';
   content: Record<string, unknown>;
   tembusan?: string[];
   perihal?: string;
@@ -24,6 +24,10 @@ export interface CreateDraftServiceInput {
     signerName: string;
     signerNip?: string;
     order: number;
+    // Position data for signature placement on PDF
+    x?: number;
+    y?: number;
+    page?: number;
   }>;
 }
 
@@ -33,6 +37,17 @@ export interface UpdateDraftServiceInput {
   tembusan?: string[];
   perihal?: string;
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Check if document type is a surat hasil type
+ */
+const isSuratHasilType = (type: string): boolean => {
+  return (SURAT_HASIL_TYPES as readonly string[]).includes(type);
+};
 
 // ============================================================================
 // SERVICE CLASS
@@ -70,19 +85,39 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    // Check access
+    // Check access - more permissive for viewing
     const isStaff = userRoles.some(r => (STAF_ROLES as readonly string[]).includes(r));
+    const isSupervisor = userRoles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
+    const isManajerTU = userRoles.includes(ROLES.MANAJER_TU);
+    const isPejabat = userRoles.some(r => 
+      [ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2].includes(r as any)
+    );
     const isCurrentRole = letter.currentActiveRole
       ? userRoles.includes(letter.currentActiveRole)
       : false;
+    
+    // Allow access for: Staf, Supervisor, Manajer TU, Pejabat, or whoever is current active role
+    // This is for VIEWING the document, not taking action
+    const fakultasPhases: string[] = [
+      'FAKULTAS_DRAFTING',
+      'FAKULTAS_VERIFICATION',
+      'FAKULTAS_SIGNING',
+      'UPA_NUMBERING',
+      'UPA_STAMPING',
+      'UPA_FINALIZING',
+      'COMPLETED'
+    ];
+    const isFakultasPhase = fakultasPhases.includes(letter.status);
 
-    if (!isStaff && !isCurrentRole) {
+    const hasViewAccess = isStaff || isSupervisor || isManajerTU || isPejabat || isCurrentRole;
+
+    if (!hasViewAccess && !isFakultasPhase) {
       throw new AppError('Anda tidak memiliki akses', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Check existing SK/ST document
+    // Check existing SK/ST/SP document
     const existingDraft = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => isSuratHasilType(d.type)
     );
 
     const permissions = this.getActionPermissions(letter, userRoles);
@@ -112,9 +147,13 @@ class HasilService {
       throw new AppError('Bukan giliran Anda untuk membuat draft', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Check if SK/ST already exists
+    // Check if the same document type already exists
+    // Allow different document types (e.g., SP can exist alongside ST/SK)
     const existingDoc = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => d.type === input.documentType || 
+           // ST and ST_TABEL are considered the same type
+           (input.documentType === 'SURAT_TUGAS' && d.type === 'SURAT_TUGAS_TABEL') ||
+           (input.documentType === 'SURAT_TUGAS_TABEL' && d.type === 'SURAT_TUGAS')
     );
 
     if (existingDoc) {
@@ -126,9 +165,14 @@ class HasilService {
       throw new AppError('Minimal satu penandatangan harus dipilih', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const docType = input.documentType === 'SURAT_TUGAS'
-      ? DocumentType.SURAT_TUGAS
-      : DocumentType.SURAT_KEPUTUSAN;
+    // Map document type string to enum
+    const docTypeMap: Record<string, DocumentType> = {
+      'SURAT_TUGAS': DocumentType.SURAT_TUGAS,
+      'SURAT_KEPUTUSAN': DocumentType.SURAT_KEPUTUSAN,
+      'SURAT_PENGANTAR': DocumentType.SURAT_PENGANTAR,
+      'SURAT_TUGAS_TABEL': DocumentType.SURAT_TUGAS_TABEL
+    };
+    const docType = docTypeMap[input.documentType] || DocumentType.SURAT_TUGAS;
 
     const draftInput: CreateDraftInput = {
       letterInstanceId: input.letterId,
@@ -198,11 +242,11 @@ class HasilService {
 
     // Check if draft exists
     const hasDraft = letter.documents.some(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => isSuratHasilType(d.type)
     );
 
     if (!hasDraft) {
-      throw new AppError('Draft SK/ST belum dibuat', HTTP_STATUS.BAD_REQUEST);
+      throw new AppError('Draft SK/ST/SP belum dibuat', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Determine category for routing
@@ -333,13 +377,13 @@ class HasilService {
       throw new AppError('Hanya Supervisor/Manajer TU yang dapat mengubah draft', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Find SK/ST document
+    // Find surat hasil document
     const skstDocument = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => isSuratHasilType(d.type)
     );
 
     if (!skstDocument) {
-      throw new AppError('Dokumen SK/ST tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+      throw new AppError('Dokumen surat hasil tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
     const updateInput: UpdateDraftInput = {
@@ -412,7 +456,7 @@ class HasilService {
     const isVerification = letter.status === LetterStatus.FAKULTAS_VERIFICATION;
 
     const hasDraft = letter.documents.some(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => isSuratHasilType(d.type)
     );
 
     return {
