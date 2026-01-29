@@ -118,6 +118,7 @@ export interface SubmissionDetail {
   priority: Priority;
   currentActiveRole: string | null;
   signatureConfig: SignatureConfigDTO | null;
+  category: LetterCategory | null; // Kategori surat yang dipilih saat forward (bisa berbeda dari letterType.category)
 
   // Relations
   letterType: {

@@ -176,13 +176,15 @@ class DepartmentApprovalController {
 
   /**
    * POST /department-approval/:id/sign
-   * Kaprodi/Kadep signs the document
+   * Kaprodi/Kadep signs the document with new signature format
    */
   async signPengantar(
     letterId: string,
     body: {
-      signatureUrl: string;
-      signerName: string;
+      signatureData?: string; // base64 dari handwriting/upload
+      signatureUrl?: string;  // URL dari saved signature
+      saveSignature?: boolean;
+      signerName?: string;
       signerNip?: string;
     },
     userId: string,
@@ -191,7 +193,9 @@ class DepartmentApprovalController {
     try {
       const input: SignInput = {
         letterId,
+        signatureData: body.signatureData,
         signatureUrl: body.signatureUrl,
+        saveSignature: body.saveSignature,
         signerName: body.signerName,
         signerNip: body.signerNip
       };

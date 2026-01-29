@@ -262,6 +262,7 @@ model LetterInstance {
   status            LetterStatus       @default(SUBMITTED)
   currentActiveRole String?
   priority          Priority           @default(NORMAL)
+  category          LetterCategory?    // Kategori surat yang dipilih saat forward (AKADEMIK, SUMBER_DAYA, UMUM)
   signatureConfig   Json?              // Array koordinat TTD dari frontend: [{ signerId, x, y, page }]
   contentHtml       String?            @db.Text // HTML hasil generate surat final
   letterTypeId      String

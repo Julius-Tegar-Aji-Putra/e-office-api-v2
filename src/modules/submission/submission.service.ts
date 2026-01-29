@@ -192,6 +192,7 @@ export class SubmissionService {
       priority: submission.priority,
       currentActiveRole: submission.currentActiveRole,
       signatureConfig: sigConfig,
+      category: submission.category || null, // Kategori yang dipilih saat forward (bisa null jika belum forward)
       letterType: {
         id: submission.letterType.id,
         name: submission.letterType.name,

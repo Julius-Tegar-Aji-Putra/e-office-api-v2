@@ -54,7 +54,13 @@ export const saveDraftBodySchema = t.Object({
 });
 
 export const signBodySchema = t.Object({
-  signatureUrl: t.String({ minLength: 1, error: 'URL tanda tangan wajib diisi' }),
-  signerName: t.String({ minLength: 1, error: 'Nama penandatangan wajib diisi' }),
+  // Support both new format (base64 or saved signature) and legacy format
+  signatureData: t.Optional(t.String()), // base64 data dari handwriting/upload
+  signatureUrl: t.Optional(t.String()), // URL dari saved signature
+  saveSignature: t.Optional(t.Boolean()), // Save untuk penggunaan berikutnya
+  signerName: t.Optional(t.String()),
   signerNip: t.Optional(t.String())
+}, {
+  minProperties: 1, // Minimal ada satu dari signatureData atau signatureUrl
+  error: 'Tanda tangan (signatureData atau signatureUrl) wajib diisi'
 });

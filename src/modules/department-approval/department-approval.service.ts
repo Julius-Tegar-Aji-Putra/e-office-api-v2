@@ -42,8 +42,10 @@ export interface SaveDraftInput {
 
 export interface SignInput {
   letterId: string;
-  signatureUrl: string;
-  signerName: string;
+  signatureData?: string; // base64 dari handwriting/upload
+  signatureUrl?: string;  // URL dari saved signature
+  saveSignature?: boolean;
+  signerName?: string;
   signerNip?: string;
 }
 
@@ -266,7 +268,7 @@ class DepartmentApprovalService {
   }
 
   /**
-   * Sign surat pengantar (Kaprodi/Kadep)
+   * Sign surat pengantar (Kaprodi/Kadep) with new signature format
    */
   async signPengantar(input: SignInput, userId: string, userRole: string) {
     const letter = await departmentApprovalRepository.getLetterById(input.letterId);
@@ -283,18 +285,23 @@ class DepartmentApprovalService {
       throw new AppError('Bukan giliran Anda untuk menandatangani', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Validate signature URL
-    if (!input.signatureUrl || input.signatureUrl.trim() === '') {
-      throw new AppError('URL tanda tangan wajib diisi', HTTP_STATUS.BAD_REQUEST);
+    // Validate that at least one signature format is provided
+    if ((!input.signatureData || input.signatureData.trim() === '') &&
+        (!input.signatureUrl || input.signatureUrl.trim() === '')) {
+      throw new AppError('Tanda tangan (base64 atau URL) wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
+
+    // Use signatureUrl if available, otherwise use signatureData
+    const signatureUrl = input.signatureUrl || input.signatureData || '';
 
     return departmentApprovalRepository.signPengantar(
       input.letterId,
       userId,
       userRole,
-      input.signatureUrl,
+      signatureUrl,
       input.signerName,
-      input.signerNip
+      input.signerNip,
+      input.saveSignature ?? false
     );
   }
 
