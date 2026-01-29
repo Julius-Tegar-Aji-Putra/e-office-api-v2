@@ -203,29 +203,43 @@ export class SubmissionService {
         name: submission.createdBy.name,
         email: submission.createdBy.email,
       },
-      documents: submission.documents.map((doc: any) => ({
-        id: doc.id,
-        type: doc.type,
-        nomorSurat: doc.nomorSurat,
-        tanggalSurat: doc.tanggalSurat,
-        perihal: doc.perihal,
-        isSigned: doc.isSigned,
-        fileUrl: doc.fileUrl,
-        content: doc.content || null, // Form data untuk generate preview
-        contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
-        signatures: doc.signatures.map((sig: any) => ({
-          signerRole: sig.signerRole,
-          signerName: sig.signerName,
-          signerNip: sig.signerNip || null,
-          signatureUrl: sig.signatureUrl || null, // URL of the actual signature image
-          signedAt: sig.signedAt,
-          order: sig.order,
-          // Position data for signature placement on PDF
-          positionX: sig.positionX,
-          positionY: sig.positionY,
-          positionPage: sig.positionPage,
-        })),
-      })),
+      documents: await Promise.all(
+        submission.documents.map(async (doc: any) => {
+          // Convert fileUrl storage path to signed URL
+          let signedFileUrl = doc.fileUrl;
+          if (doc.fileUrl && !doc.fileUrl.startsWith('http')) {
+            try {
+              signedFileUrl = await this.minio.getFileUrl(doc.fileUrl);
+            } catch (error) {
+              console.error(`Failed to get signed URL for document ${doc.id}:`, error);
+            }
+          }
+
+          return {
+            id: doc.id,
+            type: doc.type,
+            nomorSurat: doc.nomorSurat,
+            tanggalSurat: doc.tanggalSurat,
+            perihal: doc.perihal,
+            isSigned: doc.isSigned,
+            fileUrl: signedFileUrl,
+            content: doc.content || null, // Form data untuk generate preview
+            contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
+            signatures: doc.signatures.map((sig: any) => ({
+              signerRole: sig.signerRole,
+              signerName: sig.signerName,
+              signerNip: sig.signerNip || null,
+              signatureUrl: sig.signatureUrl || null, // URL of the actual signature image
+              signedAt: sig.signedAt,
+              order: sig.order,
+              // Position data for signature placement on PDF
+              positionX: sig.positionX,
+              positionY: sig.positionY,
+              positionPage: sig.positionPage,
+            })),
+          };
+        })
+      ),
       attachments: attachmentsWithUrls,
       logs: submission.logs.map((log: any) => ({
         id: log.id,

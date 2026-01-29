@@ -39,6 +39,17 @@ export interface EmbedSignaturePlaceholdersOptions {
   blockHeight?: number;
 }
 
+export interface UpdateNomorSuratOptions {
+  pdfBytes: Uint8Array;
+  nomorSurat: string;
+  /** X position to start drawing the nomor surat text */
+  x?: number;
+  /** Y position from top of page */
+  y?: number;
+  /** Page number (1-indexed) */
+  page?: number;
+}
+
 /**
  * Embed signatures into PDF at specified positions
  */
@@ -320,6 +331,78 @@ export async function createBasicPdf(content: {
     });
     y -= 15;
   }
+
+  return pdfDoc.save();
+}
+
+/**
+ * Update nomor surat in an existing PDF
+ * Uses overlay approach: covers "undefined" with white and draws new text
+ * 
+ * The function searches for the approximate position of "Nomor" text
+ * and overlays the new nomor surat value.
+ * 
+ * For Surat Tugas/SK templates, the "Nomor : xxx" is typically:
+ * - Centered horizontally
+ * - About 200pt from the top (below the "SURAT TUGAS" title)
+ */
+export async function updateNomorSuratInPdf(options: UpdateNomorSuratOptions): Promise<Uint8Array> {
+  const { pdfBytes, nomorSurat, page = 1 } = options;
+
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+  
+  const pageIndex = page - 1;
+  if (pageIndex < 0 || pageIndex >= pages.length) {
+    console.warn(`Invalid page number ${page}, using first page`);
+  }
+
+  const targetPage = pages[Math.max(0, Math.min(pageIndex, pages.length - 1))];
+  const { width, height } = targetPage.getSize();
+
+  // Embed fonts
+  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+
+  // Standard position for "Nomor" in Surat Tugas template
+  // Based on FSM UNDIP template layout:
+  // - Title "SURAT TUGAS" is underlined and centered
+  // - "Nomor : undefined" is directly below it, also centered
+  
+  // Y position - approximately 200pt from top for this template
+  // In PDF coordinates (from bottom), that's height - 200
+  const nomorY = options.y !== undefined 
+    ? height - options.y 
+    : height - 200;
+
+  // Calculate center position for the new text
+  const nomorText = `Nomor : ${nomorSurat}`;
+  const textWidth = font.widthOfTextAtSize(nomorText, 11);
+  const centerX = options.x !== undefined 
+    ? options.x 
+    : (width - textWidth) / 2;
+
+  // Cover the old "Nomor : undefined" with white rectangle
+  // Make it wide enough to cover any existing nomor text
+  const coverWidth = 250; // Wide enough to cover "Nomor : undefined" or any long number
+  const coverX = (width - coverWidth) / 2;
+  
+  targetPage.drawRectangle({
+    x: coverX,
+    y: nomorY - 4,
+    width: coverWidth,
+    height: 18,
+    color: rgb(1, 1, 1), // White
+    opacity: 1,
+  });
+
+  // Draw the complete "Nomor : [nomor surat]" text, centered
+  targetPage.drawText(nomorText, {
+    x: centerX,
+    y: nomorY,
+    size: 11,
+    font,
+    color: rgb(0, 0, 0),
+  });
 
   return pdfDoc.save();
 }

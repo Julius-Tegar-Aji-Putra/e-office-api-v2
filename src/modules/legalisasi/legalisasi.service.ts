@@ -17,6 +17,8 @@ import {
   getActionType,
   getDisplayStatus
 } from './legalisasi.types';
+import { updateNomorSuratInPdf } from '../../shared/utils/pdf-generator';
+import { MinioService } from '../../shared/services/minio.service';
 import type { 
   UpaQueueFilter, 
   UpaDashboardItem, 
@@ -39,6 +41,9 @@ export interface ServiceResult<T = unknown> {
 
 // Default seal image URL (should be stored in MinIO/storage)
 const DEFAULT_SEAL_URL = '/assets/seal/undip-fsm-seal.png';
+
+// MinIO service instance
+const minioService = new MinioService();
 
 // ============================================================================
 // SERVICE CLASS
@@ -363,6 +368,17 @@ class LegalisasiService {
         };
       }
 
+      // Update the PDF with the new nomor surat
+      if (document.fileUrl) {
+        try {
+          await this.updatePdfWithNomorSurat(document.fileUrl, input.nomorSurat, input.documentId);
+        } catch (pdfError) {
+          console.error('Error updating PDF with nomor surat:', pdfError);
+          // Continue with database update even if PDF update fails
+          // The nomor surat will still be stored in database
+        }
+      }
+
       const result = await legalisasiRepository.assignNomorSurat(input, userId, userRole);
 
       return {
@@ -377,6 +393,45 @@ class LegalisasiService {
         code: 500
       };
     }
+  }
+
+  /**
+   * Update PDF file with the new nomor surat
+   * Downloads the PDF, updates the nomor surat text, and re-uploads
+   */
+  private async updatePdfWithNomorSurat(
+    fileUrl: string,
+    nomorSurat: string,
+    documentId: string
+  ): Promise<void> {
+    // Fetch the existing PDF
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch PDF: ${response.statusText}`);
+    }
+
+    const pdfArrayBuffer = await response.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfArrayBuffer);
+
+    // Update the PDF with the new nomor surat
+    const updatedPdfBytes = await updateNomorSuratInPdf({
+      pdfBytes,
+      nomorSurat,
+      page: 1, // Nomor surat is typically on first page
+    });
+
+    // Upload the updated PDF back to storage
+    // Extract the storage path from the URL
+    const urlObj = new URL(fileUrl);
+    const pathParts = urlObj.pathname.split('/');
+    // Remove the bucket name from the path (first segment after leading /)
+    const storagePath = pathParts.slice(2).join('/');
+
+    // Upload the updated PDF
+    const file = new File([updatedPdfBytes], 'updated.pdf', { type: 'application/pdf' });
+    await minioService.uploadFile(file, storagePath);
+
+    console.log(`PDF updated with nomor surat: ${nomorSurat} for document ${documentId}`);
   }
 
   /**
