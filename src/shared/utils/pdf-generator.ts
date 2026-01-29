@@ -406,3 +406,134 @@ export async function updateNomorSuratInPdf(options: UpdateNomorSuratOptions): P
 
   return pdfDoc.save();
 }
+
+/**
+ * QR Code position configuration
+ */
+export interface QRCodePosition {
+  x: number;      // X position from right edge (in PDF points)
+  y: number;      // Y position from bottom edge (in PDF points)
+  width: number;  // QR Code width
+  height: number; // QR Code height
+}
+
+/**
+ * Default QR Code position (bottom-right corner)
+ */
+const DEFAULT_QR_POSITION: QRCodePosition = {
+  x: 30,      // 30 points from right edge
+  y: 30,      // 30 points from bottom edge
+  width: 60,  // 60 points wide (~21mm)
+  height: 60, // 60 points tall
+};
+
+/**
+ * Options for embedding QR Code
+ */
+export interface EmbedQRCodeOptions {
+  pdfBytes: Uint8Array;
+  qrCodeDataUrl: string;
+  position?: Partial<QRCodePosition>;
+  addToAllPages?: boolean;
+}
+
+/**
+ * Embed QR Code ke semua halaman PDF
+ * QR Code akan muncul di sudut kanan bawah setiap halaman
+ * 
+ * @param options - Opsi untuk embed QR Code
+ * @returns Promise<Uint8Array> - PDF dengan QR Code di setiap halaman
+ */
+export async function embedQRCodeToAllPages(options: EmbedQRCodeOptions): Promise<Uint8Array> {
+  const { pdfBytes, qrCodeDataUrl, position = {}, addToAllPages = true } = options;
+  
+  // Merge with default position
+  const qrPosition = { ...DEFAULT_QR_POSITION, ...position };
+  
+  // Load the existing PDF
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+
+  // Convert QR Code data URL to bytes
+  let qrImageBytes: Uint8Array;
+  try {
+    // Extract base64 from data URL
+    const base64Data = qrCodeDataUrl.split(',')[1];
+    qrImageBytes = Buffer.from(base64Data, 'base64');
+  } catch (error) {
+    console.error('Error parsing QR Code data URL:', error);
+    throw new Error('Invalid QR Code data URL');
+  }
+
+  // Embed the QR Code image
+  let qrImage;
+  try {
+    if (qrCodeDataUrl.includes('image/png')) {
+      qrImage = await pdfDoc.embedPng(qrImageBytes);
+    } else {
+      qrImage = await pdfDoc.embedJpg(qrImageBytes);
+    }
+  } catch (error) {
+    console.error('Error embedding QR Code image:', error);
+    throw new Error('Failed to embed QR Code image');
+  }
+
+  // Determine which pages to add QR to
+  const targetPages = addToAllPages ? pages : [pages[0]];
+
+  // Add QR Code to each target page
+  for (const page of targetPages) {
+    const pageWidth = page.getWidth();
+
+    // Calculate position (from bottom-right corner)
+    const x = pageWidth - qrPosition.x - qrPosition.width;
+    const y = qrPosition.y;
+
+    try {
+      page.drawImage(qrImage, {
+        x,
+        y,
+        width: qrPosition.width,
+        height: qrPosition.height,
+      });
+    } catch (error) {
+      console.error('Error drawing QR Code on page:', error);
+    }
+  }
+
+  // Save and return
+  return pdfDoc.save();
+}
+
+/**
+ * Generate final PDF dengan QR Code dan tanda tangan
+ * Combines all finalization steps
+ */
+export async function generateFinalizedPdf(options: {
+  pdfBytes: Uint8Array;
+  signatures?: SignaturePosition[];
+  qrCodeDataUrl?: string;
+  qrPosition?: Partial<QRCodePosition>;
+}): Promise<Uint8Array> {
+  let finalPdf = options.pdfBytes;
+
+  // Embed signatures if provided
+  if (options.signatures && options.signatures.length > 0) {
+    finalPdf = await embedSignaturesIntoPdf({
+      pdfBytes: finalPdf,
+      signatures: options.signatures,
+    });
+  }
+
+  // Embed QR Code if provided
+  if (options.qrCodeDataUrl) {
+    finalPdf = await embedQRCodeToAllPages({
+      pdfBytes: finalPdf,
+      qrCodeDataUrl: options.qrCodeDataUrl,
+      position: options.qrPosition,
+      addToAllPages: true,
+    });
+  }
+
+  return finalPdf;
+}

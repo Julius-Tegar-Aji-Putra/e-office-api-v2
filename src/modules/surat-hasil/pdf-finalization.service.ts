@@ -52,9 +52,16 @@ class PdfFinalizationService {
       let basePdfBytes: Uint8Array | null = null;
 
       if (document.fileUrl) {
-        // Fetch existing PDF
+        // Fetch existing PDF - get signed URL if fileUrl is storage path
         try {
-          const response = await fetch(document.fileUrl);
+          let pdfUrl = document.fileUrl;
+          if (!pdfUrl.startsWith('http')) {
+            // Import MinioService dynamically to avoid circular deps
+            const { MinioService } = await import('../../shared/services/minio.service');
+            const minio = new MinioService();
+            pdfUrl = await minio.getFileUrl(pdfUrl);
+          }
+          const response = await fetch(pdfUrl);
           if (response.ok) {
             basePdfBytes = new Uint8Array(await response.arrayBuffer());
           }

@@ -444,6 +444,7 @@ enum LogAction {
   FINALIZE
   STATUS_CHANGE
   COMMENT
+  VIEW
 
   @@map("log_action")
 }

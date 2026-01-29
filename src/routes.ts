@@ -16,6 +16,7 @@ import { hasilRoutes } from './modules/surat-hasil/hasil.route';
 import { signingRoutes } from './modules/surat-hasil/signing.route';
 import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
 import { signatureRoutes } from './modules/signature/signature.route';
+import { tembusanRoute } from './modules/tembusan/tembusan.route';
 
 // Import existing routes
 import dashRoutes from './routes/dash';
@@ -78,6 +79,9 @@ export function createApiRoutes() {
 
     // Module G: SIGNATURE (Saved Signatures Management)
     .group('/api', (api) => api.use(signatureRoutes))
+
+    // Module H: TEMBUSAN (Received Documents)
+    .use(tembusanRoute)
 
     // =========================================================================
     // DASHBOARD ROUTES

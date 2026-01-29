@@ -145,7 +145,8 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
         {
           documentId: params.documentId,
           nomorSurat: body.nomorSurat,
-          tanggalSurat: new Date(body.tanggalSurat)
+          tanggalSurat: new Date(body.tanggalSurat),
+          position: body.position // Pass position data for PDF overlay
         },
         user.id,
         activeRole
@@ -251,6 +252,38 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
         tags: ['Legalisasi'],
         summary: 'Get tembusan recipients',
         description: 'Get list of tembusan recipients for a document'
+      }
+    }
+  )
+  
+  // =========================================================================
+  // PDF PROXY - Serve PDF files directly to avoid signed URL issues
+  // =========================================================================
+  
+  .get(
+    '/document/:documentId/pdf',
+    async ({ params, user, set }) => {
+      const roles = await getUserRoles(user.id);
+      const activeRole = roles.includes('UPA') ? 'UPA' : roles[0];
+
+      const result = await legalisasiService.getDocumentPdf(params.documentId, user.id, activeRole);
+      
+      if (!result.success) {
+        set.status = result.code || 404;
+        return { success: false, error: result.error };
+      }
+      
+      set.headers['Content-Type'] = 'application/pdf';
+      set.headers['Content-Disposition'] = `inline; filename="${result.filename}"`;
+      
+      return result.data;
+    },
+    {
+      params: documentIdParamSchema,
+      detail: {
+        tags: ['Legalisasi'],
+        summary: 'Get document PDF',
+        description: 'Stream PDF file directly from storage'
       }
     }
   );

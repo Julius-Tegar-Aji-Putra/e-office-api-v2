@@ -3,21 +3,17 @@
  * Business logic untuk modul UPA (penomoran, stempel, QR code, finalisasi)
  */
 
-import QRCode from 'qrcode';
 import { legalisasiRepository } from './legalisasi.repository';
 import { LetterStatus, LegalisasiStatus, DocumentType } from '../../generated/prisma/client';
-import { 
-  encryptVerificationData, 
-  generateVerificationUrl,
-  decryptVerificationData 
-} from '../../shared/utils/encryption';
+import { decryptVerificationData } from '../../shared/utils/encryption';
 import { 
   validateNomorFormat, 
   generateNomorSuggestion,
   getActionType,
   getDisplayStatus
 } from './legalisasi.types';
-import { updateNomorSuratInPdf } from '../../shared/utils/pdf-generator';
+import { distributionService } from '../../shared/services/distribution.service';
+import { legalisasiPdfService } from './legalisasi-pdf.service';
 import { MinioService } from '../../shared/services/minio.service';
 import type { 
   UpaQueueFilter, 
@@ -39,17 +35,25 @@ export interface ServiceResult<T = unknown> {
   code?: number;
 }
 
-// Default seal image URL (should be stored in MinIO/storage)
-const DEFAULT_SEAL_URL = '/assets/seal/undip-fsm-seal.png';
-
-// MinIO service instance
-const minioService = new MinioService();
+export interface PdfResult {
+  success: boolean;
+  data?: Buffer;
+  filename?: string;
+  error?: string;
+  code?: number;
+}
 
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
 
 class LegalisasiService {
+  private minio: MinioService;
+  
+  constructor() {
+    this.minio = new MinioService();
+  }
+  
   /**
    * Get UPA queue with transformed data
    */
@@ -324,9 +328,20 @@ class LegalisasiService {
 
   /**
    * Assign nomor surat to document
+   * Supports optional position data for PDF overlay
    */
   async assignNomorSurat(
-    input: { documentId: string; nomorSurat: string; tanggalSurat: Date },
+    input: { 
+      documentId: string; 
+      nomorSurat: string; 
+      tanggalSurat: Date;
+      position?: {
+        x: number;
+        y: number;
+        page: number;
+        fontSize: number;
+      };
+    },
     userId: string,
     userRole: string
   ): Promise<ServiceResult> {
@@ -368,22 +383,59 @@ class LegalisasiService {
         };
       }
 
-      // Update the PDF with the new nomor surat
-      if (document.fileUrl) {
+      // ✅ Generate/Update the PDF with the new nomor surat
+      // Use position-based overlay if position is provided (from drag-and-drop),
+      // otherwise fall back to template-based regeneration
+      let newFileUrl: string | undefined;
+      try {
+        if (input.position) {
+          // Position-based overlay - uses drag-and-drop position from NumberingModal
+          console.log(`Using position-based overlay at (${input.position.x}, ${input.position.y})`);
+          newFileUrl = await legalisasiPdfService.overlayNomorSuratWithPosition(
+            input.documentId,
+            input.nomorSurat,
+            input.position
+          );
+        } else {
+          // Template-based regeneration - puts nomor surat in template location
+          newFileUrl = await legalisasiPdfService.regeneratePdfWithNomorSurat(
+            input.documentId,
+            input.nomorSurat
+          );
+        }
+        console.log(`PDF updated with nomor surat: ${input.nomorSurat}, new path: ${newFileUrl}`);
+      } catch (pdfError) {
+        console.error('Error generating PDF with nomor surat:', pdfError);
+        return {
+          success: false,
+          error: `Gagal meng-generate PDF dengan nomor surat: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
+          code: 500
+        };
+      }
+
+      const result = await legalisasiRepository.assignNomorSurat(
+        { ...input, fileUrl: newFileUrl }, 
+        userId, 
+        userRole
+      );
+
+      // Generate a new presigned URL for the updated PDF
+      let signedFileUrl: string | undefined;
+      if (newFileUrl) {
         try {
-          await this.updatePdfWithNomorSurat(document.fileUrl, input.nomorSurat, input.documentId);
-        } catch (pdfError) {
-          console.error('Error updating PDF with nomor surat:', pdfError);
-          // Continue with database update even if PDF update fails
-          // The nomor surat will still be stored in database
+          signedFileUrl = await this.minio.getFileUrl(newFileUrl);
+        } catch (urlError) {
+          console.error('Error generating signed URL:', urlError);
+          // Continue without signed URL - frontend will use proxy endpoint
         }
       }
 
-      const result = await legalisasiRepository.assignNomorSurat(input, userId, userRole);
-
       return {
         success: true,
-        data: result
+        data: {
+          ...result,
+          fileUrl: signedFileUrl || newFileUrl // Return signed URL if available
+        }
       };
     } catch (error) {
       console.error('Error assigning nomor surat:', error);
@@ -393,45 +445,6 @@ class LegalisasiService {
         code: 500
       };
     }
-  }
-
-  /**
-   * Update PDF file with the new nomor surat
-   * Downloads the PDF, updates the nomor surat text, and re-uploads
-   */
-  private async updatePdfWithNomorSurat(
-    fileUrl: string,
-    nomorSurat: string,
-    documentId: string
-  ): Promise<void> {
-    // Fetch the existing PDF
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch PDF: ${response.statusText}`);
-    }
-
-    const pdfArrayBuffer = await response.arrayBuffer();
-    const pdfBytes = new Uint8Array(pdfArrayBuffer);
-
-    // Update the PDF with the new nomor surat
-    const updatedPdfBytes = await updateNomorSuratInPdf({
-      pdfBytes,
-      nomorSurat,
-      page: 1, // Nomor surat is typically on first page
-    });
-
-    // Upload the updated PDF back to storage
-    // Extract the storage path from the URL
-    const urlObj = new URL(fileUrl);
-    const pathParts = urlObj.pathname.split('/');
-    // Remove the bucket name from the path (first segment after leading /)
-    const storagePath = pathParts.slice(2).join('/');
-
-    // Upload the updated PDF
-    const file = new File([updatedPdfBytes], 'updated.pdf', { type: 'application/pdf' });
-    await minioService.uploadFile(file, storagePath);
-
-    console.log(`PDF updated with nomor surat: ${nomorSurat} for document ${documentId}`);
   }
 
   /**
@@ -460,11 +473,26 @@ class LegalisasiService {
         };
       }
 
-      // Use default seal if not provided
-      const sealImageUrl = input.sealImageUrl || DEFAULT_SEAL_URL;
+      // ✅ Embed stempel UNDIP ke PDF menggunakan legalisasiPdfService
+      let newFileUrl: string | undefined;
+      try {
+        newFileUrl = await legalisasiPdfService.regeneratePdfWithStempel(input.documentId);
+        console.log(`PDF regenerated with stempel UNDIP, new URL: ${newFileUrl}`);
+      } catch (pdfError) {
+        console.error('Error regenerating PDF with stempel:', pdfError);
+        return {
+          success: false,
+          error: `Gagal membubuhkan stempel ke PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
+          code: 500
+        };
+      }
 
       const result = await legalisasiRepository.applyStempel(
-        { documentId: input.documentId, sealImageUrl },
+        { 
+          documentId: input.documentId, 
+          sealImageUrl: 'local:stempel.png', // Use local stempel from public folder
+          fileUrl: newFileUrl
+        },
         userId,
         userRole
       );
@@ -520,55 +548,42 @@ class LegalisasiService {
         return { success: false, error: 'Tidak ada penandatangan', code: 400 };
       }
 
-      // Build verification payload
-      const payload = {
-        id: document.id,
-        no: document.nomorSurat,
-        ttd: highestSigner.signerName,
-        tgl: document.tanggalSurat?.toISOString() || new Date().toISOString(),
-        jenis: document.type,
-        perihal: document.perihal || undefined
-      };
+      // ✅ Regenerate PDF with QR Code using legalisasiPdfService
+      let qrResult;
+      try {
+        qrResult = await legalisasiPdfService.regeneratePdfWithQRCode(documentId);
+        console.log(`PDF regenerated with QR Code, new URL: ${qrResult.pdfUrl}`);
+      } catch (pdfError) {
+        console.error('Error regenerating PDF with QR Code:', pdfError);
+        return {
+          success: false,
+          error: `Gagal generate QR Code ke PDF: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`,
+          code: 500
+        };
+      }
 
-      // Encrypt payload
-      const encryptedToken = encryptVerificationData(payload);
-      
-      // Generate verification URL
-      const verificationUrl = generateVerificationUrl(encryptedToken);
-
-      // Generate QR Code image
-      const qrCodeDataUrl = await QRCode.toDataURL(verificationUrl, {
-        errorCorrectionLevel: 'H',
-        type: 'image/png',
-        width: 200,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-
-      // Extract base64 from data URL
-      const qrCodeBase64 = qrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
-
-      // Save to database
+      // Save QR data to database and create log entry
       await legalisasiRepository.saveQRCode(
         {
           documentId,
-          barcodeData: encryptedToken,
-          qrCodeUrl: qrCodeDataUrl
+          barcodeData: qrResult.encryptedToken,
+          qrCodeUrl: qrResult.qrCodeUrl,
+          fileUrl: qrResult.pdfUrl
         },
         userId,
         userRole
       );
 
+      // Extract base64 from data URL
+      const qrCodeBase64 = qrResult.qrCodeUrl.replace(/^data:image\/png;base64,/, '');
+
       return {
         success: true,
         data: {
           qrCodeBase64,
-          qrCodeDataUrl,
-          encryptedToken,
-          verificationUrl
+          qrCodeDataUrl: qrResult.qrCodeUrl,
+          encryptedToken: qrResult.encryptedToken,
+          verificationUrl: qrResult.verificationUrl
         }
       };
     } catch (error) {
@@ -622,8 +637,36 @@ class LegalisasiService {
 
       const result = await legalisasiRepository.finalizeDocument(input, userId, userRole);
 
-      // TODO: Send notification to tembusan recipients
-      // await this.notifyTembusanRecipients(document.id);
+      // Distribute to tembusan recipients (internal system, bukan email)
+      try {
+        const tembusanData = document.tembusan;
+        const recipients = distributionService.parseTembusanData(tembusanData);
+        
+        if (recipients.length > 0) {
+          // Resolve recipients (convert role-based to user IDs if needed)
+          const mahasiswa = document.letterInstance.createdBy.mahasiswa;
+          const resolvedRecipients = await distributionService.resolveRecipients(recipients, {
+            departemenId: mahasiswa?.departemenId,
+            programStudiId: mahasiswa?.programStudiId,
+          });
+
+          // Distribute document to recipients
+          const distributeResult = await distributionService.distributeDocument({
+            documentId: input.documentId,
+            letterInstanceId: document.letterInstanceId,
+            recipients: resolvedRecipients,
+            distributedBy: {
+              userId,
+              role: userRole,
+            },
+          });
+
+          console.log(`Document distributed: ${distributeResult.distributed} success, ${distributeResult.failed} failed`);
+        }
+      } catch (distError) {
+        // Log error but don't fail the finalization
+        console.error('Error distributing to tembusan:', distError);
+      }
 
       return { success: true, data: result };
     } catch (error) {
@@ -777,6 +820,78 @@ class LegalisasiService {
       showFinalizeButton: letterStatus === LetterStatus.UPA_FINALIZING && 
                           legalisasiStatus === LegalisasiStatus.QR_GENERATED
     };
+  }
+
+  /**
+   * Get PDF document for download/preview (bypasses signed URL issues)
+   */
+  async getDocumentPdf(
+    documentId: string,
+    userId: string,
+    userRole: string
+  ): Promise<PdfResult> {
+    try {
+      // Get document with related data
+      const document = await legalisasiRepository.getDocumentById(documentId);
+      
+      if (!document) {
+        return { success: false, error: 'Document not found', code: 404 };
+      }
+
+      // Check if user has access (UPA roles)
+      const allowedRoles = ['STAFF_UPA', 'ADMIN_UPA', 'ADMIN', 'SUPER_ADMIN'];
+      if (!allowedRoles.includes(userRole)) {
+        return { success: false, error: 'Unauthorized access', code: 403 };
+      }
+
+      // Get file URL from database
+      const fileUrl = document.fileUrl;
+      if (!fileUrl) {
+        return { success: false, error: 'No PDF file available for this document', code: 404 };
+      }
+
+      console.log('[LegalisasiService.getDocumentPdf] Fetching PDF:', { documentId, fileUrl });
+
+      // If fileUrl is a storage path (not http), download from MinIO
+      let pdfBuffer: Buffer;
+      
+      if (fileUrl.startsWith('http')) {
+        // It's a signed URL - fetch via HTTP
+        const response = await fetch(fileUrl);
+        if (!response.ok) {
+          console.error('[LegalisasiService.getDocumentPdf] Failed to fetch from URL:', response.status);
+          return { success: false, error: 'Failed to fetch PDF from storage', code: 500 };
+        }
+        pdfBuffer = Buffer.from(await response.arrayBuffer());
+      } else {
+        // It's a storage path - download directly from MinIO
+        try {
+          pdfBuffer = await this.minio.downloadFile(fileUrl);
+        } catch (err) {
+          console.error('[LegalisasiService.getDocumentPdf] MinIO error:', err);
+          return { success: false, error: 'Storage error', code: 500 };
+        }
+      }
+
+      // Generate filename
+      const nomorSurat = document.nomorSurat || 'document';
+      const safeFilename = nomorSurat.replace(/[\/\\?%*:|"<>]/g, '-') + '.pdf';
+
+      console.log('[LegalisasiService.getDocumentPdf] Success, returning buffer of', pdfBuffer.length, 'bytes');
+
+      return {
+        success: true,
+        data: pdfBuffer,
+        filename: safeFilename
+      };
+    } catch (error) {
+      console.error('[LegalisasiService.getDocumentPdf] Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        code: 500
+      };
+    }
   }
 }
 

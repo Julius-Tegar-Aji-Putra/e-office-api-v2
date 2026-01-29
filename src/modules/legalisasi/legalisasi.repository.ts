@@ -21,17 +21,20 @@ export interface AssignNumberInput {
   documentId: string;
   nomorSurat: string;
   tanggalSurat: Date;
+  fileUrl?: string; // Generated PDF URL with nomor surat embedded
 }
 
 export interface ApplyStempelInput {
   documentId: string;
   sealImageUrl: string;
+  fileUrl?: string; // Generated PDF URL with stempel embedded
 }
 
 export interface GenerateQRInput {
   documentId: string;
   barcodeData: string;
   qrCodeUrl: string;
+  fileUrl?: string; // Generated PDF URL with QR code embedded
 }
 
 export interface FinalizeInput {
@@ -294,13 +297,14 @@ class LegalisasiRepository {
 
       if (!document) throw new Error('Document not found');
 
-      // Update document with nomor surat
+      // Update document with nomor surat and new PDF URL
       const updatedDoc = await tx.letterDocument.update({
         where: { id: input.documentId },
         data: {
           nomorSurat: input.nomorSurat,
           tanggalSurat: input.tanggalSurat,
           legalisasiStatus: LegalisasiStatus.NOMOR_DIBERIKAN,
+          ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
         include: { 
@@ -355,12 +359,13 @@ class LegalisasiRepository {
 
       if (!document) throw new Error('Document not found');
 
-      // Update document with seal
+      // Update document with seal and new PDF URL
       const updatedDoc = await tx.letterDocument.update({
         where: { id: input.documentId },
         data: {
           sealImageUrl: input.sealImageUrl,
           legalisasiStatus: LegalisasiStatus.STEMPEL_DIBERIKAN,
+          ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
         include: { 
@@ -412,13 +417,14 @@ class LegalisasiRepository {
 
       if (!document) throw new Error('Document not found');
 
-      // Update document with QR data
+      // Update document with QR data and new PDF URL
       const updatedDoc = await tx.letterDocument.update({
         where: { id: input.documentId },
         data: {
           barcodeData: input.barcodeData,
           qrCodeUrl: input.qrCodeUrl,
           legalisasiStatus: LegalisasiStatus.QR_GENERATED,
+          ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
         include: { 

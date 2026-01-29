@@ -19,6 +19,7 @@ const MINIO_CONFIG = {
   useSSL: env.MINIO_USE_SSL === 'true',
   accessKey: env.MINIO_ACCESS_KEY,
   secretKey: env.MINIO_SECRET_KEY,
+  region: env.MINIO_REGION || 'us-east-1',
 };
 
 const DEFAULT_BUCKET = env.MINIO_BUCKET_NAME;
@@ -120,6 +121,8 @@ export class MinioService {
 
     const storageName = this.generateStorageName(originalFileName);
     const storagePath = this.buildStoragePath(storageName, folder);
+    
+    console.log(`[MinIO] uploadFile: bucket="${this.bucket}", storagePath="${storagePath}"`);
 
     try {
       const metadata = {
@@ -134,6 +137,8 @@ export class MinioService {
         fileData.length,
         metadata
       );
+      
+      console.log(`[MinIO] uploadFile success: etag="${result.etag}", returning path="${storagePath}"`);
 
       return {
         storageName,
@@ -148,6 +153,30 @@ export class MinioService {
   }
 
   /**
+   * Sanitize storage path - remove bucket name prefix if accidentally included
+   */
+  private sanitizePath(storagePath: string): string {
+    let cleanPath = storagePath;
+    
+    // Remove bucket name prefix if accidentally included (e.g., "e-office-storage/documents/...")
+    if (cleanPath.startsWith(`${this.bucket}/`)) {
+      cleanPath = cleanPath.substring(this.bucket.length + 1);
+      console.warn(`[MinIO] Removed bucket prefix from path: ${storagePath} -> ${cleanPath}`);
+    }
+    
+    // Also handle double bucket prefix (e.g., "e-office-storage/e-office-storage/...")
+    while (cleanPath.startsWith(`${this.bucket}/`)) {
+      cleanPath = cleanPath.substring(this.bucket.length + 1);
+      console.warn(`[MinIO] Removed additional bucket prefix: ${cleanPath}`);
+    }
+    
+    // Debug log
+    console.log(`[MinIO] sanitizePath: input="${storagePath}" output="${cleanPath}"`);
+    
+    return cleanPath;
+  }
+
+  /**
    * Get signed URL for file download/view
    * @param storagePath - Full storage path in bucket
    * @param expirySeconds - URL expiry time (default: 1 hour)
@@ -156,14 +185,21 @@ export class MinioService {
   async getFileUrl(storagePath: string, expirySeconds: number = SIGNED_URL_EXPIRY): Promise<string> {
     await this.initialize();
 
+    console.log(`[MinIO] getFileUrl called with: bucket="${this.bucket}", path="${storagePath}"`);
+    
     try {
-      return await this.client.presignedGetObject(
+      const cleanPath = this.sanitizePath(storagePath);
+      console.log(`[MinIO] Calling presignedGetObject: bucket="${this.bucket}", cleanPath="${cleanPath}"`);
+      
+      const url = await this.client.presignedGetObject(
         this.bucket,
-        storagePath,
+        cleanPath,
         expirySeconds
       );
+      console.log(`[MinIO] presignedGetObject success, URL length: ${url.length}`);
+      return url;
     } catch (error) {
-      console.error('MinIO get URL error:', error);
+      console.error('[MinIO] getFileUrl error:', error);
       throw new Error(`Failed to get file URL: ${storagePath}`);
     }
   }
@@ -176,7 +212,8 @@ export class MinioService {
     await this.initialize();
 
     try {
-      await this.client.removeObject(this.bucket, storagePath);
+      const cleanPath = this.sanitizePath(storagePath);
+      await this.client.removeObject(this.bucket, cleanPath);
     } catch (error) {
       console.error('MinIO delete error:', error);
       throw new Error(`Failed to delete file: ${storagePath}`);
@@ -191,7 +228,8 @@ export class MinioService {
     await this.initialize();
 
     try {
-      await this.client.removeObjects(this.bucket, storagePaths);
+      const cleanPaths = storagePaths.map(p => this.sanitizePath(p));
+      await this.client.removeObjects(this.bucket, cleanPaths);
     } catch (error) {
       console.error('MinIO bulk delete error:', error);
       throw new Error('Failed to delete files');
@@ -206,7 +244,8 @@ export class MinioService {
     await this.initialize();
 
     try {
-      await this.client.statObject(this.bucket, storagePath);
+      const cleanPath = this.sanitizePath(storagePath);
+      await this.client.statObject(this.bucket, cleanPath);
       return true;
     } catch (error: any) {
       if (error.code === 'NotFound') {
@@ -224,7 +263,8 @@ export class MinioService {
     await this.initialize();
 
     try {
-      const stat = await this.client.statObject(this.bucket, storagePath);
+      const cleanPath = this.sanitizePath(storagePath);
+      const stat = await this.client.statObject(this.bucket, cleanPath);
       return {
         size: stat.size,
         contentType: stat.metaData?.['content-type'] || 'application/octet-stream',
@@ -246,7 +286,8 @@ export class MinioService {
     await this.initialize();
 
     try {
-      const stream = await this.client.getObject(this.bucket, storagePath);
+      const cleanPath = this.sanitizePath(storagePath);
+      const stream = await this.client.getObject(this.bucket, cleanPath);
       const chunks: Buffer[] = [];
       
       return new Promise((resolve, reject) => {

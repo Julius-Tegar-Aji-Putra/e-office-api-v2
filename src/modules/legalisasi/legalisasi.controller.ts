@@ -136,6 +136,7 @@ class LegalisasiController {
 
   /**
    * POST /:documentId/assign-number - Assign nomor surat to document
+   * Supports optional position data for PDF overlay
    */
   async assignNumber(ctx: ControllerContext) {
     const user = ctx.user;
@@ -145,7 +146,16 @@ class LegalisasiController {
     }
 
     const { documentId } = ctx.params as { documentId: string };
-    const body = ctx.body as { nomorSurat: string; tanggalSurat: string };
+    const body = ctx.body as { 
+      nomorSurat: string; 
+      tanggalSurat: string;
+      position?: {
+        x: number;
+        y: number;
+        page: number;
+        fontSize: number;
+      };
+    };
 
     if (!body.nomorSurat || !body.tanggalSurat) {
       ctx.set.status = 400;
@@ -156,7 +166,8 @@ class LegalisasiController {
       {
         documentId,
         nomorSurat: body.nomorSurat,
-        tanggalSurat: new Date(body.tanggalSurat)
+        tanggalSurat: new Date(body.tanggalSurat),
+        position: body.position, // Optional position for PDF overlay
       },
       user.id,
       user.role

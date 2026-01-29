@@ -71,7 +71,13 @@ export const assignNumberSchema = t.Object({
   }),
   tanggalSurat: t.String({
     description: 'Tanggal surat (YYYY-MM-DD)'
-  })
+  }),
+  position: t.Optional(t.Object({
+    x: t.Number({ description: 'X coordinate for number position' }),
+    y: t.Number({ description: 'Y coordinate for number position' }),
+    page: t.Number({ description: 'Page number (1-based)' }),
+    fontSize: t.Number({ description: 'Font size for number text' })
+  }))
 });
 
 export const applyStempelSchema = t.Object({
