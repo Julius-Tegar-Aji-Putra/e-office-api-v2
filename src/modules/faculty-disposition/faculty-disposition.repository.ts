@@ -217,12 +217,13 @@ class FacultyDispositionRepository {
 
       if (!letter) throw new Error('Letter not found');
 
-      // Update to FAKULTAS_RECEIVED
+      // Update to FAKULTAS_RECEIVED and save category
       const updatedLetter = await tx.letterInstance.update({
         where: { id: letterId },
         data: {
           status: LetterStatus.FAKULTAS_RECEIVED,
           currentActiveRole: 'ADMIN_FAKULTAS',
+          category: category,
           updatedAt: new Date()
         }
       });

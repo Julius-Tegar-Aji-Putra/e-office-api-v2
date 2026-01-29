@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '../../db';
-import { Prisma, LetterStatus, LogAction, DocumentType } from '../../generated/prisma/client';
+import { Prisma, LetterStatus, LogAction, DocumentType, SignatureType } from '../../generated/prisma/client';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -547,7 +547,8 @@ class DepartmentApprovalRepository {
     actorRole: string,
     signatureUrl: string,
     signerName: string,
-    signerNip?: string
+    signerNip?: string,
+    saveSignature: boolean = false
   ) {
     return prisma.$transaction(async (tx) => {
       // Get document and signatures
@@ -624,6 +625,30 @@ class DepartmentApprovalRepository {
           notes: `Ditandatangani oleh ${signerName} (${actorRole})`
         }
       });
+
+      // Save signature if requested
+      if (saveSignature && signatureUrl) {
+        // Determine signature type based on format
+        const signatureType = signatureUrl.startsWith('data:') 
+          ? SignatureType.HANDWRITING 
+          : SignatureType.UPLOAD;
+
+        try {
+          // Create new saved signature for user
+          await tx.savedSignature.create({
+            data: {
+              userId: actorId,
+              fileUrl: signatureUrl,
+              fileName: `TTD-${actorRole}-${Date.now()}`,
+              alias: `TTD ${signerName || actorRole}`,
+              type: signatureType
+            }
+          });
+        } catch (err) {
+          // Log error but don't fail the signing process
+          console.error('Failed to save signature:', err);
+        }
+      }
 
       return letter;
     });
