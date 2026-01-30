@@ -11,7 +11,7 @@
 import { Elysia, t } from 'elysia';
 import { authGuardPlugin } from '../middlewares/auth';
 import { db } from '../db';
-import { LetterStatus } from '../generated/prisma/enums';
+import { LetterStatus, LogAction } from '../generated/prisma/enums';
 import { ROLES } from '../shared/constants/roles';
 import { getUserRoles } from '../lib/casbin';
 
@@ -694,6 +694,10 @@ async function getDashboardDepartemen(
 
 /**
  * Dashboard untuk Lingkup Fakultas (Admin Fakultas, Pejabat, Supervisor, Staf)
+ * 
+ * PERBAIKAN: Surat tidak hilang setelah role menyelesaikan aksinya
+ * - Menampilkan surat yang sedang aktif (currentActiveRole = user.role)
+ * - JUGA menampilkan surat yang pernah ditangani (via LetterLog)
  */
 async function getDashboardFakultas(
   user: DashboardUser,
@@ -704,8 +708,6 @@ async function getDashboardFakultas(
   const offset = (page - 1) * limit;
   const type = filters.type || 'masuk';
 
-  const where: any = {};
-
   // Check if user is a pejabat/supervisor/staf (not Admin Fakultas)
   const isPejabatOrBelow = [
     ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2,
@@ -713,66 +715,185 @@ async function getDashboardFakultas(
     ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA
   ].includes(user.role as any);
 
+  // Build query conditions
+  let where: any = {};
+
   if (type === 'masuk') {
     if (user.role === ROLES.ADMIN_FAKULTAS) {
-      // Admin Fakultas sees incoming letters (SURAT_PENGANTAR_SIGNED) or received letters
-      where.status = {
-        in: [
-          LetterStatus.SURAT_PENGANTAR_SIGNED,
-          LetterStatus.FAKULTAS_RECEIVED,
-        ],
-      };
-      where.currentActiveRole = ROLES.ADMIN_FAKULTAS;
+      // Admin Fakultas - tampilkan surat yang aktif DAN yang sudah diproses
+      where.OR = [
+        // Surat yang sedang aktif untuk Admin Fakultas
+        {
+          status: {
+            in: [
+              LetterStatus.SURAT_PENGANTAR_SIGNED,
+              LetterStatus.FAKULTAS_RECEIVED,
+            ],
+          },
+          currentActiveRole: ROLES.ADMIN_FAKULTAS,
+        },
+        // Surat yang sudah pernah diproses oleh Admin Fakultas (sudah forward)
+        {
+          logs: {
+            some: {
+              actorRole: ROLES.ADMIN_FAKULTAS,
+              action: { in: [LogAction.DISPOSITION, LogAction.APPROVE, LogAction.VERIFY, LogAction.STATUS_CHANGE] },
+            },
+          },
+          status: {
+            in: [
+              LetterStatus.FAKULTAS_DISPOSITION,
+              LetterStatus.FAKULTAS_VERIFICATION,
+              LetterStatus.FAKULTAS_SIGNING,
+              LetterStatus.FAKULTAS_DRAFTING,
+              LetterStatus.UPA_NUMBERING,
+              LetterStatus.UPA_STAMPING,
+              LetterStatus.UPA_FINALIZING,
+              LetterStatus.COMPLETED,
+              LetterStatus.REJECTED,
+              LetterStatus.CANCELLED,
+            ],
+          },
+        },
+      ];
     } else if (isPejabatOrBelow) {
-      // Pejabat/Supervisor/Staf ONLY see letters assigned to them
-      // They should NOT see letters that are still with Admin Fakultas
-      where.status = {
-        in: [
-          LetterStatus.FAKULTAS_DISPOSITION,
-          LetterStatus.FAKULTAS_VERIFICATION,
-          LetterStatus.FAKULTAS_SIGNING,
-          LetterStatus.FAKULTAS_DRAFTING,
-        ],
-      };
-      // CRITICAL: Filter by currentActiveRole to prevent "leaking" letters
-      where.currentActiveRole = user.role;
+      // Pejabat/Supervisor/Staf - tampilkan surat yang aktif DAN yang sudah diproses
+      where.OR = [
+        // Surat yang sedang aktif untuk role ini
+        {
+          status: {
+            in: [
+              LetterStatus.FAKULTAS_DISPOSITION,
+              LetterStatus.FAKULTAS_VERIFICATION,
+              LetterStatus.FAKULTAS_SIGNING,
+              LetterStatus.FAKULTAS_DRAFTING,
+            ],
+          },
+          currentActiveRole: user.role,
+        },
+        // Surat yang pernah ditangani oleh role ini (via LetterLog)
+        {
+          logs: {
+            some: {
+              actorRole: user.role,
+              action: { in: [LogAction.DISPOSITION, LogAction.APPROVE, LogAction.VERIFY, LogAction.SIGN, LogAction.DRAFT_CREATE, LogAction.DRAFT_UPDATE, LogAction.SUBMIT] },
+            },
+          },
+          status: {
+            notIn: [LetterStatus.SUBMITTED, LetterStatus.KAPRODI_REVIEW], // Exclude surat yang masih di tingkat prodi
+          },
+        },
+      ];
     }
   } else {
     // Surat Keluar = surat hasil (ST/SK)
-    where.status = {
-      in: [
-        LetterStatus.FAKULTAS_DRAFTING,
-        LetterStatus.FAKULTAS_VERIFICATION,
-        LetterStatus.FAKULTAS_SIGNING,
-        LetterStatus.UPA_NUMBERING,
-        LetterStatus.UPA_STAMPING,
-        LetterStatus.UPA_FINALIZING,
-        LetterStatus.COMPLETED,
-      ],
-    };
-    
-    // For keluar tab, still filter by role for pejabat
-    if (isPejabatOrBelow) {
-      where.currentActiveRole = user.role;
+    if (user.role === ROLES.ADMIN_FAKULTAS) {
+      where.OR = [
+        // Surat keluar yang aktif
+        {
+          status: {
+            in: [
+              LetterStatus.FAKULTAS_DRAFTING,
+              LetterStatus.FAKULTAS_VERIFICATION,
+              LetterStatus.FAKULTAS_SIGNING,
+              LetterStatus.UPA_NUMBERING,
+              LetterStatus.UPA_STAMPING,
+              LetterStatus.UPA_FINALIZING,
+              LetterStatus.COMPLETED,
+            ],
+          },
+        },
+      ];
+    } else if (isPejabatOrBelow) {
+      where.OR = [
+        // Surat keluar yang aktif untuk role ini
+        {
+          status: {
+            in: [
+              LetterStatus.FAKULTAS_DRAFTING,
+              LetterStatus.FAKULTAS_VERIFICATION,
+              LetterStatus.FAKULTAS_SIGNING,
+              LetterStatus.UPA_NUMBERING,
+              LetterStatus.UPA_STAMPING,
+              LetterStatus.UPA_FINALIZING,
+              LetterStatus.COMPLETED,
+            ],
+          },
+          currentActiveRole: user.role,
+        },
+        // Surat keluar yang pernah ditangani oleh role ini
+        {
+          logs: {
+            some: {
+              actorRole: user.role,
+              action: { in: [LogAction.DISPOSITION, LogAction.APPROVE, LogAction.VERIFY, LogAction.SIGN, LogAction.DRAFT_CREATE, LogAction.DRAFT_UPDATE, LogAction.SUBMIT] },
+            },
+          },
+          status: {
+            in: [
+              LetterStatus.FAKULTAS_DRAFTING,
+              LetterStatus.FAKULTAS_VERIFICATION,
+              LetterStatus.FAKULTAS_SIGNING,
+              LetterStatus.UPA_NUMBERING,
+              LetterStatus.UPA_STAMPING,
+              LetterStatus.UPA_FINALIZING,
+              LetterStatus.COMPLETED,
+            ],
+          },
+        },
+      ];
     }
   }
 
   if (filters.status) {
-    where.status = filters.status as LetterStatus;
+    // Jika ada filter status spesifik, override OR condition
+    where = {
+      ...where,
+      status: filters.status as LetterStatus,
+    };
   }
 
   if (filters.search) {
-    where.OR = [
-      { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
-      { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
+    where.AND = [
+      ...(where.AND || []),
+      {
+        OR: [
+          { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
+          { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
+        ],
+      },
     ];
   }
 
   if (filters.dateFrom || filters.dateTo) {
-    where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-    if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    where.AND = where.AND || [];
+    if (filters.dateFrom) {
+      where.AND.push({ createdAt: { gte: new Date(filters.dateFrom) } });
+    }
+    if (filters.dateTo) {
+      where.AND.push({ createdAt: { lte: new Date(filters.dateTo) } });
+    }
   }
+
+  // Build count query conditions untuk menghitung berdasarkan role
+  const buildCountQuery = (statusList: LetterStatus[]) => {
+    if (user.role === ROLES.ADMIN_FAKULTAS) {
+      return {
+        OR: [
+          { status: { in: statusList }, currentActiveRole: ROLES.ADMIN_FAKULTAS },
+          { status: { in: statusList }, logs: { some: { actorRole: ROLES.ADMIN_FAKULTAS } } },
+        ],
+      };
+    } else if (isPejabatOrBelow) {
+      return {
+        OR: [
+          { status: { in: statusList }, currentActiveRole: user.role },
+          { status: { in: statusList }, logs: { some: { actorRole: user.role } } },
+        ],
+      };
+    }
+    return { status: { in: statusList } };
+  };
 
   // Fetch ALL items first (without pagination) to apply displayStatus filter
   const [allItems, masukCount, keluarCount] = await Promise.all([
@@ -792,34 +913,31 @@ async function getDashboardFakultas(
           },
         },
         createdBy: { select: { id: true, name: true } },
+        logs: { 
+          select: { actorRole: true },
+          where: { actorRole: user.role },
+          take: 1, // Hanya perlu tahu apakah ada
+        },
       },
       orderBy: { createdAt: 'desc' },
     }),
     db.letterInstance.count({
-      where: {
-        status: {
-          in: [
-            LetterStatus.SURAT_PENGANTAR_SIGNED,
-            LetterStatus.FAKULTAS_RECEIVED,
-            LetterStatus.FAKULTAS_DISPOSITION,
-            LetterStatus.FAKULTAS_VERIFICATION,
-            LetterStatus.FAKULTAS_SIGNING,
-          ],
-        },
-      },
+      where: buildCountQuery([
+        LetterStatus.SURAT_PENGANTAR_SIGNED,
+        LetterStatus.FAKULTAS_RECEIVED,
+        LetterStatus.FAKULTAS_DISPOSITION,
+        LetterStatus.FAKULTAS_VERIFICATION,
+        LetterStatus.FAKULTAS_SIGNING,
+      ]),
     }),
     db.letterInstance.count({
-      where: {
-        status: {
-          in: [
-            LetterStatus.FAKULTAS_DRAFTING,
-            LetterStatus.UPA_NUMBERING,
-            LetterStatus.UPA_STAMPING,
-            LetterStatus.UPA_FINALIZING,
-            LetterStatus.COMPLETED,
-          ],
-        },
-      },
+      where: buildCountQuery([
+        LetterStatus.FAKULTAS_DRAFTING,
+        LetterStatus.UPA_NUMBERING,
+        LetterStatus.UPA_STAMPING,
+        LetterStatus.UPA_FINALIZING,
+        LetterStatus.COMPLETED,
+      ]),
     }),
   ]);
 
