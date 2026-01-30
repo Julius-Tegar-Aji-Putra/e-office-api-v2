@@ -5,6 +5,7 @@
  */
 
 import { submissionRepository, SubmissionRepository } from './submission.repository';
+import { facultyDispositionRepository } from '../faculty-disposition/faculty-disposition.repository';
 import { ROLES } from '../../shared/constants/roles';
 import { getDisplayStatus, DISPLAY_STATUS } from '../../shared/constants/status-mapping';
 import { ERROR_MESSAGES } from '../../shared/constants/error-messages';
@@ -184,6 +185,10 @@ export class SubmissionService {
       })
     );
 
+    // Compute return targets for faculty roles who can return the letter
+    // ADMIN_PRODI is always the default, plus any roles that have handled the letter
+    const returnTargets = await this.computeReturnTargets(submission.id, viewerRole);
+
     return {
       id: submission.id,
       submissionValues: formData,
@@ -193,6 +198,7 @@ export class SubmissionService {
       currentActiveRole: submission.currentActiveRole,
       signatureConfig: sigConfig,
       category: submission.category || null, // Kategori yang dipilih saat forward (bisa null jika belum forward)
+      returnTargets, // Available targets for returning the letter
       letterType: {
         id: submission.letterType.id,
         name: submission.letterType.name,
@@ -816,6 +822,41 @@ export class SubmissionService {
       canVerifySuratHasil,
       canSignSuratHasil,
     };
+  }
+
+  /**
+   * Compute available return targets for a letter
+   * 
+   * Logic:
+   * 1. ADMIN_PRODI is ALWAYS the first/default target (dead end if selected)
+   * 2. All faculty roles that have previously processed the letter are available
+   * 3. The current role is excluded from the list
+   * 
+   * @param letterId - The letter instance ID
+   * @param currentRole - The current viewer's role
+   * @returns Array of role strings that can be return targets
+   */
+  private async computeReturnTargets(letterId: string, currentRole: string): Promise<string[]> {
+    // ADMIN_PRODI always first as default target
+    const targets: string[] = [ROLES.ADMIN_PRODI];
+
+    try {
+      // Get all roles that have processed this letter at faculty level
+      const historyActors = await facultyDispositionRepository.getDispositionHistoryActors(letterId);
+
+      // Add all history actors except current role and ADMIN_PRODI (already added)
+      for (const actor of historyActors) {
+        if (actor === currentRole || actor === ROLES.ADMIN_PRODI) continue;
+        if (!targets.includes(actor)) {
+          targets.push(actor);
+        }
+      }
+    } catch (error) {
+      // If fetching history fails, just return default target
+      console.error('Failed to fetch disposition history actors:', error);
+    }
+
+    return targets;
   }
 }
 

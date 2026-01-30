@@ -361,41 +361,34 @@ class FacultyDispositionService {
   /**
    * PERBAIKAN: Get available return targets berdasarkan history disposisi
    * 
-   * Logic:
-   * 1. Query history siapa saja yang pernah handle surat ini
-   * 2. Admin Prodi SELALU tersedia (default, tapi jadi dead end)
-   * 3. Admin Fakultas tersedia jika surat pernah lewat sana
-   * 4. Pejabat lain tersedia jika ada di history dan levelnya lebih tinggi
+   * Logic BARU (sesuai requirement):
+   * 1. ADMIN_PRODI selalu tersedia sebagai DEFAULT (dead end jika dipilih)
+   * 2. Semua role yang sudah pernah memproses surat dapat menjadi target return
+   * 3. Tidak dibatasi oleh level hierarchy - siapapun yang sudah handle bisa jadi target
+   * 
+   * Contoh: Admin Fakultas -> Dekan -> Wadek 1
+   * Wadek 1 bisa return ke: Admin Prodi (default), Admin Fakultas, Dekan
    */
   private async getAvailableReturnTargets(
     letterId: string,
     currentRole: string
   ): Promise<string[]> {
-    // ADMIN_PRODI selalu jadi default target (akan menjadi DEAD END)
+    // ADMIN_PRODI selalu jadi default target PERTAMA (akan menjadi DEAD END)
     const targets: string[] = [ROLES.ADMIN_PRODI];
 
-    // Get history actors dari repository
+    // Get history actors dari repository - semua role yang pernah handle surat ini
     const historyActors = await facultyDispositionRepository.getDispositionHistoryActors(letterId);
 
-    // Admin Fakultas selalu tersedia untuk return (kecuali current role sudah Admin Fakultas)
-    if (currentRole !== ROLES.ADMIN_FAKULTAS) {
-      targets.push(ROLES.ADMIN_FAKULTAS);
-    }
-
-    // Tambahkan pejabat dari history yang levelnya lebih tinggi dari current
-    const currentLevel = ROLE_HIERARCHY[currentRole] ?? 0;
+    // Tambahkan semua role dari history yang sudah pernah memproses surat
     for (const actor of historyActors) {
       // Skip jika sudah ada di targets atau sama dengan current role
       if (targets.includes(actor) || actor === currentRole) continue;
 
-      // Skip Admin Prodi dan Admin Fakultas (sudah ditangani di atas)
-      if (actor === ROLES.ADMIN_PRODI || actor === ROLES.ADMIN_FAKULTAS) continue;
+      // Skip Admin Prodi (sudah ada di awal sebagai default)
+      if (actor === ROLES.ADMIN_PRODI) continue;
 
-      // Hanya tambahkan jika level lebih tinggi (nilai ROLE_HIERARCHY lebih besar)
-      const actorLevel = ROLE_HIERARCHY[actor] ?? 0;
-      if (actorLevel > currentLevel) {
-        targets.push(actor);
-      }
+      // Tambahkan role ke targets - tidak dibatasi level hierarchy
+      targets.push(actor);
     }
 
     return targets;

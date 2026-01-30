@@ -612,7 +612,12 @@ async function getDashboardDepartemen(
           LetterStatus.CANCELLED,
         ],
       };
-      // Khusus untuk ttd, filter yang currentActiveRole = KADEP
+      // PERBAIKAN: Kadep hanya melihat surat yang membutuhkan tanda tangan Kadep
+      // Filter signatureConfig.requestKadepSign = true
+      where.signatureConfig = {
+        path: ['requestKadepSign'],
+        equals: true,
+      };
       break;
   }
 

@@ -120,6 +120,9 @@ export interface SubmissionDetail {
   signatureConfig: SignatureConfigDTO | null;
   category: LetterCategory | null; // Kategori surat yang dipilih saat forward (bisa berbeda dari letterType.category)
 
+  // Return targets for Pejabat to return letter
+  returnTargets: string[];
+
   // Relations
   letterType: {
     id: string;

@@ -169,13 +169,22 @@ class FacultyDispositionRepository {
   /**
    * Get disposition history actors (untuk return targets)
    * Returns unique roles yang pernah handle surat ini di level fakultas
+   * 
+   * PERBAIKAN: Ambil SEMUA role yang pernah melakukan aksi terhadap surat
+   * termasuk DISPOSITION, RETURN, STATUS_CHANGE, APPROVE, VERIFY
    */
   async getDispositionHistoryActors(letterId: string): Promise<string[]> {
     const logs = await prisma.letterLog.findMany({
       where: {
         letterInstanceId: letterId,
         action: {
-          in: [LogAction.DISPOSITION, LogAction.RETURN, LogAction.STATUS_CHANGE]
+          in: [
+            LogAction.DISPOSITION, 
+            LogAction.RETURN, 
+            LogAction.STATUS_CHANGE,
+            LogAction.APPROVE,
+            LogAction.VERIFY
+          ]
         },
         // Hanya ambil yang terkait level fakultas
         actorRole: {
@@ -185,8 +194,8 @@ class FacultyDispositionRepository {
             'WADEK_1',
             'WADEK_2',
             'MANAJER_TU',
-            'SPV_AKADEMIK',
-            'SPV_SUMBER_DAYA',
+            'SUPERVISOR_AKADEMIK',
+            'SUPERVISOR_SUMBER_DAYA',
             'STAF_AKADEMIK',
             'STAF_SUMBER_DAYA'
           ]
