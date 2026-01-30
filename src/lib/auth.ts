@@ -46,11 +46,7 @@ export const auth = betterAuth({
     },
 
     advanced: {
-        generateId: () => crypto.randomUUID(),
-        cookie: {
-            secure: process.env.NODE_ENV === "production", 
-            sameSite: "lax", 
-        },
+        cookiePrefix: "e-office",
     },
     
     trustedOrigins: [

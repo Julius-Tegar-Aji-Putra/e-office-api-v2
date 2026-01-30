@@ -218,7 +218,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
       params.attachmentId,
       user.id,
       [],
-      set
+      { headers: set.headers as Record<string, string>, status: set.status as number | undefined }
     );
   }, {
     params: t.Object({
