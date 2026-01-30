@@ -5,10 +5,13 @@
  */
 
 import { departmentApprovalRepository, DepartmentApprovalListParams, CreateDepartmentApprovalDraftInput } from './department-approval.repository';
-import { LetterStatus, Prisma } from '../../generated/prisma/client';
+import { LetterStatus, Prisma, SignatureType } from '../../generated/prisma/client';
 import { ROLES } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
+import { MinioService } from '../../shared/services/minio.service';
+import { signatureRepository } from '../signature/signature.repository';
+import { prisma } from '../../db';
 
 // ============================================================================
 // TYPES
@@ -268,7 +271,22 @@ class DepartmentApprovalService {
   }
 
   /**
+   * Get letter info for determining signer role in route
+   * Returns basic letter info including currentActiveRole
+   */
+  async getLetterForSigning(letterId: string) {
+    const letter = await departmentApprovalRepository.getLetterById(letterId);
+    if (!letter) return null;
+    return {
+      id: letter.id,
+      status: letter.status,
+      currentActiveRole: letter.currentActiveRole
+    };
+  }
+
+  /**
    * Sign surat pengantar (Kaprodi/Kadep) with new signature format
+   * PERBAIKAN: Properly upload signature to MinIO and save template if requested
    */
   async signPengantar(input: SignInput, userId: string, userRole: string) {
     const letter = await departmentApprovalRepository.getLetterById(input.letterId);
@@ -291,17 +309,82 @@ class DepartmentApprovalService {
       throw new AppError('Tanda tangan (base64 atau URL) wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Use signatureUrl if available, otherwise use signatureData
-    const signatureUrl = input.signatureUrl || input.signatureData || '';
+    // Get user info for signer name/nip if not provided
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { pegawai: true }
+    });
+
+    const finalSignerName = input.signerName || user?.name || 'Penandatangan';
+    const finalSignerNip = input.signerNip || user?.pegawai?.nip || '';
+
+    let finalSignatureUrl = input.signatureUrl || '';
+    let storagePath: string | undefined;
+
+    // If signatureData is provided (base64), upload it to MinIO
+    if (input.signatureData && input.signatureData.trim() !== '') {
+      try {
+        const minio = new MinioService();
+        
+        // Parse base64 data
+        const matches = input.signatureData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
+        if (!matches) {
+          throw new AppError('Format tanda tangan tidak valid', HTTP_STATUS.BAD_REQUEST);
+        }
+        
+        const mimeType = matches[1];
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // Create file name for upload
+        const fileName = `signature-${userRole}-${Date.now()}.${mimeType}`;
+        
+        // Upload to MinIO
+        const uploadResult = await minio.uploadFile(
+          buffer,
+          fileName,
+          `image/${mimeType}`,
+          `signatures/${userId}`
+        );
+        
+        storagePath = uploadResult.path;
+        
+        // Get signed URL for the uploaded file
+        finalSignatureUrl = await minio.getFileUrl(uploadResult.path);
+
+        // Save to user's saved signatures if requested
+        if (input.saveSignature) {
+          try {
+            await signatureRepository.createSavedSignature({
+              userId,
+              type: SignatureType.HANDWRITING,
+              fileUrl: uploadResult.path, // Store the path, not the signed URL
+              fileName: fileName,
+              alias: `TTD ${userRole} - ${new Date().toLocaleDateString('id-ID')}`
+            });
+          } catch (saveErr) {
+            // Log but don't fail the signing process
+            console.error('Failed to save signature template:', saveErr);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to upload signature:', err);
+        if (err instanceof AppError) throw err;
+        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      }
+    } else if (input.signatureUrl) {
+      // Using saved signature URL
+      finalSignatureUrl = input.signatureUrl;
+    }
 
     return departmentApprovalRepository.signPengantar(
       input.letterId,
       userId,
       userRole,
-      signatureUrl,
-      input.signerName,
-      input.signerNip,
-      input.saveSignature ?? false
+      finalSignatureUrl,
+      finalSignerName,
+      finalSignerNip,
+      false // saveSignature already handled above
     );
   }
 

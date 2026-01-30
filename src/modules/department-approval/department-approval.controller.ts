@@ -205,6 +205,18 @@ class DepartmentApprovalController {
       return errorResponse(getErrorMessage(error));
     }
   }
+
+  /**
+   * Helper method to get letter info for determining signer role
+   * Used by route to properly determine which role the user should use
+   */
+  async getLetterForSigning(letterId: string) {
+    try {
+      return await departmentApprovalService.getLetterForSigning(letterId);
+    } catch (error) {
+      return null;
+    }
+  }
 }
 
 export const departmentApprovalController = new DepartmentApprovalController();

@@ -159,9 +159,27 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
   })
 
   .post('/:id/sign', async ({ params, body, user }) => {
-    // Determine signer role
+    // Get all user's roles
     const roles = await getUserRoles(user.id);
-    const signerRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    
+    // PERBAIKAN: Get the letter first to check currentActiveRole
+    // Then determine which role the user should use based on their roles AND the letter's state
+    const letter = await departmentApprovalController.getLetterForSigning(params.id);
+    
+    // Determine the correct signer role based on the letter's currentActiveRole
+    // The user must have the role that matches currentActiveRole
+    let signerRole: string;
+    if (letter && letter.currentActiveRole) {
+      if (roles.includes(letter.currentActiveRole)) {
+        signerRole = letter.currentActiveRole;
+      } else {
+        // Fallback to KAPRODI or KADEP based on what user has
+        signerRole = roles.includes(ROLES.KAPRODI) ? ROLES.KAPRODI : ROLES.KADEP;
+      }
+    } else {
+      signerRole = roles.includes(ROLES.KAPRODI) ? ROLES.KAPRODI : ROLES.KADEP;
+    }
+    
     return departmentApprovalController.signPengantar(params.id, body, user.id, signerRole);
   }, {
     params: letterIdParamSchema,

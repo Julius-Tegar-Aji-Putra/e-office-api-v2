@@ -437,7 +437,7 @@ class HasilService {
         if (saveSignature) {
           await signatureRepository.createSavedSignature({
             userId,
-            type: SignatureType.DRAW, // Canvas drawing
+            type: SignatureType.HANDWRITING, // Canvas drawing / handwriting
             fileUrl: uploadResult.path, // Store the path, not the signed URL
             fileName: fileName,
             alias: `TTD ${new Date().toLocaleDateString('id-ID')}`
