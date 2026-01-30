@@ -30,6 +30,7 @@ interface DashboardUser {
 
 interface DashboardFilters {
   status?: string;
+  displayStatus?: string; // Filter berdasarkan displayStatus yang ditampilkan ke user
   type?: 'masuk' | 'keluar';
   documentType?: string;
   dateFrom?: string;
@@ -441,7 +442,7 @@ async function getDashboardPengaju(
   filters: DashboardFilters
 ): Promise<DashboardResult> {
   const page = parseInt(filters.page || '1', 10);
-  const limit = parseInt(filters.limit || '20', 10);
+  const limit = parseInt(filters.limit || '5', 10); // Default 5 rows per page
   const offset = (page - 1) * limit;
 
   const where: any = {
@@ -464,25 +465,45 @@ async function getDashboardPengaju(
     if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
   }
 
-  const [items, total] = await Promise.all([
-    db.letterInstance.findMany({
-      where,
-      include: {
-        letterType: {
-          select: {
-            code: true,
-            category: true,
-          },
+  // Fetch ALL items first (without pagination) to apply displayStatus filter
+  const allItems = await db.letterInstance.findMany({
+    where,
+    include: {
+      letterType: {
+        select: {
+          code: true,
+          category: true,
         },
-        documents: { take: 1 },
-        createdBy: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
-    }),
-    db.letterInstance.count({ where }),
-  ]);
+      documents: { take: 1 },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Map items with displayStatus
+  let mappedItems: DashboardItem[] = allItems.map((item) => ({
+    id: item.id,
+    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+    tipeSurat: getTipeSurat(item.letterType?.code),
+    tanggalSurat: item.createdAt,
+    status: item.status,
+    displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
+    actions: getActionsForItem(user.role, item.status),
+  }));
+
+  // Apply displayStatus filter if provided
+  if (filters.displayStatus) {
+    mappedItems = mappedItems.filter(item => 
+      item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
+    );
+  }
+
+  // Calculate total AFTER displayStatus filter
+  const total = mappedItems.length;
+
+  // Apply pagination AFTER filter
+  const paginatedItems = mappedItems.slice(offset, offset + limit);
 
   const [pending, completed] = await Promise.all([
     db.letterInstance.count({
@@ -496,21 +517,11 @@ async function getDashboardPengaju(
     }),
   ]);
 
-  const mappedItems: DashboardItem[] = items.map((item) => ({
-    id: item.id,
-    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-    tipeSurat: getTipeSurat(item.letterType?.code),
-    tanggalSurat: item.createdAt,
-    status: item.status,
-    displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-    actions: getActionsForItem(user.role, item.status),
-  }));
-
   return {
     columns: getColumnsForRole(user.role),
-    items: mappedItems,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    statistics: { total, pending, completed, waiting: 0 },
+    items: paginatedItems,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    statistics: { total: allItems.length, pending, completed, waiting: 0 },
   };
 }
 
@@ -522,7 +533,7 @@ async function getDashboardDepartemen(
   filters: DashboardFilters
 ): Promise<DashboardResult> {
   const page = parseInt(filters.page || '1', 10);
-  const limit = parseInt(filters.limit || '20', 10);
+  const limit = parseInt(filters.limit || '5', 10); // Default 5 rows per page
   const offset = (page - 1) * limit;
 
   const where: any = {};
@@ -617,38 +628,30 @@ async function getDashboardDepartemen(
     if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
   }
 
-  const [items, total] = await Promise.all([
-    db.letterInstance.findMany({
-      where,
-      include: {
-        letterType: {
-          select: {
-            code: true,
-            category: true,
-          },
+  // Fetch ALL items first (without pagination) to apply displayStatus filter
+  const allItems = await db.letterInstance.findMany({
+    where,
+    include: {
+      letterType: {
+        select: {
+          code: true,
+          category: true,
         },
-        documents: {
-          select: {
-            type: true,
-            perihal: true,
-          },
-          take: 1,
-        },
-        createdBy: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
-    }),
-    db.letterInstance.count({ where }),
-  ]);
+      documents: {
+        select: {
+          type: true,
+          perihal: true,
+        },
+        take: 1,
+      },
+      createdBy: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  const waiting = items.filter((item) => {
-    const displayStatus = getDisplayStatusForRole(item.status, user.role, item.currentActiveRole);
-    return displayStatus.includes('MENUNGGU');
-  }).length;
-
-  const mappedItems: DashboardItem[] = items.map((item) => ({
+  // Map items with displayStatus
+  let mappedItems: DashboardItem[] = allItems.map((item) => ({
     id: item.id,
     namaPengaju: item.createdBy?.name || '-',
     judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
@@ -659,14 +662,31 @@ async function getDashboardDepartemen(
     actions: getActionsForItem(user.role, item.status),
   }));
 
+  // Apply displayStatus filter if provided
+  if (filters.displayStatus) {
+    mappedItems = mappedItems.filter(item => 
+      item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
+    );
+  }
+
+  // Calculate totals AFTER displayStatus filter
+  const total = mappedItems.length;
+
+  // Apply pagination AFTER filter
+  const paginatedItems = mappedItems.slice(offset, offset + limit);
+
+  const waiting = mappedItems.filter((item) => {
+    return item.displayStatus.includes('MENUNGGU');
+  }).length;
+
   return {
     columns: getColumnsForRole(user.role),
-    items: mappedItems,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    items: paginatedItems,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     statistics: {
-      total,
-      pending: items.filter((i) => i.status !== LetterStatus.COMPLETED).length,
-      completed: items.filter((i) => i.status === LetterStatus.COMPLETED).length,
+      total: allItems.length,
+      pending: allItems.filter((i) => i.status !== LetterStatus.COMPLETED).length,
+      completed: allItems.filter((i) => i.status === LetterStatus.COMPLETED).length,
       waiting,
     },
   };
@@ -680,7 +700,7 @@ async function getDashboardFakultas(
   filters: DashboardFilters
 ): Promise<DashboardResult> {
   const page = parseInt(filters.page || '1', 10);
-  const limit = parseInt(filters.limit || '20', 10);
+  const limit = parseInt(filters.limit || '5', 10); // Default 5 rows per page
   const offset = (page - 1) * limit;
   const type = filters.type || 'masuk';
 
@@ -754,7 +774,8 @@ async function getDashboardFakultas(
     if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
   }
 
-  const [items, total, masukCount, keluarCount] = await Promise.all([
+  // Fetch ALL items first (without pagination) to apply displayStatus filter
+  const [allItems, masukCount, keluarCount] = await Promise.all([
     db.letterInstance.findMany({
       where,
       include: {
@@ -773,10 +794,7 @@ async function getDashboardFakultas(
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
     }),
-    db.letterInstance.count({ where }),
     db.letterInstance.count({
       where: {
         status: {
@@ -805,12 +823,8 @@ async function getDashboardFakultas(
     }),
   ]);
 
-  const waiting = items.filter((item) => {
-    const displayStatus = getDisplayStatusForRole(item.status, user.role, item.currentActiveRole);
-    return displayStatus.includes('MENUNGGU');
-  }).length;
-
-  const mappedItems: DashboardItem[] = items.map((item) => {
+  // Map items with displayStatus
+  let mappedItems: DashboardItem[] = allItems.map((item) => {
     const pengantarDoc = item.documents.find(d => d.type === 'SURAT_PENGANTAR');
     const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS');
     const doc = type === 'masuk' ? pengantarDoc : (hasilDoc || pengantarDoc);
@@ -828,14 +842,31 @@ async function getDashboardFakultas(
     };
   });
 
+  // Apply displayStatus filter if provided
+  if (filters.displayStatus) {
+    mappedItems = mappedItems.filter(item => 
+      item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
+    );
+  }
+
+  // Calculate total AFTER displayStatus filter
+  const total = mappedItems.length;
+
+  // Apply pagination AFTER filter
+  const paginatedItems = mappedItems.slice(offset, offset + limit);
+
+  const waiting = mappedItems.filter((item) => {
+    return item.displayStatus.includes('MENUNGGU');
+  }).length;
+
   return {
     columns: getColumnsForRole(user.role, type),
-    items: mappedItems,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    items: paginatedItems,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     statistics: {
-      total,
-      pending: items.filter((i) => i.status !== LetterStatus.COMPLETED).length,
-      completed: items.filter((i) => i.status === LetterStatus.COMPLETED).length,
+      total: allItems.length,
+      pending: allItems.filter((i) => i.status !== LetterStatus.COMPLETED).length,
+      completed: allItems.filter((i) => i.status === LetterStatus.COMPLETED).length,
       waiting,
     },
     tabs: [
@@ -853,7 +884,7 @@ async function getDashboardUPA(
   filters: DashboardFilters
 ): Promise<DashboardResult> {
   const page = parseInt(filters.page || '1', 10);
-  const limit = parseInt(filters.limit || '20', 10);
+  const limit = parseInt(filters.limit || '5', 10); // Default 5 rows per page
   const offset = (page - 1) * limit;
 
   const where: any = {
@@ -884,7 +915,8 @@ async function getDashboardUPA(
     if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
   }
 
-  const [items, total, penomoran, stempel, finalisasi, completed] = await Promise.all([
+  // Fetch ALL items first (without pagination) to apply displayStatus filter
+  const [allItems, penomoran, stempel, finalisasi, completed] = await Promise.all([
     db.letterInstance.findMany({
       where,
       include: {
@@ -903,10 +935,7 @@ async function getDashboardUPA(
         },
       },
       orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
     }),
-    db.letterInstance.count({ where }),
     db.letterInstance.count({ where: { status: LetterStatus.UPA_NUMBERING } }),
     db.letterInstance.count({ where: { status: LetterStatus.UPA_STAMPING } }),
     db.letterInstance.count({ where: { status: LetterStatus.UPA_FINALIZING } }),
@@ -918,7 +947,8 @@ async function getDashboardUPA(
     }),
   ]);
 
-  const mappedItems: DashboardItem[] = items.map((item) => {
+  // Map items with displayStatus
+  let mappedItems: DashboardItem[] = allItems.map((item) => {
     const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS');
 
     return {
@@ -934,10 +964,23 @@ async function getDashboardUPA(
     };
   });
 
+  // Apply displayStatus filter if provided
+  if (filters.displayStatus) {
+    mappedItems = mappedItems.filter(item => 
+      item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
+    );
+  }
+
+  // Calculate total AFTER displayStatus filter
+  const total = mappedItems.length;
+
+  // Apply pagination AFTER filter
+  const paginatedItems = mappedItems.slice(offset, offset + limit);
+
   return {
     columns: getColumnsForRole(user.role),
-    items: mappedItems,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    items: paginatedItems,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     statistics: {
       total: penomoran + stempel + finalisasi,
       pending: penomoran + stempel + finalisasi,
@@ -994,6 +1037,7 @@ export default new Elysia()
       search: query.search,
       page: query.page,
       limit: query.limit,
+      displayStatus: query.displayStatus,
     };
 
     let result: DashboardResult;
@@ -1049,6 +1093,7 @@ export default new Elysia()
       search: t.Optional(t.String()),
       page: t.Optional(t.String()),
       limit: t.Optional(t.String()),
+      displayStatus: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Dashboard'],
