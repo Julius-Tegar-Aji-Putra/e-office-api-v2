@@ -267,6 +267,53 @@ class HasilController {
       return errorResponse(getErrorMessage(error));
     }
   }
+
+  /**
+   * POST /surat-hasil/create
+   * Staff creates new surat directly (without submission)
+   * For STAF_AKADEMIK and STAF_SUMBER_DAYA
+   */
+  async createStaffSurat(
+    body: {
+      category: 'AKADEMIK' | 'SUMBER_DAYA';
+      documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
+      content: Record<string, unknown>;
+      tembusan?: string[];
+      perihal?: string;
+      signatories: Array<{
+        signerRole: string;
+        signerName: string;
+        signerNip?: string;
+        order: number;
+        x?: number;
+        y?: number;
+        page?: number;
+      }>;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.createStaffSurat(
+        {
+          category: body.category,
+          documentType: body.documentType,
+          content: body.content,
+          tembusan: body.tembusan,
+          perihal: body.perihal,
+          signatories: body.signatories
+        },
+        userId,
+        userRole
+      );
+      return successResponse('Surat berhasil dibuat', {
+        id: result.letterInstance.id,
+        documentId: result.document.id
+      });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
 }
 
 export const hasilController = new HasilController();

@@ -44,8 +44,9 @@ const renderSignatureBlock = (signature: SignatureBlock): string => {
 
 const renderSignatures = (signatures?: SignatureBlock[]): string => {
   if (!signatures || signatures.length === 0) {
+    // Placeholder TTD dengan warna putih (tidak terlihat) untuk draft
     return `
-      <div class="ttd-box">
+      <div class="ttd-box" style="visibility: hidden;">
         <p style="color: #ffffff;"></p>
         <p style="color: #ffffff;"></p>
         <p class="nama-pejabat" style="color: #ffffff;"></p>

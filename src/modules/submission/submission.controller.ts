@@ -392,6 +392,53 @@ export class SubmissionController {
     }
   }
 
+  /**
+   * GET /submission/:id/attachments/:attachmentId/stream
+   * Stream file langsung dari MinIO melalui backend (bypass CORS)
+   */
+  async streamAttachment(
+    letterInstanceId: string,
+    attachmentId: string,
+    userId: string,
+    userRoles: string[],
+    set: { headers: Record<string, string>; status?: number }
+  ) {
+    try {
+      // Verify access to submission first
+      const viewerRole = this.getPrimaryRole(userRoles);
+      const submission = await this.service.getSubmissionById(letterInstanceId, viewerRole);
+      
+      if (!submission) {
+        set.status = HTTP_STATUS.NOT_FOUND;
+        return { success: false, message: 'Pengajuan tidak ditemukan' };
+      }
+
+      // Check access - submitter can only access their own
+      if (
+        (viewerRole === ROLES.MAHASISWA || viewerRole === ROLES.DOSEN) &&
+        submission.createdBy.id !== userId
+      ) {
+        set.status = HTTP_STATUS.FORBIDDEN;
+        return { success: false, message: 'Anda tidak memiliki akses ke lampiran ini' };
+      }
+
+      const result = await this.service.streamAttachmentFile(attachmentId, letterInstanceId);
+      
+      // Set headers for file download
+      set.headers['Content-Type'] = result.mimeType || 'application/octet-stream';
+      set.headers['Content-Disposition'] = `attachment; filename="${encodeURIComponent(result.fileName)}"`;
+      
+      return result.stream;
+    } catch (error) {
+      console.error('Error streaming attachment:', error);
+      set.status = HTTP_STATUS.BAD_REQUEST;
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Gagal mengunduh file' 
+      };
+    }
+  }
+
   // ==========================================================================
   // Helpers
   // ==========================================================================

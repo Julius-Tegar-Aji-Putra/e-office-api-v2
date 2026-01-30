@@ -99,3 +99,34 @@ export const signDocumentBodySchema = t.Object({
   // Save signature to user's saved signatures
   saveSignature: t.Optional(t.Boolean({ default: false }))
 });
+
+// ============================================================================
+// CREATE STAFF SURAT (tanpa submission)
+// ============================================================================
+
+export const createStaffSuratBodySchema = t.Object({
+  // Kategori surat: AKADEMIK atau SUMBER_DAYA
+  category: t.Union([
+    t.Literal('AKADEMIK'),
+    t.Literal('SUMBER_DAYA')
+  ], { error: 'Kategori harus AKADEMIK atau SUMBER_DAYA' }),
+  
+  // Tipe dokumen
+  documentType: t.Union([
+    t.Literal('SURAT_TUGAS'),
+    t.Literal('SURAT_KEPUTUSAN'),
+    t.Literal('SURAT_TUGAS_TABEL')
+  ], { error: 'Tipe dokumen harus SURAT_TUGAS, SURAT_KEPUTUSAN, atau SURAT_TUGAS_TABEL' }),
+  
+  // Konten surat sesuai tipe
+  content: t.Record(t.String(), t.Any()),
+  
+  // Tembusan (opsional)
+  tembusan: t.Optional(t.Array(t.String())),
+  
+  // Perihal surat
+  perihal: t.Optional(t.String()),
+  
+  // Penandatangan
+  signatories: t.Array(signatorySchema, { minItems: 1, error: 'Minimal satu penandatangan' })
+});

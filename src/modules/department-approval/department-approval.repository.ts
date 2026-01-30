@@ -566,8 +566,23 @@ class DepartmentApprovalRepository {
         throw new Error('Document not found');
       }
 
+      // Find current signer's index
+      const currentIndex = document.signatures.findIndex(s => s.signerRole === actorRole);
+      if (currentIndex === -1) {
+        throw new Error('Anda tidak terdaftar sebagai penandatangan surat ini');
+      }
+
+      // PENTING: Cek apakah semua signature sebelumnya sudah ditandatangani
+      // Kaprodi harus ttd dulu sebelum Kadep bisa ttd
+      for (let i = 0; i < currentIndex; i++) {
+        const prevSigner = document.signatures[i];
+        if (!prevSigner.signatureUrl || !prevSigner.signedAt) {
+          throw new Error(`${prevSigner.signerRole} harus menandatangani terlebih dahulu sebelum Anda`);
+        }
+      }
+
       // Update signature
-      const currentSig = document.signatures.find(s => s.signerRole === actorRole);
+      const currentSig = document.signatures[currentIndex];
       if (currentSig) {
         await tx.documentSignature.update({
           where: { id: currentSig.id },
@@ -582,7 +597,6 @@ class DepartmentApprovalRepository {
       }
 
       // Check next signer
-      const currentIndex = document.signatures.findIndex(s => s.signerRole === actorRole);
       const nextSigner = document.signatures[currentIndex + 1];
 
       let newStatus: LetterStatus;

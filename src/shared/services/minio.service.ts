@@ -205,6 +205,26 @@ export class MinioService {
   }
 
   /**
+   * Get file as readable stream (for proxying through backend)
+   * @param storagePath - Full storage path in bucket
+   * @returns Readable stream of file data
+   */
+  async getFileStream(storagePath: string): Promise<NodeJS.ReadableStream> {
+    await this.initialize();
+
+    try {
+      const cleanPath = this.sanitizePath(storagePath);
+      console.log(`[MinIO] getFileStream called: bucket="${this.bucket}", path="${cleanPath}"`);
+      
+      const stream = await this.client.getObject(this.bucket, cleanPath);
+      return stream;
+    } catch (error) {
+      console.error('[MinIO] getFileStream error:', error);
+      throw new Error(`Failed to get file stream: ${storagePath}`);
+    }
+  }
+
+  /**
    * Delete file from MinIO
    * @param storagePath - Full storage path in bucket
    */

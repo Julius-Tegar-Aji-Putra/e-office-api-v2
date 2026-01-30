@@ -185,6 +185,16 @@ class FacultyApprovalService {
       throw new AppError('Anda sudah menandatangani dokumen ini', HTTP_STATUS.BAD_REQUEST);
     }
 
+    // PENTING: Validasi urutan tanda tangan berdasarkan hierarki
+    // Dekan tidak boleh ttd sebelum Wadek 1 dan Wadek 2 menandatangani
+    const myIndex = skstDoc.signatures.findIndex(s => s.signerRole === userRole);
+    for (let i = 0; i < myIndex; i++) {
+      const prevSigner = skstDoc.signatures[i];
+      if (!prevSigner.signatureUrl || !prevSigner.signedAt) {
+        throw new AppError(`${prevSigner.signerRole.replace('_', ' ')} harus menandatangani terlebih dahulu sebelum Anda`, HTTP_STATUS.BAD_REQUEST);
+      }
+    }
+
     // Validate signature URL
     if (!input.signatureUrl || input.signatureUrl.trim() === '') {
       throw new AppError('URL tanda tangan wajib diisi', HTTP_STATUS.BAD_REQUEST);

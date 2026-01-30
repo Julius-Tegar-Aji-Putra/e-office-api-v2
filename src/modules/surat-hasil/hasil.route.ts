@@ -15,7 +15,8 @@ import {
   submitVerificationBodySchema,
   approveVerificationBodySchema,
   returnRevisionBodySchema,
-  signDocumentBodySchema
+  signDocumentBodySchema,
+  createStaffSuratBodySchema
 } from './hasil.validation';
 import { STAF_ROLES, PEJABAT_ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
@@ -27,6 +28,24 @@ import { getUserRoles } from '../../lib/casbin';
 
 export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .use(authGuardPlugin)
+  
+  // ==========================================================================
+  // Create Staff Surat (tanpa submission)
+  // ==========================================================================
+
+  .post('/create', async ({ body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const staffRole = roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
+    return hasilController.createStaffSurat(body, user.id, staffRole);
+  }, {
+    body: createStaffSuratBodySchema,
+    detail: {
+      summary: 'Create staff surat directly',
+      description: 'Staf membuat surat langsung tanpa melalui submission',
+      tags: ['Surat Hasil']
+    }
+  })
+  
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================

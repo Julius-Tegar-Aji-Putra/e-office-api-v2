@@ -591,6 +591,29 @@ export class SubmissionService {
     };
   }
 
+  /**
+   * Stream attachment file directly from MinIO
+   * Returns readable stream for proxying through backend
+   */
+  async streamAttachmentFile(attachmentId: string, letterInstanceId: string) {
+    const attachment = await this.repository.getAttachmentById(attachmentId);
+    if (!attachment || attachment.letterInstanceId !== letterInstanceId) {
+      throw new Error('Lampiran tidak ditemukan');
+    }
+
+    if (!attachment.storagePath) {
+      throw new Error('File tidak tersedia');
+    }
+
+    const stream = await this.minio.getFileStream(attachment.storagePath);
+
+    return {
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      stream,
+    };
+  }
+
   // ============================================================================
   // Permission Helpers
   // ============================================================================
@@ -753,6 +776,12 @@ export class SubmissionService {
     const canAssignNumber = isUPA && status === 'UPA_NUMBERING';
     const canStamp = isUPA && status === 'UPA_STAMPING';
 
+    // Supervisor/Manajer TU can edit draft during verification
+    const canEditDraftInVerification = (isSupervisor || isManajerTU) && 
+      status === 'FAKULTAS_VERIFICATION' && 
+      currentActiveRole === viewerRole &&
+      hasSkstDraft;
+
     return {
       canEdit: isSubmitter && this.canEditSubmission(status),
       canCancel: isSubmitter && this.canCancelSubmission(status),
@@ -782,6 +811,7 @@ export class SubmissionService {
       // Surat Hasil permissions
       canDraftSuratHasil,
       canEditDraft,
+      canEditDraftInVerification,
       canSubmitVerification,
       canVerifySuratHasil,
       canSignSuratHasil,

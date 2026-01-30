@@ -3,7 +3,7 @@
  * Business logic untuk modul drafting SK/ST/SP oleh staf
  */
 
-import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, SURAT_HASIL_TYPES } from './hasil.repository';
+import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, CreateStaffSuratInput, SURAT_HASIL_TYPES } from './hasil.repository';
 import { LetterStatus, DocumentType, LetterCategory, Prisma, SignatureType } from '../../generated/prisma/client';
 import { ROLES, STAF_ROLES, SUPERVISOR_ROLES } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
@@ -39,6 +39,23 @@ export interface UpdateDraftServiceInput {
   content?: Record<string, unknown>;
   tembusan?: string[];
   perihal?: string;
+}
+
+export interface CreateStaffSuratServiceInput {
+  category: 'AKADEMIK' | 'SUMBER_DAYA';
+  documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
+  content: Record<string, unknown>;
+  tembusan?: string[];
+  perihal?: string;
+  signatories: Array<{
+    signerRole: string;
+    signerName: string;
+    signerNip?: string;
+    order: number;
+    x?: number;
+    y?: number;
+    page?: number;
+  }>;
 }
 
 // ============================================================================
@@ -526,6 +543,39 @@ class HasilService {
       : ROLES.STAF_SUMBER_DAYA;
 
     return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetStaff);
+  }
+
+  /**
+   * Create new staff surat directly (without submission)
+   * For STAF_AKADEMIK and STAF_SUMBER_DAYA to create ST/SK directly
+   */
+  async createStaffSurat(input: CreateStaffSuratServiceInput, userId: string, userRole: string) {
+    // Validate that user is a staff
+    if (!(STAF_ROLES as readonly string[]).includes(userRole)) {
+      throw new AppError('Hanya staf yang dapat membuat surat langsung', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Validate category matches staff role
+    if (userRole === ROLES.STAF_AKADEMIK && input.category !== 'AKADEMIK') {
+      throw new AppError('Staf Akademik hanya bisa membuat surat kategori Akademik', HTTP_STATUS.BAD_REQUEST);
+    }
+    if (userRole === ROLES.STAF_SUMBER_DAYA && input.category !== 'SUMBER_DAYA') {
+      throw new AppError('Staf Sumber Daya hanya bisa membuat surat kategori Sumber Daya', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate signatories
+    if (!input.signatories || input.signatories.length === 0) {
+      throw new AppError('Minimal satu penandatangan harus dipilih', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    return hasilRepository.createStaffSurat({
+      category: input.category,
+      documentType: input.documentType,
+      content: input.content,
+      tembusan: input.tembusan,
+      perihal: input.perihal,
+      signatories: input.signatories
+    }, userId, userRole);
   }
 
   // ===========================================================================

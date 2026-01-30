@@ -104,6 +104,23 @@ export interface CreateDraftInput {
   }>;
 }
 
+export interface CreateStaffSuratInput {
+  category: 'AKADEMIK' | 'SUMBER_DAYA';
+  documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
+  content: Prisma.JsonValue;
+  tembusan?: string[];
+  perihal?: string;
+  signatories: Array<{
+    signerRole: string;
+    signerName: string;
+    signerNip?: string;
+    order: number;
+    x?: number;
+    y?: number;
+    page?: number;
+  }>;
+}
+
 export interface UpdateDraftInput {
   documentId: string;
   content?: Prisma.JsonValue;
@@ -658,6 +675,98 @@ class HasilRepository {
       });
 
       return updated;
+    });
+  }
+
+  /**
+   * Create new letter instance directly by staff (without submission)
+   * For STAF_AKADEMIK and STAF_SUMBER_DAYA to create ST/SK directly
+   */
+  async createStaffSurat(input: CreateStaffSuratInput, actorId: string, actorRole: string) {
+    const { category, documentType, content, tembusan, perihal, signatories } = input;
+
+    return prisma.$transaction(async (tx) => {
+      // First, we need a letter type for staff-created letters
+      // Look for or create a generic letter type for staff direct creation
+      let letterType = await tx.letterType.findFirst({
+        where: { 
+          code: `STAFF_DIRECT_${category}`,
+          deletedAt: null
+        }
+      });
+
+      if (!letterType) {
+        letterType = await tx.letterType.create({
+          data: {
+            name: `Surat Langsung Staf ${category === 'AKADEMIK' ? 'Akademik' : 'Sumber Daya'}`,
+            code: `STAFF_DIRECT_${category}`,
+            description: 'Surat yang dibuat langsung oleh staf tanpa melalui submission',
+            category: category as LetterCategory,
+            requiresPengantar: false,
+            requiresDekanSign: true,
+            requiresWadekSign: false
+          }
+        });
+      }
+
+      // Create letter instance
+      const letterInstance = await tx.letterInstance.create({
+        data: {
+          letterTypeId: letterType.id,
+          createdById: actorId,
+          submissionValues: content as any,
+          status: LetterStatus.FAKULTAS_DRAFTING,
+          currentActiveRole: actorRole,
+          category: category as LetterCategory,
+          priority: 'NORMAL'
+        }
+      });
+
+      // Create document
+      const document = await tx.letterDocument.create({
+        data: {
+          letterInstanceId: letterInstance.id,
+          type: documentType as DocumentType,
+          content: content as any,
+          tembusan: (tembusan ?? []) as any,
+          perihal
+        }
+      });
+
+      // Create signature placeholders with position data
+      for (const sig of signatories) {
+        await tx.documentSignature.create({
+          data: {
+            documentId: document.id,
+            signerId: actorId,
+            signerRole: normalizeSignerRole(sig.signerRole),
+            signerName: sig.signerName,
+            signerNip: sig.signerNip,
+            order: sig.order,
+            positionX: sig.x,
+            positionY: sig.y,
+            positionPage: sig.page
+          }
+        });
+      }
+
+      // Log creation
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterInstance.id,
+          actorId,
+          actorRole,
+          action: LogAction.DRAFT_CREATE,
+          fromStatus: null,
+          toStatus: LetterStatus.FAKULTAS_DRAFTING,
+          notes: `Surat ${DOCUMENT_TYPE_LABELS[documentType as DocumentType]} dibuat langsung oleh staf`
+        }
+      });
+
+      return {
+        letterInstance,
+        document
+      };
     });
   }
 }

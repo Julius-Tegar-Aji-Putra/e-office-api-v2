@@ -211,6 +211,27 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
     },
   })
 
+  // Stream attachment file directly (proxy through backend)
+  .get('/:id/attachments/:attachmentId/stream', async ({ params, user, set }) => {
+    return submissionController.streamAttachment(
+      params.id,
+      params.attachmentId,
+      user.id,
+      [],
+      set
+    );
+  }, {
+    params: t.Object({
+      id: t.String({ description: 'Letter Instance ID' }),
+      attachmentId: t.String({ description: 'Attachment ID' }),
+    }),
+    detail: {
+      summary: 'Stream attachment file',
+      description: 'Download file langsung melalui backend (bypass CORS)',
+      tags: ['Submission'],
+    },
+  })
+
   // Delete attachment
   .delete('/:id/attachments/:attachmentId', async ({ params, user }) => {
     return submissionController.removeAttachment(params.id, params.attachmentId, user.id);
