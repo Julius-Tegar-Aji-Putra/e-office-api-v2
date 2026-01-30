@@ -462,7 +462,12 @@ async function getDashboardPengaju(
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
     if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-    if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    if (filters.dateTo) {
+      // Set to end of day (23:59:59.999) to include all data on that day
+      const endDate = new Date(filters.dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      where.createdAt.lte = endDate;
+    }
   }
 
   // Fetch ALL items first (without pagination) to apply displayStatus filter
@@ -625,7 +630,11 @@ async function getDashboardDepartemen(
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
     if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-    if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    if (filters.dateTo) {
+      const endDate = new Date(filters.dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      where.createdAt.lte = endDate;
+    }
   }
 
   // Fetch ALL items first (without pagination) to apply displayStatus filter
@@ -871,7 +880,9 @@ async function getDashboardFakultas(
       where.AND.push({ createdAt: { gte: new Date(filters.dateFrom) } });
     }
     if (filters.dateTo) {
-      where.AND.push({ createdAt: { lte: new Date(filters.dateTo) } });
+      const endDate = new Date(filters.dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      where.AND.push({ createdAt: { lte: endDate } });
     }
   }
 
@@ -1030,7 +1041,11 @@ async function getDashboardUPA(
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
     if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-    if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    if (filters.dateTo) {
+      const endDate = new Date(filters.dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      where.createdAt.lte = endDate;
+    }
   }
 
   // Fetch ALL items first (without pagination) to apply displayStatus filter
