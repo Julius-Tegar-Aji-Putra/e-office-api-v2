@@ -678,12 +678,13 @@ export class SubmissionService {
     // VERIFICATION MODE DETECTION
     // True jika user sedang dalam mode verifikasi (fokus ke form data, bukan dokumen output)
     // ====================================================================
-    // Kaprodi melakukan verifikasi saat status SUBMITTED atau KAPRODI_REVIEW
-    const isKaprodiVerifying = isKaprodi && ['SUBMITTED', 'KAPRODI_REVIEW'].includes(status);
-    // Kadep/Kaprodi melakukan TTD review saat status SURAT_PENGANTAR_REVIEW
-    const isSigningReview = (isKaprodi || isKadep) && status === 'SURAT_PENGANTAR_REVIEW' && 
-      currentActiveRole === viewerRole;
-    const isVerificationMode = isKaprodiVerifying || isSigningReview;
+    // Kaprodi melakukan verifikasi FORM saat status SUBMITTED atau KAPRODI_REVIEW
+    // Ini adalah mode dimana Kaprodi memeriksa data pengajuan, BUKAN dokumen
+    const isKaprodiVerifyingForm = isKaprodi && ['SUBMITTED', 'KAPRODI_REVIEW'].includes(status);
+    
+    // isVerificationMode: Mode di mana user sedang memeriksa FORM pengajuan (bukan dokumen)
+    // Hanya berlaku untuk tahap verifikasi awal, BUKAN saat signing
+    const isVerificationMode = isKaprodiVerifyingForm;
     
     // ====================================================================
     // PRE-DRAFT MODE DETECTION  
@@ -719,16 +720,20 @@ export class SubmissionService {
     ].includes(status);
     
     // ====================================================================
-    // RULE MUTLAK: Dokumen HANYA BOLEH MUNCUL jika sudah melewati DRAFTING
-    // Status "Approved" saja TIDAK CUKUP - harus ada content yang di-generate
+    // RULE BARU: Dokumen TAMPILKAN jika sudah DRAFTED (file/content ada)
+    // Visibility dokumen TIDAK bergantung pada status tanda tangan
+    // Kunci: JIKA FILE SUDAH ADA (DRAFTED) -> TAMPILKAN
     // ====================================================================
     // showSuratPengantar logic:
-    // 1. Status harus >= SURAT_PENGANTAR_DRAFT
-    // 2. TIDAK dalam verification mode  
-    // 3. **DOKUMEN HARUS BENAR-BENAR ADA** (content/file sudah di-generate)
+    // 1. Status harus >= SURAT_PENGANTAR_DRAFT (proses sudah dimulai)
+    // 2. **DOKUMEN HARUS BENAR-BENAR ADA** (content/file sudah di-generate)
+    // 3. TIDAK dalam verification mode (verifikasi FORM awal oleh Kaprodi)
+    // 
+    // CATATAN: Saat SURAT_PENGANTAR_REVIEW (menunggu TTD), dokumen TETAP DITAMPILKAN
+    // karena dokumen sudah di-draft oleh Admin Prodi
     const showSuratPengantar = hasPengantarStatus && 
-      !isVerificationMode && 
-      isSuratPengantarDocReady;
+      isSuratPengantarDocReady && 
+      !isVerificationMode;
 
     // Surat Hasil exists when status >= FAKULTAS_DRAFTING
     const hasHasil = [
