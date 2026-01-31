@@ -11,7 +11,7 @@
 import { Elysia, t } from 'elysia';
 import { authGuardPlugin } from '../middlewares/auth';
 import { db } from '../db';
-import { LetterStatus, LogAction } from '../generated/prisma/enums';
+import { LetterStatus, LogAction, DocumentType } from '../generated/prisma/enums';
 import { ROLES } from '../shared/constants/roles';
 import { getUserRoles } from '../lib/casbin';
 
@@ -612,12 +612,33 @@ async function getDashboardDepartemen(
           LetterStatus.CANCELLED,
         ],
       };
-      // PERBAIKAN: Kadep hanya melihat surat yang membutuhkan tanda tangan Kadep
-      // Filter signatureConfig.requestKadepSign = true
-      where.signatureConfig = {
-        path: ['requestKadepSign'],
-        equals: true,
-      };
+      // PERBAIKAN: Kadep melihat surat yang:
+      // 1. Memiliki DocumentSignature dengan signerRole = 'KADEP' (prioritas: konfigurasi Admin Prodi)
+      // 2. ATAU signatureConfig.requestKadepSign = true (fallback: permintaan awal pengaju)
+      // Ini memastikan jika Admin Prodi menetapkan Kadep sebagai penandatangan,
+      // surat akan muncul di dashboard Kadep meskipun pengaju awalnya memilih "Hanya Kaprodi"
+      where.OR = [
+        // Prioritas 1: Ada signature KADEP dari konfigurasi Admin Prodi
+        {
+          documents: {
+            some: {
+              type: DocumentType.SURAT_PENGANTAR,
+              signatures: {
+                some: {
+                  signerRole: 'KADEP',
+                },
+              },
+            },
+          },
+        },
+        // Prioritas 2 (fallback): signatureConfig dari pengaju meminta Kadep
+        {
+          signatureConfig: {
+            path: ['requestKadepSign'],
+            equals: true,
+          },
+        },
+      ];
       break;
   }
 
@@ -626,10 +647,25 @@ async function getDashboardDepartemen(
   }
 
   if (filters.search) {
-    where.OR = [
-      { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
-      { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
-    ];
+    // PERBAIKAN: Jika sudah ada where.OR (untuk filter Kadep), 
+    // gunakan AND untuk menggabungkan dengan search filter
+    const searchCondition = {
+      OR: [
+        { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
+        { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
+      ]
+    };
+    
+    if (where.OR) {
+      // Kadep case: gabungkan dengan AND
+      where.AND = [
+        { OR: where.OR },
+        searchCondition
+      ];
+      delete where.OR;
+    } else {
+      where.OR = searchCondition.OR;
+    }
   }
 
   if (filters.dateFrom || filters.dateTo) {
