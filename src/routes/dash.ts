@@ -960,8 +960,15 @@ async function getDashboardFakultas(
   // Map items with displayStatus
   let mappedItems: DashboardItem[] = allItems.map((item) => {
     const pengantarDoc = item.documents.find(d => d.type === 'SURAT_PENGANTAR');
-    const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS');
+    const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
     const doc = type === 'masuk' ? pengantarDoc : (hasilDoc || pengantarDoc);
+
+    // Untuk Surat Masuk: jika surat keluar (SK/ST) sudah dibuat, 
+    // status di tabel surat masuk menjadi "SELESAI" karena proses sudah berlanjut ke surat keluar
+    let displayStatus = getDisplayStatusForRole(item.status, user.role, item.currentActiveRole);
+    if (type === 'masuk' && hasilDoc) {
+      displayStatus = 'SELESAI';
+    }
 
     return {
       id: item.id,
@@ -971,7 +978,7 @@ async function getDashboardFakultas(
       jenisSurat: item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
-      displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
+      displayStatus,
       actions: getActionsForItem(user.role, item.status),
     };
   });
