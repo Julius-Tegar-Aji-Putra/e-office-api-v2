@@ -120,11 +120,12 @@ export const signDocumentBodySchema = t.Object({
 // ============================================================================
 
 export const createStaffSuratBodySchema = t.Object({
-  // Kategori surat: AKADEMIK atau SUMBER_DAYA
+  // Kategori surat: AKADEMIK, SUMBER_DAYA, atau UMUM
   category: t.Union([
     t.Literal('AKADEMIK'),
-    t.Literal('SUMBER_DAYA')
-  ], { error: 'Kategori harus AKADEMIK atau SUMBER_DAYA' }),
+    t.Literal('SUMBER_DAYA'),
+    t.Literal('UMUM')
+  ], { error: 'Kategori harus AKADEMIK, SUMBER_DAYA, atau UMUM' }),
   
   // Tipe dokumen
   documentType: t.Union([

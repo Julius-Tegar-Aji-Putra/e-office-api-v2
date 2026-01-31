@@ -42,7 +42,7 @@ export interface UpdateDraftServiceInput {
 }
 
 export interface CreateStaffSuratServiceInput {
-  category: 'AKADEMIK' | 'SUMBER_DAYA';
+  category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM';
   documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
   content: Record<string, unknown>;
   tembusan?: string[];
@@ -556,11 +556,13 @@ class HasilService {
     }
 
     // Validate category matches staff role
-    if (userRole === ROLES.STAF_AKADEMIK && input.category !== 'AKADEMIK') {
-      throw new AppError('Staf Akademik hanya bisa membuat surat kategori Akademik', HTTP_STATUS.BAD_REQUEST);
+    // Staff Akademik can create AKADEMIK and UMUM letters
+    // Staff Sumber Daya can create SUMBER_DAYA and UMUM letters
+    if (userRole === ROLES.STAF_AKADEMIK && input.category !== 'AKADEMIK' && input.category !== 'UMUM') {
+      throw new AppError('Staf Akademik hanya bisa membuat surat kategori Akademik atau Umum', HTTP_STATUS.BAD_REQUEST);
     }
-    if (userRole === ROLES.STAF_SUMBER_DAYA && input.category !== 'SUMBER_DAYA') {
-      throw new AppError('Staf Sumber Daya hanya bisa membuat surat kategori Sumber Daya', HTTP_STATUS.BAD_REQUEST);
+    if (userRole === ROLES.STAF_SUMBER_DAYA && input.category !== 'SUMBER_DAYA' && input.category !== 'UMUM') {
+      throw new AppError('Staf Sumber Daya hanya bisa membuat surat kategori Sumber Daya atau Umum', HTTP_STATUS.BAD_REQUEST);
     }
 
     // Validate signatories
