@@ -215,6 +215,9 @@ export interface SubmissionPermissions {
   showFormulirAwal: boolean;
   showRiwayat: boolean;
   showAlasanDitolak: boolean;
+  // UI Mode flags
+  isVerificationMode?: boolean; // True jika user sedang dalam mode verifikasi (fokus ke form, bukan dokumen)
+  isPreDraftMode?: boolean; // True jika dokumen belum ada/belum digenerate
   // Department approval actions
   canApprove?: boolean;
   canReject?: boolean;

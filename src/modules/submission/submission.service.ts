@@ -657,14 +657,53 @@ export class SubmissionService {
     currentActiveRole: string | null,
     createdById: string,
     rejectionReason?: string | null,
-    documents?: Array<{ type: string }>
+    documents?: Array<{ type: string; content?: unknown }>
   ): SubmissionPermissions {
     const isSubmitter = viewerRole === ROLES.MAHASISWA || viewerRole === ROLES.DOSEN;
     const isCompleted = status === 'COMPLETED';
     const isRejected = status === 'REJECTED' || status === 'CANCELLED';
 
-    // Surat Pengantar exists when status >= SURAT_PENGANTAR_DRAFT
-    const hasPengantar = [
+    // Role-based checks
+    const isKaprodi = viewerRole === ROLES.KETUA_PRODI;
+    const isAdminProdi = viewerRole === ROLES.ADMIN_PRODI;
+    const isKadep = viewerRole === ROLES.KETUA_DEPARTEMEN;
+    const isAdminFakultas = viewerRole === ROLES.ADMIN_FAKULTAS;
+    const isPejabat = [ROLES.DEKAN, ROLES.WAKIL_DEKAN_1, ROLES.WAKIL_DEKAN_2].includes(viewerRole as any);
+    const isManajerTU = viewerRole === ROLES.MANAJER_TU;
+    const isSupervisor = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(viewerRole as any);
+    const isStaf = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(viewerRole as any);
+    const isUPA = viewerRole === ROLES.UPA;
+    
+    // ====================================================================
+    // VERIFICATION MODE DETECTION
+    // True jika user sedang dalam mode verifikasi (fokus ke form data, bukan dokumen output)
+    // ====================================================================
+    // Kaprodi melakukan verifikasi saat status SUBMITTED atau KAPRODI_REVIEW
+    const isKaprodiVerifying = isKaprodi && ['SUBMITTED', 'KAPRODI_REVIEW'].includes(status);
+    // Kadep/Kaprodi melakukan TTD review saat status SURAT_PENGANTAR_REVIEW
+    const isSigningReview = (isKaprodi || isKadep) && status === 'SURAT_PENGANTAR_REVIEW' && 
+      currentActiveRole === viewerRole;
+    const isVerificationMode = isKaprodiVerifying || isSigningReview;
+    
+    // ====================================================================
+    // PRE-DRAFT MODE DETECTION  
+    // True jika dokumen surat pengantar belum ada/belum digenerate
+    // ====================================================================
+    // Check if SURAT_PENGANTAR document exists and has content or file
+    const suratPengantarDoc = documents?.find(d => d.type === 'SURAT_PENGANTAR');
+    const hasSuratPengantarContent = !!suratPengantarDoc?.content;
+    const hasSuratPengantarFile = !!(suratPengantarDoc as any)?.fileUrl;
+    const isSuratPengantarDocReady = hasSuratPengantarContent || hasSuratPengantarFile;
+    
+    // Pre-draft mode: SEMUA ROLE jika dokumen belum ready dan status sudah melewati verifikasi
+    // - Status SUBMITTED/KAPRODI_REVIEW: selalu pre-draft (belum ada proses drafting)
+    // - Status SURAT_PENGANTAR_DRAFT: pre-draft jika dokumen belum ada content
+    const isBeforeDrafting = ['SUBMITTED', 'KAPRODI_REVIEW'].includes(status);
+    const isDraftingButNoContent = status === 'SURAT_PENGANTAR_DRAFT' && !isSuratPengantarDocReady;
+    const isPreDraftMode = isBeforeDrafting || isDraftingButNoContent;
+
+    // Status yang menandakan proses surat pengantar sudah dimulai
+    const hasPengantarStatus = [
       'SURAT_PENGANTAR_DRAFT',
       'SURAT_PENGANTAR_REVIEW',
       'SURAT_PENGANTAR_SIGNED',
@@ -678,6 +717,18 @@ export class SubmissionService {
       'UPA_FINALIZING',
       'COMPLETED',
     ].includes(status);
+    
+    // ====================================================================
+    // RULE MUTLAK: Dokumen HANYA BOLEH MUNCUL jika sudah melewati DRAFTING
+    // Status "Approved" saja TIDAK CUKUP - harus ada content yang di-generate
+    // ====================================================================
+    // showSuratPengantar logic:
+    // 1. Status harus >= SURAT_PENGANTAR_DRAFT
+    // 2. TIDAK dalam verification mode  
+    // 3. **DOKUMEN HARUS BENAR-BENAR ADA** (content/file sudah di-generate)
+    const showSuratPengantar = hasPengantarStatus && 
+      !isVerificationMode && 
+      isSuratPengantarDocReady;
 
     // Surat Hasil exists when status >= FAKULTAS_DRAFTING
     const hasHasil = [
@@ -689,17 +740,6 @@ export class SubmissionService {
       'UPA_FINALIZING',
       'COMPLETED',
     ].includes(status);
-
-    // Role-based action permissions
-    const isKaprodi = viewerRole === ROLES.KETUA_PRODI;
-    const isAdminProdi = viewerRole === ROLES.ADMIN_PRODI;
-    const isKadep = viewerRole === ROLES.KETUA_DEPARTEMEN;
-    const isAdminFakultas = viewerRole === ROLES.ADMIN_FAKULTAS;
-    const isPejabat = [ROLES.DEKAN, ROLES.WAKIL_DEKAN_1, ROLES.WAKIL_DEKAN_2].includes(viewerRole as any);
-    const isManajerTU = viewerRole === ROLES.MANAJER_TU;
-    const isSupervisor = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(viewerRole as any);
-    const isStaf = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(viewerRole as any);
-    const isUPA = viewerRole === ROLES.UPA;
 
     // Kaprodi can approve/reject when status is SUBMITTED
     const canApprove = isKaprodi && status === 'SUBMITTED';
@@ -793,11 +833,14 @@ export class SubmissionService {
       canCancel: isSubmitter && this.canCancelSubmission(status),
       canDownload: isCompleted,
       canResubmit: isSubmitter && isRejected,
-      showSuratPengantar: hasPengantar,
+      showSuratPengantar,
       showSuratHasil: hasHasil,
       showFormulirAwal: true,
       showRiwayat: true,
       showAlasanDitolak: isRejected && !!rejectionReason,
+      // UI Mode flags
+      isVerificationMode,
+      isPreDraftMode,
       // Department approval actions
       canApprove,
       canReject,
