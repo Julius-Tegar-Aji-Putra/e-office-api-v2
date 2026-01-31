@@ -11,6 +11,12 @@ export interface SignatureBlock {
   signedAt?: string;
 }
 
+// Tembusan recipient for display in letter
+export interface TembusanRecipient {
+  name: string;
+  description?: string;
+}
+
 export interface SuratTugasData {
   jenisSurat: 'tugas' | 'keputusan';
   jenisSuratText: string;
@@ -25,6 +31,7 @@ export interface SuratTugasData {
   qrCodeDataUrl?: string;
   verificationUrl?: string;
   stempelUrl?: string; // URL stempel UNDIP
+  tembusan?: TembusanRecipient[]; // List of tembusan recipients
 }
 
 const renderSignatureBlock = (signature: SignatureBlock): string => {
@@ -75,6 +82,26 @@ const renderStempel = (stempelUrl?: string): string => {
   return `
     <div class="stempel-container" style="position: absolute; bottom: 120px; right: 180px; width: 80px; height: 80px; opacity: 0.85;">
       <img src="${stempelUrl}" alt="Stempel UNDIP" style="width: 100%; height: 100%; object-fit: contain;" />
+    </div>
+  `;
+};
+
+/**
+ * Render tembusan section at bottom left of the letter
+ */
+const renderTembusan = (tembusan?: TembusanRecipient[]): string => {
+  if (!tembusan || tembusan.length === 0) return '';
+  
+  return `
+    <div class="tembusan-container" style="position: absolute; bottom: 30px; left: 0; max-width: 250px;">
+      <p style="margin: 0 0 5px 0; font-size: 10pt; font-weight: bold; color: #000000 !important;">Tembusan:</p>
+      <ol style="margin: 0; padding-left: 20px; font-size: 9pt; color: #000000 !important;">
+        ${tembusan.map(t => `
+          <li style="color: #000000 !important; margin-bottom: 2px;">
+            ${t.name}${t.description ? ` (${t.description})` : ''}
+          </li>
+        `).join('')}
+      </ol>
     </div>
   `;
 };
@@ -224,6 +251,18 @@ export const suratTugasTemplate = (data: SuratTugasData): string => `<!DOCTYPE h
       right: 100px;
       z-index: 100;
     }
+    .tembusan-container {
+      position: absolute;
+      bottom: 30px;
+      left: 0;
+      max-width: 250px;
+    }
+    .tembusan-container ol {
+      list-style-type: decimal;
+    }
+    .tembusan-container li {
+      margin-bottom: 2px;
+    }
     b, strong {
       font-weight: bold !important;
       color: #000000 !important;
@@ -288,6 +327,7 @@ export const suratTugasTemplate = (data: SuratTugasData): string => `<!DOCTYPE h
   </div>
   ${data.tanggalSurat ? `<p style="text-align: right; margin-top: 30px; color: #000000 !important;">${data.tanggalSurat}</p>` : ''}
   <div class="ttd-container">
+    ${renderTembusan(data.tembusan)}
     ${renderSignatures(data.signatures)}
     ${renderStempel(data.stempelUrl)}
   </div>

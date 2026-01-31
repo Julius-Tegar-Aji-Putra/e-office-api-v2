@@ -48,6 +48,13 @@ export const signatorySchema = t.Object({
   page: t.Optional(t.Number({ minimum: 1 }))
 });
 
+// Tembusan recipient schema (new format with userId)
+export const tembusanRecipientSchema = t.Object({
+  userId: t.String({ minLength: 1 }),
+  name: t.String({ minLength: 1 }),
+  description: t.Optional(t.String())
+});
+
 export const createDraftBodySchema = t.Object({
   documentType: t.Union([
     t.Literal('SURAT_TUGAS'),
@@ -56,14 +63,22 @@ export const createDraftBodySchema = t.Object({
     t.Literal('SURAT_TUGAS_TABEL')
   ], { error: 'Tipe dokumen harus SURAT_TUGAS, SURAT_KEPUTUSAN, SURAT_PENGANTAR, atau SURAT_TUGAS_TABEL' }),
   content: t.Record(t.String(), t.Any()),
-  tembusan: t.Optional(t.Array(t.String())),
+  // Tembusan now supports both old format (string[]) and new format (TembusanRecipient[])
+  tembusan: t.Optional(t.Union([
+    t.Array(t.String()),
+    t.Array(tembusanRecipientSchema)
+  ])),
   perihal: t.Optional(t.String()),
   signatories: t.Array(signatorySchema, { minItems: 1, error: 'Minimal satu penandatangan' })
 });
 
 export const updateDraftBodySchema = t.Object({
   content: t.Optional(t.Record(t.String(), t.Any())),
-  tembusan: t.Optional(t.Array(t.String())),
+  // Tembusan now supports both old format (string[]) and new format (TembusanRecipient[])
+  tembusan: t.Optional(t.Union([
+    t.Array(t.String()),
+    t.Array(tembusanRecipientSchema)
+  ])),
   perihal: t.Optional(t.String())
 });
 
@@ -121,8 +136,11 @@ export const createStaffSuratBodySchema = t.Object({
   // Konten surat sesuai tipe
   content: t.Record(t.String(), t.Any()),
   
-  // Tembusan (opsional)
-  tembusan: t.Optional(t.Array(t.String())),
+  // Tembusan - supports both old format (string[]) and new format (TembusanRecipient[])
+  tembusan: t.Optional(t.Union([
+    t.Array(t.String()),
+    t.Array(tembusanRecipientSchema)
+  ])),
   
   // Perihal surat
   perihal: t.Optional(t.String()),

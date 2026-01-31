@@ -1,12 +1,15 @@
 /**
  * Tembusan Routes
  * API routes untuk fitur tembusan (surat yang diterima sebagai tembusan)
+ * 
+ * Updated to use user-based tembusan access:
+ * - Submitter (pengaju) automatically has access to completed letters
+ * - Users in tembusan list have access to completed letters
  */
 
 import { Elysia, t } from 'elysia';
-import { tembusanService } from './tembusan.service';
+import { tembusanServiceV2 } from './tembusan-v2.service';
 import { authGuardPlugin } from '../../middlewares/auth';
-import { getUserRoles } from '../../lib/casbin';
 
 export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
   .use(authGuardPlugin)
@@ -14,12 +17,13 @@ export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
   /**
    * GET /api/tembusan/inbox
    * Get daftar surat yang diterima sebagai tembusan
+   * 
+   * Includes:
+   * - Letters submitted by the user (automatically)
+   * - Letters where user is explicitly in tembusan list
    */
   .get('/inbox', async ({ user, query }) => {
-    const roles = await getUserRoles(user.id);
-    const activeRole = roles[0] || 'MAHASISWA';
-
-    return tembusanService.getInbox(
+    return tembusanServiceV2.getInbox(
       {
         page: query.page ? parseInt(query.page as string) : 1,
         limit: query.limit ? parseInt(query.limit as string) : 10,
@@ -28,8 +32,7 @@ export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
         sortBy: query.sortBy as string | undefined,
         sortOrder: query.sortOrder as 'asc' | 'desc' | undefined,
       },
-      user.id,
-      activeRole
+      user.id
     );
   }, {
     query: t.Object({
@@ -47,10 +50,7 @@ export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
    * Get jumlah surat tembusan yang belum dibaca
    */
   .get('/count', async ({ user }) => {
-    const roles = await getUserRoles(user.id);
-    const activeRole = roles[0] || 'MAHASISWA';
-
-    return tembusanService.getUnreadCount(user.id, activeRole);
+    return tembusanServiceV2.getUnreadCount(user.id);
   })
 
   /**
@@ -58,10 +58,7 @@ export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
    * Get detail surat tembusan
    */
   .get('/:id', async ({ user, params }) => {
-    const roles = await getUserRoles(user.id);
-    const activeRole = roles[0] || 'MAHASISWA';
-
-    return tembusanService.getDetail(params.id, user.id, activeRole);
+    return tembusanServiceV2.getDetail(params.id, user.id);
   }, {
     params: t.Object({
       id: t.String(),
@@ -73,7 +70,19 @@ export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
    * Mark surat tembusan sebagai sudah dibaca
    */
   .post('/:id/mark-read', async ({ user, params }) => {
-    return tembusanService.markAsRead(params.id, user.id);
+    return tembusanServiceV2.markAsRead(params.id, user.id);
+  }, {
+    params: t.Object({
+      id: t.String(),
+    }),
+  })
+
+  /**
+   * GET /api/tembusan/:id/can-download
+   * Check if user can download the document
+   */
+  .get('/:id/can-download', async ({ user, params }) => {
+    return tembusanServiceV2.canDownloadDocument(params.id, user.id);
   }, {
     params: t.Object({
       id: t.String(),
