@@ -20,7 +20,8 @@ import { prisma } from '../../db';
 import { MinioService } from '../../shared/services/minio.service';
 import { env } from '../../config/env';
 import { encryptVerificationData, generateVerificationUrl } from '../../shared/utils/encryption';
-import { suratTugasTemplate, type SuratTugasData, type SignatureBlock } from '../../shared/templates/surat-tugas.template';
+import { suratTugasTemplate, type SuratTugasData, type SignatureBlock, type TembusanRecipient as TembusanRecipientST } from '../../shared/templates/surat-tugas.template';
+import { suratKeputusanTemplate, type SuratKeputusanData, type KeputusanItem, type TembusanRecipient } from '../../shared/templates/surat-keputusan.template';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -192,6 +193,18 @@ class LegalisasiPdfService {
         })}`
       : undefined;
 
+    // Extract tembusan from document data
+    const tembusanData = document.tembusan as Array<string | { name: string; description?: string }> | null;
+    let tembusan: TembusanRecipientST[] | undefined;
+    if (tembusanData && Array.isArray(tembusanData)) {
+      tembusan = tembusanData.map(t => {
+        if (typeof t === 'string') {
+          return { name: t };
+        }
+        return { name: t.name, description: t.description };
+      });
+    }
+
     return {
       jenisSurat,
       jenisSuratText,
@@ -205,6 +218,115 @@ class LegalisasiPdfService {
       tanggalSurat,
       stempelUrl: options.stempelUrl || (document.sealImageUrl ? document.sealImageUrl : undefined),
       qrCodeDataUrl: options.qrCodeDataUrl || (document.qrCodeUrl ? document.qrCodeUrl : undefined),
+      tembusan,
+    };
+  }
+
+  /**
+   * Build data untuk template Surat Keputusan dari dokumen database
+   */
+  async buildSuratKeputusanData(
+    documentId: string,
+    options: {
+      nomorSurat?: string;
+      stempelUrl?: string;
+      qrCodeDataUrl?: string;
+    } = {}
+  ): Promise<SuratKeputusanData> {
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId },
+      include: {
+        letterInstance: {
+          include: {
+            createdBy: {
+              include: {
+                mahasiswa: {
+                  include: {
+                    programStudi: true,
+                  },
+                },
+                pegawai: {
+                  include: {
+                    programStudi: true,
+                  },
+                },
+              },
+            },
+            letterType: true,
+          },
+        },
+        signatures: {
+          where: { status: 'SIGNED' },
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+
+    if (!document) {
+      throw new Error('Dokumen tidak ditemukan');
+    }
+
+    const letterInstance = document.letterInstance;
+    const contentData = (document.content as Record<string, unknown>) || {};
+
+    // Build signatures array
+    const signatures: SignatureBlock[] = document.signatures.map((sig) => ({
+      signerRole: sig.signerRole,
+      signerName: sig.signerName || '',
+      signerNip: sig.signerNip || undefined,
+      signatureUrl: sig.signatureUrl || undefined,
+      signedAt: sig.signedAt
+        ? new Date(sig.signedAt).toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })
+        : undefined,
+    }));
+
+    // Extract keputusan items from content
+    const keputusanData = (contentData.keputusan as KeputusanItem[]) || [];
+    const keputusan: KeputusanItem[] = keputusanData.length > 0 
+      ? keputusanData 
+      : [{ label: 'KESATU', content: '-' }];
+
+    // Extract menimbang and mengingat from content
+    const menimbang = (contentData.menimbang as string[]) || ['-'];
+    const mengingat = (contentData.mengingat as string[]) || ['-'];
+
+    // Extract tembusan from content
+    const tembusan = (contentData.tembusan as TembusanRecipient[]) || undefined;
+
+    // Format tanggal ditetapkan
+    const tanggalDitetapkan = document.tanggalSurat
+      ? new Date(document.tanggalSurat).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+
+    // Check if there's lampiran/data peserta
+    const dataPeserta = (contentData.dataPeserta as Array<{ nama: string; nim: string }>) || undefined;
+    const lampiran = dataPeserta && dataPeserta.length > 0;
+
+    return {
+      nomorSurat: options.nomorSurat || document.nomorSurat || '-',
+      tentang: document.perihal || (contentData.tentang as string) || '-',
+      menimbang,
+      mengingat,
+      menetapkan: (contentData.menetapkan as string) || '-',
+      keputusan,
+      tanggalDitetapkan,
+      lampiran,
+      dataPeserta,
+      signatures,
+      qrCodeDataUrl: options.qrCodeDataUrl || (document.qrCodeUrl ? document.qrCodeUrl : undefined),
+      tembusan,
     };
   }
 
@@ -512,13 +634,26 @@ class LegalisasiPdfService {
   ): Promise<string> {
     console.log(`[LegalisasiPdf] Regenerating PDF with nomor surat: ${nomorSurat} for document ${documentId}`);
 
-    // Build data untuk template dengan nomor surat baru
-    const templateData = await this.buildSuratTugasData(documentId, {
-      nomorSurat,
+    // Get document to determine type
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId },
+      select: { type: true },
     });
 
-    // Generate HTML dari template
-    const html = suratTugasTemplate(templateData);
+    if (!document) {
+      throw new Error('Dokumen tidak ditemukan');
+    }
+
+    let html: string;
+
+    // Use appropriate template based on document type
+    if (document.type === 'SURAT_KEPUTUSAN') {
+      const templateData = await this.buildSuratKeputusanData(documentId, { nomorSurat });
+      html = suratKeputusanTemplate(templateData);
+    } else {
+      const templateData = await this.buildSuratTugasData(documentId, { nomorSurat });
+      html = suratTugasTemplate(templateData);
+    }
 
     // Generate PDF dari HTML menggunakan Puppeteer
     const pdfBuffer = await this.generatePdfFromHtml(html);
@@ -543,13 +678,29 @@ class LegalisasiPdfService {
   async regeneratePdfWithStempel(documentId: string): Promise<string> {
     console.log(`[LegalisasiPdf] Regenerating PDF with stempel for document ${documentId}`);
 
-    // Build data untuk template dengan stempel UNDIP
-    const templateData = await this.buildSuratTugasData(documentId, {
-      stempelUrl: UNDIP_STEMPEL_URL,
+    // Get document to determine type
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId },
+      select: { type: true },
     });
 
-    // Generate HTML dari template
-    const html = suratTugasTemplate(templateData);
+    if (!document) {
+      throw new Error('Dokumen tidak ditemukan');
+    }
+
+    let html: string;
+
+    // Use appropriate template based on document type
+    // Note: Surat Keputusan currently doesn't have stempel support in template
+    if (document.type === 'SURAT_KEPUTUSAN') {
+      const templateData = await this.buildSuratKeputusanData(documentId, {});
+      html = suratKeputusanTemplate(templateData);
+    } else {
+      const templateData = await this.buildSuratTugasData(documentId, {
+        stempelUrl: UNDIP_STEMPEL_URL,
+      });
+      html = suratTugasTemplate(templateData);
+    }
 
     // Generate PDF dari HTML menggunakan Puppeteer
     const pdfBuffer = await this.generatePdfFromHtml(html);
@@ -614,15 +765,20 @@ class LegalisasiPdfService {
 
     console.log(`[LegalisasiPdf] QR Code generated, verification URL: ${verificationUrl}`);
 
-    // Build data untuk template dengan QR Code (dan stempel jika sudah ada)
-    // Always use local stempel from public/stempel.png
-    const templateData = await this.buildSuratTugasData(documentId, {
-      stempelUrl: UNDIP_STEMPEL_URL,
-      qrCodeDataUrl,
-    });
+    let html: string;
 
-    // Generate HTML dari template
-    const html = suratTugasTemplate(templateData);
+    // Use appropriate template based on document type
+    if (document.type === 'SURAT_KEPUTUSAN') {
+      const templateData = await this.buildSuratKeputusanData(documentId, { qrCodeDataUrl });
+      html = suratKeputusanTemplate(templateData);
+    } else {
+      // Build data untuk template dengan QR Code dan stempel
+      const templateData = await this.buildSuratTugasData(documentId, {
+        stempelUrl: UNDIP_STEMPEL_URL,
+        qrCodeDataUrl,
+      });
+      html = suratTugasTemplate(templateData);
+    }
 
     // Generate PDF dari HTML menggunakan Puppeteer
     const pdfBuffer = await this.generatePdfFromHtml(html);
@@ -694,13 +850,16 @@ class LegalisasiPdfService {
       console.log(`[LegalisasiPdf] No fileUrl found, generating PDF from template for document ${documentId}`);
       
       try {
-        // Build template data with the nomor surat
-        const templateData = await this.buildSuratTugasData(documentId, {
-          nomorSurat, // Include nomor surat in template
-        });
+        let html: string;
 
-        // Generate HTML from template
-        const html = suratTugasTemplate(templateData);
+        // Use appropriate template based on document type
+        if (document.type === 'SURAT_KEPUTUSAN') {
+          const templateData = await this.buildSuratKeputusanData(documentId, { nomorSurat });
+          html = suratKeputusanTemplate(templateData);
+        } else {
+          const templateData = await this.buildSuratTugasData(documentId, { nomorSurat });
+          html = suratTugasTemplate(templateData);
+        }
 
         // Generate PDF from HTML using Puppeteer
         const pdfBuffer = await this.generatePdfFromHtml(html);

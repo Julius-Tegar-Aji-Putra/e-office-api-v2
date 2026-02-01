@@ -232,6 +232,7 @@ export class SubmissionService {
             fileUrl: signedFileUrl,
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
+            tembusan: doc.tembusan || null, // Tembusan recipients dari draft
             signatures: doc.signatures.map((sig: any) => ({
               signerRole: sig.signerRole,
               signerName: sig.signerName,
@@ -728,15 +729,17 @@ export class SubmissionService {
     // 1. Status harus >= SURAT_PENGANTAR_DRAFT (proses sudah dimulai)
     // 2. **DOKUMEN HARUS BENAR-BENAR ADA** (content/file sudah di-generate)
     // 3. TIDAK dalam verification mode (verifikasi FORM awal oleh Kaprodi)
+    //    KECUALI untuk pengaju (mahasiswa/dosen) yang selalu bisa lihat dokumen
     // 
     // CATATAN: Saat SURAT_PENGANTAR_REVIEW (menunggu TTD), dokumen TETAP DITAMPILKAN
     // karena dokumen sudah di-draft oleh Admin Prodi
+    // PERBAIKAN: Mahasiswa/Dosen selalu bisa melihat surat pengantar jika dokumen sudah ada
     const showSuratPengantar = hasPengantarStatus && 
       isSuratPengantarDocReady && 
-      !isVerificationMode;
+      (isSubmitter || !isVerificationMode);
 
     // Surat Hasil exists when status >= FAKULTAS_DRAFTING
-    const hasHasil = [
+    const hasFakultasStatus = [
       'FAKULTAS_DRAFTING',
       'FAKULTAS_VERIFICATION',
       'FAKULTAS_SIGNING',
@@ -745,6 +748,18 @@ export class SubmissionService {
       'UPA_FINALIZING',
       'COMPLETED',
     ].includes(status);
+    
+    // Check if SK/ST document actually exists (has content or file)
+    const suratHasilDoc = documents?.find(d => 
+      d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS_TABEL'
+    );
+    const hasSuratHasilContent = !!(suratHasilDoc?.content);
+    const hasSuratHasilFile = !!(suratHasilDoc as any)?.fileUrl;
+    const isSuratHasilDocReady = hasSuratHasilContent || hasSuratHasilFile;
+    
+    // PERBAIKAN: showSuratHasil = status >= FAKULTAS_DRAFTING DAN dokumen sudah ada
+    // Untuk mahasiswa/dosen: tampilkan jika dokumen sudah ada
+    const hasHasil = hasFakultasStatus && (isSubmitter ? isSuratHasilDocReady : true);
 
     // Kaprodi can approve/reject when status is SUBMITTED
     const canApprove = isKaprodi && status === 'SUBMITTED';
