@@ -355,12 +355,12 @@ export const ROLE_DISPOSITION_TARGETS: Record<string, RoleDispositionTargets> = 
     ]
   },
   [ROLES.SUPERVISOR_AKADEMIK]: {
-    UMUM: [ROLES.STAF_AKADEMIK],
+    UMUM: [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA], // Untuk kategori UMUM, bisa pilih semua staf
     AKADEMIK: [ROLES.STAF_AKADEMIK],
     SUMBER_DAYA: [] // Tidak bisa disposisi ke SD dari SPV Akademik
   },
   [ROLES.SUPERVISOR_SUMBER_DAYA]: {
-    UMUM: [ROLES.STAF_SUMBER_DAYA],
+    UMUM: [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA], // Untuk kategori UMUM, bisa pilih semua staf
     AKADEMIK: [], // Tidak bisa disposisi ke Akademik dari SPV SD
     SUMBER_DAYA: [ROLES.STAF_SUMBER_DAYA]
   }
