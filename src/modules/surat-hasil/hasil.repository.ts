@@ -110,6 +110,7 @@ export interface CreateStaffSuratInput {
   content: Prisma.JsonValue;
   tembusan?: string[];
   perihal?: string;
+  targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA'; // Untuk kategori UMUM
   signatories: Array<{
     signerRole: string;
     signerName: string;
@@ -339,18 +340,27 @@ class HasilRepository {
     letterId: string,
     actorId: string,
     actorRole: string,
-    category: LetterCategory
+    category: LetterCategory,
+    targetSupervisor?: string
   ) {
     return prisma.$transaction(async (tx) => {
-      // Determine next verifier based on category
+      // Get letter to check submissionValues for targetSupervisor
+      const existingLetter = await tx.letterInstance.findUnique({
+        where: { id: letterId },
+        select: { submissionValues: true, category: true }
+      });
+      
+      // Determine next verifier based on category and targetSupervisor
       let nextRole: string;
-      if (actorRole === 'STAF_AKADEMIK') {
+      if (actorRole === 'STAF_AKADEMIK' && category !== 'UMUM') {
         nextRole = 'SUPERVISOR_AKADEMIK';
-      } else if (actorRole === 'STAF_SUMBER_DAYA') {
+      } else if (actorRole === 'STAF_SUMBER_DAYA' && category !== 'UMUM') {
         nextRole = 'SUPERVISOR_SUMBER_DAYA';
       } else {
-        // For UMUM, staff can choose
-        nextRole = category === 'AKADEMIK' ? 'SUPERVISOR_AKADEMIK' : 'SUPERVISOR_SUMBER_DAYA';
+        // For UMUM category, use targetSupervisor from param or submissionValues
+        const storedTarget = (existingLetter?.submissionValues as any)?.targetSupervisor;
+        nextRole = targetSupervisor || storedTarget || 
+          (actorRole === 'STAF_AKADEMIK' ? 'SUPERVISOR_AKADEMIK' : 'SUPERVISOR_SUMBER_DAYA');
       }
 
       const letter = await tx.letterInstance.update({
@@ -683,7 +693,7 @@ class HasilRepository {
    * For STAF_AKADEMIK and STAF_SUMBER_DAYA to create ST/SK directly
    */
   async createStaffSurat(input: CreateStaffSuratInput, actorId: string, actorRole: string) {
-    const { category, documentType, content, tembusan, perihal, signatories } = input;
+    const { category, documentType, content, tembusan, perihal, signatories, targetSupervisor } = input;
 
     return prisma.$transaction(async (tx) => {
       // First, we need a letter type for staff-created letters
@@ -710,11 +720,17 @@ class HasilRepository {
       }
 
       // Create letter instance
+      // Store targetSupervisor in submissionValues for UMUM category
+      const submissionValues = {
+        ...(content as object),
+        ...(targetSupervisor ? { targetSupervisor } : {})
+      };
+      
       const letterInstance = await tx.letterInstance.create({
         data: {
           letterTypeId: letterType.id,
           createdById: actorId,
-          submissionValues: content as any,
+          submissionValues: submissionValues as any,
           status: LetterStatus.FAKULTAS_DRAFTING,
           currentActiveRole: actorRole,
           category: category as LetterCategory,

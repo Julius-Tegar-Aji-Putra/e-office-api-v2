@@ -47,6 +47,7 @@ export interface CreateStaffSuratServiceInput {
   content: Record<string, unknown>;
   tembusan?: string[];
   perihal?: string;
+  targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA'; // Untuk kategori UMUM
   signatories: Array<{
     signerRole: string;
     signerName: string;
@@ -263,7 +264,7 @@ class HasilService {
     letterId: string,
     userId: string,
     userRole: string,
-    targetSupervisor?: 'AKADEMIK' | 'SUMBER_DAYA'
+    targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA'
   ) {
     const letter = await hasilRepository.getLetterById(letterId);
 
@@ -288,15 +289,15 @@ class HasilService {
       throw new AppError('Draft SK/ST/SP belum dibuat', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Determine category for routing
-    let category = letter.letterType.category as LetterCategory;
+    // Get category from letterInstance (set by Admin Fakultas) or letterType
+    const category = letter.category as LetterCategory || letter.letterType.category as LetterCategory;
     
-    // For UMUM, use targetSupervisor if provided
-    if (category === 'UMUM' && targetSupervisor) {
-      category = targetSupervisor === 'AKADEMIK' ? LetterCategory.AKADEMIK : LetterCategory.SUMBER_DAYA;
+    // For UMUM category, require targetSupervisor
+    if (category === 'UMUM' && !targetSupervisor) {
+      throw new AppError('Untuk kategori Umum, harus memilih supervisor tujuan', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return hasilRepository.submitForVerification(letterId, userId, userRole, category);
+    return hasilRepository.submitForVerification(letterId, userId, userRole, category, targetSupervisor);
   }
 
   /**
@@ -516,12 +517,14 @@ class HasilService {
 
   /**
    * Supervisor return draft for revision
+   * @param targetStaff - Optional target staff for UMUM category letters
    */
   async returnForRevision(
     letterId: string,
     userId: string,
     userRole: string,
-    reason: string
+    reason: string,
+    targetStaffParam?: string
   ) {
     const letter = await hasilRepository.getLetterById(letterId);
 
@@ -537,10 +540,16 @@ class HasilService {
       throw new AppError('Bukan giliran Anda untuk memverifikasi', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Determine target staff based on supervisor type
-    const targetStaff = userRole === ROLES.SUPERVISOR_AKADEMIK 
-      ? ROLES.STAF_AKADEMIK 
-      : ROLES.STAF_SUMBER_DAYA;
+    // For UMUM category, use targetStaffParam if provided
+    // Otherwise, determine target staff based on supervisor type
+    let targetStaff: string;
+    if (letter.category === 'UMUM' && targetStaffParam) {
+      targetStaff = targetStaffParam;
+    } else {
+      targetStaff = userRole === ROLES.SUPERVISOR_AKADEMIK 
+        ? ROLES.STAF_AKADEMIK 
+        : ROLES.STAF_SUMBER_DAYA;
+    }
 
     return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetStaff);
   }
@@ -565,6 +574,8 @@ class HasilService {
       throw new AppError('Staf Sumber Daya hanya bisa membuat surat kategori Sumber Daya atau Umum', HTTP_STATUS.BAD_REQUEST);
     }
 
+    // Note: targetSupervisor untuk UMUM dipilih saat submit for verification, bukan saat create
+
     // Validate signatories
     if (!input.signatories || input.signatories.length === 0) {
       throw new AppError('Minimal satu penandatangan harus dipilih', HTTP_STATUS.BAD_REQUEST);
@@ -576,6 +587,7 @@ class HasilService {
       content: input.content,
       tembusan: input.tembusan,
       perihal: input.perihal,
+      targetSupervisor: input.targetSupervisor,
       signatories: input.signatories
     }, userId, userRole);
   }

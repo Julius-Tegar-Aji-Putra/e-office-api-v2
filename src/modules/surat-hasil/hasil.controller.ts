@@ -129,7 +129,7 @@ class HasilController {
    */
   async submitForVerification(
     letterId: string,
-    body: { targetSupervisor?: 'AKADEMIK' | 'SUMBER_DAYA' },
+    body: { targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA' },
     userId: string,
     userRole: string
   ) {
@@ -211,10 +211,11 @@ class HasilController {
   /**
    * POST /surat-hasil/:id/return
    * Supervisor returns draft for revision
+   * @param targetStaff - Optional target staff for UMUM category letters
    */
   async returnForRevision(
     letterId: string,
-    body: { reason: string },
+    body: { reason: string; targetStaff?: string },
     userId: string,
     userRole: string
   ) {
@@ -223,7 +224,8 @@ class HasilController {
         letterId,
         userId,
         userRole,
-        body.reason
+        body.reason,
+        body.targetStaff
       );
       return successResponse('Draft dikembalikan untuk revisi', { letter: result });
     } catch (error: unknown) {
@@ -275,11 +277,12 @@ class HasilController {
    */
   async createStaffSurat(
     body: {
-      category: 'AKADEMIK' | 'SUMBER_DAYA';
+      category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM';
       documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
       content: Record<string, unknown>;
       tembusan?: string[];
       perihal?: string;
+      targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA';
       signatories: Array<{
         signerRole: string;
         signerName: string;
@@ -301,6 +304,7 @@ class HasilController {
           content: body.content,
           tembusan: body.tembusan,
           perihal: body.perihal,
+          targetSupervisor: body.targetSupervisor,
           signatories: body.signatories
         },
         userId,
