@@ -951,7 +951,13 @@ async function getDashboardFakultas(
   const [allItems, masukCount, keluarCount] = await Promise.all([
     db.letterInstance.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        currentActiveRole: true,
+        category: true,
+        createdAt: true,
+        submissionValues: true,
         letterType: {
           select: {
             code: true,
@@ -1011,7 +1017,7 @@ async function getDashboardFakultas(
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       tipeSurat: getTipeSurat(item.letterType?.code),
-      jenisSurat: item.letterType?.category || '-',
+      jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus,
@@ -1100,7 +1106,13 @@ async function getDashboardUPA(
   const [allItems, penomoran, stempel, finalisasi, completed] = await Promise.all([
     db.letterInstance.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        status: true,
+        currentActiveRole: true,
+        category: true,
+        createdAt: true,
+        submissionValues: true,
         letterType: {
           select: {
             code: true,
@@ -1137,7 +1149,7 @@ async function getDashboardUPA(
       judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code),
-      jenisSurat: item.letterType?.category || '-',
+      jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),

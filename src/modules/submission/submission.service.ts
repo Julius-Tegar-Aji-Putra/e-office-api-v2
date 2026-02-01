@@ -843,8 +843,8 @@ export class SubmissionService {
     const canAssignNumber = isUPA && status === 'UPA_NUMBERING';
     const canStamp = isUPA && status === 'UPA_STAMPING';
 
-    // Supervisor/Manajer TU can edit draft during verification
-    const canEditDraftInVerification = (isSupervisor || isManajerTU) && 
+    // Supervisor can edit draft during verification (Manajer TU cannot edit)
+    const canEditDraftInVerification = isSupervisor && 
       status === 'FAKULTAS_VERIFICATION' && 
       currentActiveRole === viewerRole &&
       hasSkstDraft;

@@ -237,7 +237,7 @@ export interface SubmissionPermissions {
   // Surat Hasil (Staf)
   canDraftSuratHasil?: boolean; // Staf bisa buat draft SK/ST
   canEditDraft?: boolean; // Staf/Supervisor bisa edit draft yang dikembalikan
-  canEditDraftInVerification?: boolean; // Supervisor/Manajer TU bisa edit draft saat verifikasi
+  canEditDraftInVerification?: boolean; // Supervisor bisa edit draft saat verifikasi
   canSubmitVerification?: boolean; // Staf submit untuk verifikasi naik
   // Verification actions (Pejabat)
   canVerifySuratHasil?: boolean; // Pejabat verifikasi surat hasil
