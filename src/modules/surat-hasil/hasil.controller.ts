@@ -98,6 +98,7 @@ class HasilController {
   /**
    * PUT /surat-hasil/document/:documentId
    * Update existing draft
+   * Supports mode: "patch" (default) or "overwrite"
    */
   async updateDraft(
     documentId: string,
@@ -105,6 +106,16 @@ class HasilController {
       content?: Record<string, unknown>;
       tembusan?: string[];
       perihal?: string;
+      mode?: 'patch' | 'overwrite';
+      signatories?: Array<{
+        signerRole: string;
+        signerName: string;
+        signerNip?: string;
+        order: number;
+        x?: number;
+        y?: number;
+        page?: number;
+      }>;
     },
     userId: string,
     userRole: string
@@ -114,10 +125,15 @@ class HasilController {
         documentId,
         content: body.content,
         tembusan: body.tembusan,
-        perihal: body.perihal
+        perihal: body.perihal,
+        mode: body.mode,
+        signatories: body.signatories
       };
       const result = await hasilService.updateDraft(input, userId, userRole);
-      return successResponse('Draft berhasil diperbarui', result);
+      return successResponse(
+        body.mode === 'overwrite' ? 'Draft berhasil dibuat ulang' : 'Draft berhasil diperbarui', 
+        result
+      );
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
     }

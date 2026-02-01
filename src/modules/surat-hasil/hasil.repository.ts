@@ -127,6 +127,16 @@ export interface UpdateDraftInput {
   content?: Prisma.JsonValue;
   tembusan?: Prisma.JsonValue;
   perihal?: string;
+  mode?: 'patch' | 'overwrite';
+  signatories?: Array<{
+    signerRole: string;
+    signerName: string;
+    signerNip?: string;
+    order: number;
+    x?: number;
+    y?: number;
+    page?: number;
+  }>;
 }
 
 // ============================================================================
@@ -305,19 +315,116 @@ class HasilRepository {
 
   /**
    * Update existing draft
+   * Supports two modes:
+   * - "patch" (default): Only update provided fields, keep existing data
+   * - "overwrite": Replace all data with new input
    */
   async updateDraft(input: UpdateDraftInput, actorId: string, actorRole: string) {
+    const isOverwrite = input.mode === 'overwrite';
+    
     return prisma.$transaction(async (tx) => {
+      // Get existing document first
+      const existingDoc = await tx.letterDocument.findUnique({
+        where: { id: input.documentId },
+        include: { signatures: true }
+      });
+
+      if (!existingDoc) {
+        throw new Error('Document not found');
+      }
+
+      // Build update data based on mode
+      const updateData: Prisma.LetterDocumentUpdateInput = {
+        updatedAt: new Date()
+      };
+
+      if (isOverwrite) {
+        // Overwrite mode: Replace all fields (set to empty if not provided)
+        updateData.content = input.content ?? {};
+        updateData.tembusan = input.tembusan ?? [];
+        if (input.perihal !== undefined) {
+          updateData.perihal = input.perihal;
+        }
+      } else {
+        // Patch mode: Only update provided fields, keep existing
+        if (input.content !== undefined) {
+          updateData.content = input.content;
+        }
+        if (input.tembusan !== undefined) {
+          updateData.tembusan = input.tembusan;
+        }
+        if (input.perihal !== undefined) {
+          updateData.perihal = input.perihal;
+        }
+      }
+
+      // Update document
       const document = await tx.letterDocument.update({
         where: { id: input.documentId },
-        data: {
-          ...(input.content && { content: input.content }),
-          ...(input.tembusan && { tembusan: input.tembusan }),
-          ...(input.perihal && { perihal: input.perihal }),
-          updatedAt: new Date()
-        },
+        data: updateData,
         include: { letterInstance: true }
       });
+
+      // Handle signatories update if provided
+      if (input.signatories && input.signatories.length > 0) {
+        if (isOverwrite) {
+          // Overwrite mode: Delete all existing signatures and create new ones
+          await tx.documentSignature.deleteMany({
+            where: { documentId: input.documentId }
+          });
+        } else {
+          // Patch mode: Sync signatures (delete removed, update existing, add new)
+          const existingRoles = existingDoc.signatures.map(s => s.signerRole);
+          const newRoles = input.signatories.map(s => normalizeSignerRole(s.signerRole));
+          
+          // Delete signatures that are no longer in the list
+          const rolesToDelete = existingRoles.filter(r => !newRoles.includes(r));
+          if (rolesToDelete.length > 0) {
+            await tx.documentSignature.deleteMany({
+              where: { 
+                documentId: input.documentId,
+                signerRole: { in: rolesToDelete }
+              }
+            });
+          }
+        }
+
+        // Create/update signatories
+        for (const sig of input.signatories) {
+          const normalizedRole = normalizeSignerRole(sig.signerRole);
+          const existingSig = existingDoc.signatures.find(s => s.signerRole === normalizedRole);
+          
+          if (existingSig && !isOverwrite) {
+            // Update existing signature
+            await tx.documentSignature.update({
+              where: { id: existingSig.id },
+              data: {
+                signerName: sig.signerName,
+                signerNip: sig.signerNip,
+                order: sig.order,
+                positionX: sig.x,
+                positionY: sig.y,
+                positionPage: sig.page
+              }
+            });
+          } else {
+            // Create new signature
+            await tx.documentSignature.create({
+              data: {
+                documentId: input.documentId,
+                signerId: actorId,
+                signerRole: normalizedRole,
+                signerName: sig.signerName,
+                signerNip: sig.signerNip,
+                order: sig.order,
+                positionX: sig.x,
+                positionY: sig.y,
+                positionPage: sig.page
+              }
+            });
+          }
+        }
+      }
 
       await tx.letterLog.create({
         data: {
@@ -325,11 +432,18 @@ class HasilRepository {
           actorId,
           actorRole,
           action: LogAction.DRAFT_UPDATE,
-          notes: 'Draft diperbarui'
+          notes: isOverwrite ? 'Draft dibuat ulang (overwrite)' : 'Draft diperbarui'
         }
       });
 
-      return document;
+      // Return updated document with signatures
+      return tx.letterDocument.findUnique({
+        where: { id: input.documentId },
+        include: { 
+          letterInstance: true,
+          signatures: { orderBy: { order: 'asc' } }
+        }
+      });
     });
   }
 

@@ -144,7 +144,21 @@ cd e-office-api-v2
 bun install
 ```
 
-**Catatan**: Project ini menggunakan **Bun** sebagai package manager dan runtime. Jangan gunakan npm atau yarn untuk konsistensi.
+**Catatan**: 
+- Project ini menggunakan **Bun** sebagai package manager dan runtime. Jangan gunakan npm atau yarn untuk konsistensi.
+- **Puppeteer Chrome browser** akan otomatis ter-install via postinstall script
+- Jika Chrome tidak ter-install otomatis, lihat [Puppeteer Setup Guide](./PUPPETEER_SETUP.md)
+
+### 2. Install Puppeteer Chrome (Jika Diperlukan)
+
+Jika muncul error **"Could not find Chrome"** saat generate PDF:
+
+```bash
+# Install Chrome browser untuk Puppeteer
+bunx puppeteer browsers install chrome
+```
+
+Lihat dokumentasi lengkap di [PUPPETEER_SETUP.md](./PUPPETEER_SETUP.md)
 
 ---
 

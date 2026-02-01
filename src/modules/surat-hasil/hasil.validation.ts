@@ -49,8 +49,9 @@ export const signatorySchema = t.Object({
 });
 
 // Tembusan recipient schema (new format with userId)
+// userId can be empty string for text-only tembusan (not linked to user account)
 export const tembusanRecipientSchema = t.Object({
-  userId: t.String({ minLength: 1 }),
+  userId: t.String(), // Allow empty string for text-only tembusan
   name: t.String({ minLength: 1 }),
   description: t.Optional(t.String())
 });
@@ -79,7 +80,14 @@ export const updateDraftBodySchema = t.Object({
     t.Array(t.String()),
     t.Array(tembusanRecipientSchema)
   ])),
-  perihal: t.Optional(t.String())
+  perihal: t.Optional(t.String()),
+  // Mode: "patch" (default) keeps existing data, "overwrite" replaces everything
+  mode: t.Optional(t.Union([
+    t.Literal('patch'),
+    t.Literal('overwrite')
+  ])),
+  // Allow updating signatories during edit
+  signatories: t.Optional(t.Array(signatorySchema))
 });
 
 export const submitVerificationBodySchema = t.Object({

@@ -235,13 +235,20 @@ export const usersRoute = new Elysia({ prefix: '/api/users' })
         prisma.pegawai.findMany({
           where: {
             deletedAt: null,
-            user: {
-              deletedAt: null,
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } }
-              ]
-            }
+            OR: [
+              {
+                user: {
+                  deletedAt: null,
+                  OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } }
+                  ]
+                }
+              },
+              {
+                jabatan: { contains: search, mode: 'insensitive' }
+              }
+            ]
           },
           include: {
             user: { select: { id: true, name: true, email: true } },

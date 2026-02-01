@@ -39,6 +39,16 @@ export interface UpdateDraftServiceInput {
   content?: Record<string, unknown>;
   tembusan?: string[];
   perihal?: string;
+  mode?: 'patch' | 'overwrite';
+  signatories?: Array<{
+    signerRole: string;
+    signerName: string;
+    signerNip?: string;
+    order: number;
+    x?: number;
+    y?: number;
+    page?: number;
+  }>;
 }
 
 export interface CreateStaffSuratServiceInput {
@@ -228,6 +238,9 @@ class HasilService {
 
   /**
    * Update existing draft
+   * Supports two modes:
+   * - "patch" (default): Only update provided fields, keep existing data
+   * - "overwrite": Replace all data with new input
    */
   async updateDraft(input: UpdateDraftServiceInput, userId: string, userRole: string) {
     const document = await hasilRepository.getDocumentById(input.documentId);
@@ -251,7 +264,9 @@ class HasilService {
       documentId: input.documentId,
       content: input.content as Prisma.JsonValue | undefined,
       tembusan: input.tembusan,
-      perihal: input.perihal
+      perihal: input.perihal,
+      mode: input.mode || 'patch',
+      signatories: input.signatories
     };
 
     return hasilRepository.updateDraft(updateInput, userId, userRole);
