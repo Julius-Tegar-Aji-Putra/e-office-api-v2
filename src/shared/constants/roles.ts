@@ -259,3 +259,121 @@ export function getReturnTargets(currentRole: string, category: 'AKADEMIK' | 'SU
   
   return flow.slice(0, currentIndex) as unknown as string[];
 }
+
+/**
+ * ============================================================================
+ * DISPOSITION TARGETS BY ROLE AND CATEGORY
+ * ============================================================================
+ * Disposisi harus mempertimbangkan:
+ * 1. Jabatan (role hierarchy) - hanya bisa ke role lebih rendah
+ * 2. Jenis surat (kategori) - AKADEMIK, SUMBER_DAYA, UMUM
+ *
+ * Contoh:
+ * - Wadek 1 + surat UMUM → MTU, Semua SPV, Semua Staff
+ * - Wadek 1 + surat AKADEMIK → MTU, SPV Akademik, Staff Akademik
+ * - Wadek 2 + surat SUMBER_DAYA → MTU, SPV Sumber Daya, Staff Sumber Daya
+ */
+
+type RoleDispositionTargets = Record<'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM', readonly string[]>;
+
+export const ROLE_DISPOSITION_TARGETS: Record<string, RoleDispositionTargets> = {
+  [ROLES.DEKAN]: {
+    UMUM: [
+      ROLES.WADEK_1,
+      ROLES.WADEK_2,
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA
+    ],
+    AKADEMIK: [
+      ROLES.WADEK_1,
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.STAF_AKADEMIK
+    ],
+    SUMBER_DAYA: [
+      ROLES.WADEK_2,
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_SUMBER_DAYA
+    ]
+  },
+  [ROLES.WADEK_1]: {
+    UMUM: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA
+    ],
+    AKADEMIK: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.STAF_AKADEMIK
+    ],
+    SUMBER_DAYA: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_SUMBER_DAYA
+    ]
+  },
+  [ROLES.WADEK_2]: {
+    UMUM: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA
+    ],
+    AKADEMIK: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.STAF_AKADEMIK
+    ],
+    SUMBER_DAYA: [
+      ROLES.MANAJER_TU,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_SUMBER_DAYA
+    ]
+  },
+  [ROLES.MANAJER_TU]: {
+    UMUM: [
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA
+    ],
+    AKADEMIK: [
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.STAF_AKADEMIK
+    ],
+    SUMBER_DAYA: [
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.STAF_SUMBER_DAYA
+    ]
+  },
+  [ROLES.SUPERVISOR_AKADEMIK]: {
+    UMUM: [ROLES.STAF_AKADEMIK],
+    AKADEMIK: [ROLES.STAF_AKADEMIK],
+    SUMBER_DAYA: [] // Tidak bisa disposisi ke SD dari SPV Akademik
+  },
+  [ROLES.SUPERVISOR_SUMBER_DAYA]: {
+    UMUM: [ROLES.STAF_SUMBER_DAYA],
+    AKADEMIK: [], // Tidak bisa disposisi ke Akademik dari SPV SD
+    SUMBER_DAYA: [ROLES.STAF_SUMBER_DAYA]
+  }
+} as const;
+
+/**
+ * Get disposition targets based on role AND category
+ */
+export function getDispositionTargetsForRole(
+  role: string,
+  category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+): string[] {
+  const roleTargets = ROLE_DISPOSITION_TARGETS[role];
+  if (!roleTargets) return [];
+  return [...(roleTargets[category] || [])];
+}

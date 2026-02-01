@@ -15,7 +15,8 @@ import {
   ROLE_HIERARCHY,
   getDisposisiTargets,
   canDispositionTo,
-  STAF_ROLES
+  STAF_ROLES,
+  getDispositionTargetsForRole
 } from '../../shared/constants/roles';
 
 // ============================================================================
@@ -223,9 +224,18 @@ class FacultyDispositionService {
         return { success: false, error: 'Bukan giliran Anda untuk disposisi', code: 403 };
       }
 
-      // Pejabat: Validate target role is lower in hierarchy
-      if (!canDispositionTo(userRole, input.targetRole)) {
-        return { success: false, error: 'Tidak dapat disposisi ke role yang lebih tinggi atau setara', code: 400 };
+      // Pejabat: Validate target role is ALLOWED based on role + category
+      const allowedTargets = getDispositionTargetsForRole(
+        userRole, 
+        letter.category as 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+      );
+      
+      if (!allowedTargets.includes(input.targetRole)) {
+        return { 
+          success: false, 
+          error: `Tidak dapat disposisi ke ${input.targetRole} untuk surat kategori ${letter.category}`, 
+          code: 400 
+        };
       }
 
       // Check if target is staff -> change status to DRAFTING
@@ -342,20 +352,24 @@ class FacultyDispositionService {
 
   /**
    * Get available disposition targets for Pejabat
-   * Pejabat HANYA bisa disposisi ke role yang levelnya lebih RENDAH
+   * Mempertimbangkan:
+   * 1. Role hierarchy (hanya bisa ke role lebih rendah)
+   * 2. Category surat (AKADEMIK/SUMBER_DAYA/UMUM)
+   * 
+   * Contoh:
+   * - WADEK_1 + UMUM → MTU, SPV Akademik, SPV SD, Staff Akademik, Staff SD
+   * - WADEK_1 + AKADEMIK → MTU, SPV Akademik, Staff Akademik
+   * - WADEK_2 + SUMBER_DAYA → MTU, SPV SD, Staff SD
    */
   private getAvailableDispositionTargets(
     currentRole: string,
     category: LetterCategory
   ): string[] {
-    const allTargets = getDisposisiTargets(category as 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM');
-    const currentLevel = ROLE_HIERARCHY[currentRole] ?? 0;
-
-    // Filter to roles lower than current
-    return allTargets.filter(role => {
-      const roleLevel = ROLE_HIERARCHY[role] ?? 0;
-      return roleLevel < currentLevel;
-    }) as string[];
+    // Gunakan fungsi yang sudah mempertimbangkan role + category
+    return getDispositionTargetsForRole(
+      currentRole, 
+      category as 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+    );
   }
 
   /**
