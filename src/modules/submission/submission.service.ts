@@ -233,6 +233,7 @@ export class SubmissionService {
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
             tembusan: doc.tembusan || null, // Tembusan recipients dari draft
+            attachmentUrls: doc.attachmentUrls || null, // Lampiran PDF/JPG/PNG dari staf/supervisor
             signatures: doc.signatures.map((sig: any) => ({
               signerRole: sig.signerRole,
               signerName: sig.signerName,

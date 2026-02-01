@@ -580,6 +580,137 @@ class HasilService {
     }, userId, userRole);
   }
 
+  // ==========================================================================
+  // ATTACHMENT MANAGEMENT
+  // ==========================================================================
+
+  /**
+   * Upload attachments to document
+   * Only staff and supervisors can upload attachments
+   * Supported formats: PDF, JPG, PNG
+   */
+  async uploadAttachments(
+    documentId: string,
+    files: File[],
+    userId: string,
+    userRole: string
+  ): Promise<{ attachmentUrls: string[] }> {
+    // Check permission - only staff and supervisors can upload
+    const allowedRoles = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    if (!allowedRoles.includes(userRole)) {
+      throw new AppError('Anda tidak memiliki izin untuk mengunggah lampiran', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Validate files
+    const validMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    for (const file of files) {
+      if (!validMimeTypes.includes(file.type)) {
+        throw new AppError(
+          `Format file ${file.name} tidak didukung. Gunakan PDF, JPG, atau PNG`,
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+      // Max 10MB per file
+      if (file.size > 10 * 1024 * 1024) {
+        throw new AppError(
+          `File ${file.name} terlalu besar. Maksimal 10MB per file`,
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+    }
+
+    // Get document
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId }
+    });
+
+    if (!document) {
+      throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Upload files to MinIO
+    const minioService = new MinioService();
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const buffer = await file.arrayBuffer();
+      const fileBuffer = Buffer.from(buffer);
+      const fileName = `attachments/${documentId}/${Date.now()}-${file.name}`;
+      
+      const url = await minioService.uploadFile(fileBuffer, fileName, file.type);
+      uploadedUrls.push(url);
+    }
+
+    // Append to existing attachments
+    const existingUrls = (document.attachmentUrls as string[] | null) || [];
+    const newUrls = [...existingUrls, ...uploadedUrls];
+
+    // Update document
+    await prisma.letterDocument.update({
+      where: { id: documentId },
+      data: { attachmentUrls: newUrls }
+    });
+
+    return { attachmentUrls: newUrls };
+  }
+
+  /**
+   * Remove attachment from document
+   */
+  async removeAttachment(
+    documentId: string,
+    attachmentIndex: number,
+    userId: string,
+    userRole: string
+  ): Promise<{ attachmentUrls: string[] }> {
+    // Check permission - only staff and supervisors can remove
+    const allowedRoles = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    if (!allowedRoles.includes(userRole)) {
+      throw new AppError('Anda tidak memiliki izin untuk menghapus lampiran', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Get document
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId }
+    });
+
+    if (!document) {
+      throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const existingUrls = (document.attachmentUrls as string[] | null) || [];
+    if (attachmentIndex < 0 || attachmentIndex >= existingUrls.length) {
+      throw new AppError('Index lampiran tidak valid', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Remove URL at index
+    const newUrls = existingUrls.filter((_, index) => index !== attachmentIndex);
+
+    // Update document
+    await prisma.letterDocument.update({
+      where: { id: documentId },
+      data: { attachmentUrls: newUrls }
+    });
+
+    return { attachmentUrls: newUrls };
+  }
+
+  /**
+   * Get attachment URLs for a document
+   */
+  async getAttachments(documentId: string): Promise<string[]> {
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId },
+      select: { attachmentUrls: true }
+    });
+
+    if (!document) {
+      throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    return (document.attachmentUrls as string[] | null) || [];
+  }
+
   // ===========================================================================
   // PRIVATE HELPERS
   // ===========================================================================

@@ -314,6 +314,55 @@ class HasilController {
       return errorResponse(getErrorMessage(error));
     }
   }
+
+  /**
+   * POST /surat-hasil/document/:documentId/attachments
+   * Upload attachments to document
+   */
+  async uploadAttachments(
+    documentId: string,
+    files: File[],
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.uploadAttachments(documentId, files, userId, userRole);
+      return successResponse('Lampiran berhasil diunggah', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * DELETE /surat-hasil/document/:documentId/attachments/:index
+   * Remove attachment from document
+   */
+  async removeAttachment(
+    documentId: string,
+    attachmentIndex: number,
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.removeAttachment(documentId, attachmentIndex, userId, userRole);
+      return successResponse('Lampiran berhasil dihapus', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * GET /surat-hasil/document/:documentId/attachments
+   * Get attachments for document
+   */
+  async getAttachments(documentId: string) {
+    try {
+      const attachmentUrls = await hasilService.getAttachments(documentId);
+      return successResponse('Berhasil mengambil lampiran', { attachmentUrls });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
 }
 
 export const hasilController = new HasilController();

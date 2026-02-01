@@ -296,6 +296,7 @@ model LetterDocument {
   isSigned         Boolean             @default(false)
   fileUrl          String?
   qrCodeUrl        String?
+  attachmentUrls   Json?               // Array of attachment URLs (PDF, JPG, PNG) uploaded by staff/supervisor
   // Legalisasi fields
   legalisasiStatus LegalisasiStatus    @default(PENDING)
   sealImageUrl     String?             // URL gambar stempel resmi

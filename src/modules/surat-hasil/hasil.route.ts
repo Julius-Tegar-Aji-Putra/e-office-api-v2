@@ -218,4 +218,62 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
       description: 'Pejabat (Dekan/Wadek) menandatangani dokumen SK/ST',
       tags: ['Surat Hasil']
     }
+  })
+
+  // ==========================================================================
+  // Attachment Management (Staff/Supervisor only)
+  // ==========================================================================
+
+  .get('/document/:documentId/attachments', async ({ params, user }) => {
+    return hasilController.getAttachments(params.documentId);
+  }, {
+    params: documentIdParamSchema,
+    detail: {
+      summary: 'Get document attachments',
+      description: 'Mendapatkan daftar lampiran dokumen',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  .post('/document/:documentId/attachments', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+    ) || roles[0];
+    
+    // Extract files from body
+    const files: File[] = [];
+    if (body && typeof body === 'object') {
+      const bodyObj = body as Record<string, unknown>;
+      if (bodyObj.files && Array.isArray(bodyObj.files)) {
+        files.push(...(bodyObj.files as File[]));
+      } else if (bodyObj.file instanceof File) {
+        files.push(bodyObj.file);
+      }
+    }
+    
+    return hasilController.uploadAttachments(params.documentId, files, user.id, activeRole);
+  }, {
+    params: documentIdParamSchema,
+    detail: {
+      summary: 'Upload attachments',
+      description: 'Staff/Supervisor mengunggah lampiran (PDF, JPG, PNG)',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  .delete('/document/:documentId/attachments/:index', async ({ params, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+    ) || roles[0];
+    
+    const index = parseInt(params.index, 10);
+    return hasilController.removeAttachment(params.documentId, index, user.id, activeRole);
+  }, {
+    detail: {
+      summary: 'Remove attachment',
+      description: 'Staff/Supervisor menghapus lampiran',
+      tags: ['Surat Hasil']
+    }
   });
