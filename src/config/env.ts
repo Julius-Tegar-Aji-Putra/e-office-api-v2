@@ -4,6 +4,11 @@
  */
 
 import { z } from 'zod';
+import * as dotenv from 'dotenv';
+import dotenvExpand from 'dotenv-expand';
+
+const myEnv = dotenv.config();
+dotenvExpand.expand(myEnv);
 
 const envSchema = z.object({
   // Server
@@ -28,6 +33,7 @@ const envSchema = z.object({
   MINIO_BUCKET_NAME: z.string().default('e-office-storage'),
   MINIO_REGION: z.string().default('us-east-1'),
   MINIO_USE_SSL: z.string().default('false'),
+  MINIO_SERVER_URL: z.string().optional(),
   MINIO_FOLDER_LAMPIRAN: z.string().default('lampiran'),
   MINIO_FOLDER_SIGNATURE: z.string().default('signature'),
   MINIO_EXPIRY_URL: z.string().default('604800'),
