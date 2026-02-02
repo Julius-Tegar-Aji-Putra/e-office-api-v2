@@ -59,7 +59,7 @@ class FacultyApprovalService {
 
     // Check if user needs to sign
     const skstDoc = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
     const needsToSign = skstDoc?.signatures.some(
       s => s.signerRole === currentRole && !s.signatureUrl
@@ -105,7 +105,7 @@ class FacultyApprovalService {
 
     // Get SK/ST document to check signature configuration
     const skstDoc = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
 
     // Determine next role AUTOMATICALLY based on:
@@ -169,7 +169,7 @@ class FacultyApprovalService {
 
     // Check if this role needs to sign
     const skstDoc = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
 
     if (!skstDoc) {
@@ -323,7 +323,7 @@ class FacultyApprovalService {
 
     // Check if needs to sign
     const skstDoc = letter.documents.find(
-      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
     const currentRole = userRoles.find(r => r === letter.currentActiveRole);
     const needsToSign = skstDoc?.signatures.some(

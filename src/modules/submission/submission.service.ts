@@ -799,9 +799,9 @@ export class SubmissionService {
       status === 'FAKULTAS_DISPOSITION' && 
       currentActiveRole === viewerRole;
     
-    // Check if SK/ST draft exists
+    // Check if SK/ST draft exists (including table version)
     const hasSkstDraft = documents?.some(d => 
-      d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN'
+      d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
     
     // Staf-specific actions for Surat Hasil
