@@ -532,7 +532,7 @@ class HasilService {
 
   /**
    * Supervisor return draft for revision
-   * @param targetStaff - Optional target staff for UMUM category letters
+   * @param targetStaff - Target staff/supervisor role to return the letter to
    */
   async returnForRevision(
     letterId: string,
@@ -547,20 +547,42 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    if (letter.status !== LetterStatus.FAKULTAS_VERIFICATION) {
-      throw new AppError('Surat tidak dalam status verifikasi', HTTP_STATUS.BAD_REQUEST);
+    // Allow return for revision in both VERIFICATION and DRAFTING status
+    // VERIFICATION: Manajer TU can return to staff/supervisor
+    // DRAFTING: Supervisor can return to staff (after receiving revision from Manajer TU)
+    const isSupervisor = userRole === ROLES.SUPERVISOR_AKADEMIK || userRole === ROLES.SUPERVISOR_SUMBER_DAYA;
+    const isValidStatus = letter.status === LetterStatus.FAKULTAS_VERIFICATION || 
+                          (letter.status === LetterStatus.FAKULTAS_DRAFTING && isSupervisor);
+    
+    if (!isValidStatus) {
+      throw new AppError('Surat tidak dalam status yang dapat direvisi', HTTP_STATUS.BAD_REQUEST);
     }
 
     if (letter.currentActiveRole !== userRole) {
-      throw new AppError('Bukan giliran Anda untuk memverifikasi', HTTP_STATUS.FORBIDDEN);
+      throw new AppError('Bukan giliran Anda untuk memproses surat ini', HTTP_STATUS.FORBIDDEN);
     }
 
-    // For UMUM category, use targetStaffParam if provided
-    // Otherwise, determine target staff based on supervisor type
+    // Use targetStaffParam if provided, otherwise determine based on supervisor type
     let targetStaff: string;
-    if (letter.category === 'UMUM' && targetStaffParam) {
+    if (targetStaffParam) {
+      // Validate target role is allowed based on current status and user role
+      let allowedTargets: string[];
+      
+      if (isSupervisor) {
+        // Supervisor can only return to staff (both in DRAFTING and VERIFICATION)
+        // Supervisor cannot return to another supervisor (including themselves)
+        allowedTargets = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'];
+      } else {
+        // Manajer TU in VERIFICATION can return to staff or supervisor
+        allowedTargets = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA', 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'];
+      }
+      
+      if (!allowedTargets.includes(targetStaffParam)) {
+        throw new AppError('Target revisi tidak valid', HTTP_STATUS.BAD_REQUEST);
+      }
       targetStaff = targetStaffParam;
     } else {
+      // Fallback: determine target staff based on supervisor type
       targetStaff = userRole === ROLES.SUPERVISOR_AKADEMIK 
         ? ROLES.STAF_AKADEMIK 
         : ROLES.STAF_SUMBER_DAYA;
@@ -805,15 +827,22 @@ class HasilService {
     );
 
     return {
-      // Staf actions
+      // Staf actions (saat DRAFTING dan mereka adalah currentActiveRole)
       canCreateDraft: isStaff && isDrafting && isCurrentRole && !hasDraft,
       canUpdateDraft: isStaff && isDrafting && isCurrentRole && hasDraft,
       canSubmitVerification: isStaff && isDrafting && isCurrentRole && hasDraft,
       
+      // Supervisor actions saat DRAFTING (setelah menerima revisi dari Manajer TU)
+      // Supervisor bisa create draft, update draft, submit verification, dan return for revision
+      canCreateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && !hasDraft,
+      canUpdateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,
+      canSubmitVerification: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,
+      
       // Supervisor/Manajer TU actions saat VERIFICATION
       canApproveVerification: (isSupervisor || isManajerTU) && isVerification && isCurrentRole,
       canUpdateDraftAsSupervisor: (isSupervisor || isManajerTU) && isVerification && isCurrentRole && hasDraft,
-      canReturnForRevision: (isSupervisor || isManajerTU) && isVerification && isCurrentRole
+      canReturnForRevision: ((isSupervisor || isManajerTU) && isVerification && isCurrentRole) || 
+                            (isSupervisor && isDrafting && isCurrentRole && hasDraft)
     };
   }
 }

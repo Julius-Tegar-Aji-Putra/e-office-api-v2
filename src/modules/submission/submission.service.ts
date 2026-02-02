@@ -826,7 +826,8 @@ export class SubmissionService {
     // Staf can draft surat hasil when status is FAKULTAS_DRAFTING and assigned to them
     // Note: When pejabat dispositions to staf, status becomes FAKULTAS_DRAFTING directly
     // Only show "Draft Surat" if no SK/ST draft exists yet
-    const canDraftSuratHasil = isStaf && 
+    // Supervisor juga bisa draft jika menerima revisi dari Manajer TU
+    const canDraftSuratHasil = (isStaf || isSupervisor) && 
       status === 'FAKULTAS_DRAFTING' && 
       currentActiveRole === viewerRole &&
       !hasSkstDraft;
@@ -837,11 +838,18 @@ export class SubmissionService {
       currentActiveRole === viewerRole &&
       hasSkstDraft;
     
-    // Staf can submit for verification after drafting (only if draft exists)
-    const canSubmitVerification = isStaf && 
+    // Staf/Supervisor can submit for verification after drafting (only if draft exists)
+    const canSubmitVerification = (isStaf || isSupervisor) && 
       status === 'FAKULTAS_DRAFTING' && 
       currentActiveRole === viewerRole &&
       hasSkstDraft;
+    
+    // Supervisor/Manajer TU can return for revision
+    // - Saat VERIFICATION: bisa return ke staff atau supervisor
+    // - Saat DRAFTING (supervisor): bisa return ke staff
+    const canReturnForRevision = 
+      ((isSupervisor || isManajerTU) && status === 'FAKULTAS_VERIFICATION' && currentActiveRole === viewerRole) ||
+      (isSupervisor && status === 'FAKULTAS_DRAFTING' && currentActiveRole === viewerRole && hasSkstDraft);
     
     // Pejabat verify surat hasil (alur naik)
     const canVerifySuratHasil = (isSupervisor || isManajerTU) && 
@@ -903,6 +911,7 @@ export class SubmissionService {
       canSubmitVerification,
       canVerifySuratHasil,
       canSignSuratHasil,
+      canReturnForRevision,
     };
   }
 

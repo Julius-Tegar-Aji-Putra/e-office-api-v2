@@ -105,10 +105,12 @@ export const approveVerificationBodySchema = t.Object({
 // Supervisor return for revision
 export const returnRevisionBodySchema = t.Object({
   reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' }),
-  // Optional target staff for UMUM category letters
+  // Target staff or supervisor for returning the letter
   targetStaff: t.Optional(t.Union([
     t.Literal('STAF_AKADEMIK'),
-    t.Literal('STAF_SUMBER_DAYA')
+    t.Literal('STAF_SUMBER_DAYA'),
+    t.Literal('SUPERVISOR_AKADEMIK'),
+    t.Literal('SUPERVISOR_SUMBER_DAYA')
   ]))
 });
 
