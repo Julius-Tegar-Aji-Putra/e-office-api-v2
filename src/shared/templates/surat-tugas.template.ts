@@ -12,7 +12,10 @@ export interface SignatureBlock {
 }
 
 // Tembusan recipient for display in letter
+// userId kosong = tembusan text (tampil di surat)
+// userId terisi = tembusan user (hanya untuk akses sistem, tidak tampil di surat)
 export interface TembusanRecipient {
+  userId?: string;        // Jika ada, tembusan ini hanya untuk akses sistem
   name: string;
   description?: string;
 }
@@ -129,13 +132,31 @@ const renderStempel = (stempelUrl?: string): string => {
 
 /**
  * Render tembusan section at bottom left of the letter, above QR code
+ * Hanya menampilkan tembusan text (userId kosong)
+ * Tembusan user (userId terisi) hanya untuk akses sistem, tidak ditampilkan di surat
+ * Mendukung format lama (string[]) dan format baru (TembusanRecipient[])
  */
-const renderTembusan = (tembusan?: TembusanRecipient[]): string => {
+const renderTembusan = (tembusan?: (TembusanRecipient | string)[]): string => {
   if (!tembusan || tembusan.length === 0) return '';
+  
+  // Normalize: convert to TembusanRecipient format
+  const normalizedTembusan: TembusanRecipient[] = tembusan.map(t => {
+    if (typeof t === 'string') {
+      // Old format: string - convert to object
+      return { userId: '', name: t, description: '' };
+    }
+    return t;
+  });
+  
+  // Filter: hanya tampilkan tembusan yang userId-nya kosong (text-based)
+  // Tembusan dengan userId = untuk akses sistem saja, tidak ditampilkan di surat
+  const textBasedTembusan = normalizedTembusan.filter(t => !t.userId || t.userId === '');
+  
+  if (textBasedTembusan.length === 0) return '';
   
   // Calculate bottom position based on number of tembusan items
   // More items = higher position to stay above QR
-  const itemCount = tembusan.length;
+  const itemCount = textBasedTembusan.length;
   const baseBottom = 110; // Base position above QR code
   const additionalHeight = Math.max(0, (itemCount - 2) * 18); // 18px per extra item
   const bottomPosition = baseBottom + additionalHeight;
@@ -144,7 +165,7 @@ const renderTembusan = (tembusan?: TembusanRecipient[]): string => {
     <div class="tembusan-container" style="position: fixed; bottom: ${bottomPosition}px; left: 60px; max-width: 280px; z-index: 100; background: white;">
       <p style="margin: 0 0 5px 0; font-size: 11pt; font-weight: bold; color: #000000 !important;">Tembusan:</p>
       <ol style="margin: 0; padding-left: 20px; font-size: 10pt; color: #000000 !important; line-height: 1.4;">
-        ${tembusan.map(t => `
+        ${textBasedTembusan.map(t => `
           <li style="color: #000000 !important; margin-bottom: 2px;">
             ${t.name}${t.description ? ` (${t.description})` : ''}
           </li>
