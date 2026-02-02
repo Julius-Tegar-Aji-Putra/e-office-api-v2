@@ -112,6 +112,14 @@ export const returnRevisionBodySchema = t.Object({
   ]))
 });
 
+// Upload attachments schema (Staff/Supervisor only)
+export const uploadAttachmentsBodySchema = t.Object({
+  files: t.Files({
+    maxItems: 10,
+    error: 'Maksimal 10 file lampiran'
+  })
+});
+
 // Sign document (Dekan/Wadek)
 // Supports two modes:
 // 1. signatureData (base64) - For new signatures from canvas/upload

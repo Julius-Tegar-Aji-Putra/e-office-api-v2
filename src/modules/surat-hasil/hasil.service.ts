@@ -381,7 +381,7 @@ class HasilService {
     }
 
     // Normalize roles for comparison
-    const normalizedActiveRole = normalizeRole(letter.currentActiveRole);
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole || '');
     const normalizedUserRole = normalizeRole(userRole);
 
     console.log('[signDocument] Role check:', {
@@ -462,7 +462,7 @@ class HasilService {
       } catch (err) {
         console.error('Failed to upload signature:', err);
         if (err instanceof AppError) throw err;
-        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_ERROR);
       }
     }
 
@@ -599,7 +599,7 @@ class HasilService {
     return hasilRepository.createStaffSurat({
       category: input.category,
       documentType: input.documentType,
-      content: input.content,
+      content: input.content as Prisma.JsonValue,
       tembusan: input.tembusan,
       perihal: input.perihal,
       targetSupervisor: input.targetSupervisor,
@@ -623,7 +623,7 @@ class HasilService {
     userRole: string
   ): Promise<{ attachmentUrls: string[] }> {
     // Check permission - only staff and supervisors can upload
-    const allowedRoles = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
     if (!allowedRoles.includes(userRole)) {
       throw new AppError('Anda tidak memiliki izin untuk mengunggah lampiran', HTTP_STATUS.FORBIDDEN);
     }
@@ -662,23 +662,40 @@ class HasilService {
     for (const file of files) {
       const buffer = await file.arrayBuffer();
       const fileBuffer = Buffer.from(buffer);
-      const fileName = `attachments/${documentId}/${Date.now()}-${file.name}`;
+      const fileName = `${Date.now()}-${file.name}`;
+      const folder = `attachments/${documentId}`;
       
-      const url = await minioService.uploadFile(fileBuffer, fileName, file.type);
-      uploadedUrls.push(url);
+      const uploadResult = await minioService.uploadFile(fileBuffer, fileName, file.type, folder);
+      // Store the storage path, not the full URL - this will be converted to signed URL when fetching
+      uploadedUrls.push(uploadResult.path);
     }
 
     // Append to existing attachments
-    const existingUrls = (document.attachmentUrls as string[] | null) || [];
+    const existingUrls = ((document as any).attachmentUrls as string[] | null) || [];
     const newUrls = [...existingUrls, ...uploadedUrls];
 
     // Update document
     await prisma.letterDocument.update({
       where: { id: documentId },
-      data: { attachmentUrls: newUrls }
+      data: { attachmentUrls: newUrls } as any
     });
 
-    return { attachmentUrls: newUrls };
+    // Convert to signed URLs for the response
+    const signedUrls = await Promise.all(
+      newUrls.map(async (path) => {
+        if (path && !path.startsWith('http')) {
+          try {
+            return await minioService.getFileUrl(path);
+          } catch (error) {
+            console.error(`Failed to get signed URL for attachment:`, error);
+            return path;
+          }
+        }
+        return path;
+      })
+    );
+
+    return { attachmentUrls: signedUrls };
   }
 
   /**
@@ -691,7 +708,7 @@ class HasilService {
     userRole: string
   ): Promise<{ attachmentUrls: string[] }> {
     // Check permission - only staff and supervisors can remove
-    const allowedRoles = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
     if (!allowedRoles.includes(userRole)) {
       throw new AppError('Anda tidak memiliki izin untuk menghapus lampiran', HTTP_STATUS.FORBIDDEN);
     }
@@ -705,7 +722,7 @@ class HasilService {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    const existingUrls = (document.attachmentUrls as string[] | null) || [];
+    const existingUrls = ((document as any).attachmentUrls as string[] | null) || [];
     if (attachmentIndex < 0 || attachmentIndex >= existingUrls.length) {
       throw new AppError('Index lampiran tidak valid', HTTP_STATUS.BAD_REQUEST);
     }
@@ -716,7 +733,7 @@ class HasilService {
     // Update document
     await prisma.letterDocument.update({
       where: { id: documentId },
-      data: { attachmentUrls: newUrls }
+      data: { attachmentUrls: newUrls } as any
     });
 
     return { attachmentUrls: newUrls };
@@ -727,15 +744,32 @@ class HasilService {
    */
   async getAttachments(documentId: string): Promise<string[]> {
     const document = await prisma.letterDocument.findUnique({
-      where: { id: documentId },
-      select: { attachmentUrls: true }
+      where: { id: documentId }
     });
 
     if (!document) {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    return (document.attachmentUrls as string[] | null) || [];
+    const storagePaths = ((document as any).attachmentUrls as string[] | null) || [];
+    
+    // Convert storage paths to signed URLs
+    const minioService = new MinioService();
+    const signedUrls = await Promise.all(
+      storagePaths.map(async (path) => {
+        if (path && !path.startsWith('http')) {
+          try {
+            return await minioService.getFileUrl(path);
+          } catch (error) {
+            console.error(`Failed to get signed URL for attachment:`, error);
+            return path;
+          }
+        }
+        return path;
+      })
+    );
+
+    return signedUrls;
   }
 
   // ===========================================================================

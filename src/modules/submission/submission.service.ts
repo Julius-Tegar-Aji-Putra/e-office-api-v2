@@ -222,6 +222,24 @@ export class SubmissionService {
             }
           }
 
+          // Convert attachmentUrls storage paths to signed URLs
+          let signedAttachmentUrls: string[] | null = null;
+          if (doc.attachmentUrls && Array.isArray(doc.attachmentUrls)) {
+            signedAttachmentUrls = await Promise.all(
+              doc.attachmentUrls.map(async (url: string) => {
+                if (url && !url.startsWith('http')) {
+                  try {
+                    return await this.minio.getFileUrl(url);
+                  } catch (error) {
+                    console.error(`Failed to get signed URL for attachment:`, error);
+                    return url;
+                  }
+                }
+                return url;
+              })
+            );
+          }
+
           return {
             id: doc.id,
             type: doc.type,
@@ -233,7 +251,7 @@ export class SubmissionService {
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
             tembusan: doc.tembusan || null, // Tembusan recipients dari draft
-            attachmentUrls: doc.attachmentUrls || null, // Lampiran PDF/JPG/PNG dari staf/supervisor
+            attachmentUrls: signedAttachmentUrls, // Lampiran PDF/JPG/PNG dari staf/supervisor (signed URLs)
             signatures: doc.signatures.map((sig: any) => ({
               signerRole: sig.signerRole,
               signerName: sig.signerName,

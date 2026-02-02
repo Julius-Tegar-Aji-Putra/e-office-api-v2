@@ -14,6 +14,25 @@ function getErrorMessage(error: unknown): string {
   return 'Terjadi kesalahan';
 }
 
+// Type for tembusan recipient
+type TembusanRecipient = { userId: string; name: string; description?: string };
+type TembusanInput = string[] | TembusanRecipient[];
+
+// Helper to normalize tembusan to string array (for backward compatibility)
+function normalizeTembusanToStringArray(tembusan?: TembusanInput): string[] | undefined {
+  if (!tembusan) return undefined;
+  if (tembusan.length === 0) return [];
+  
+  // Check if it's new format (array of objects)
+  if (typeof tembusan[0] === 'object') {
+    // New format: extract name from objects
+    return (tembusan as TembusanRecipient[]).map(t => t.name);
+  }
+  
+  // Old format: already string array
+  return tembusan as string[];
+}
+
 // ============================================================================
 // CONTROLLER CLASS
 // ============================================================================
@@ -67,7 +86,7 @@ class HasilController {
     body: {
       documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_PENGANTAR' | 'SURAT_TUGAS_TABEL';
       content: Record<string, unknown>;
-      tembusan?: string[];
+      tembusan?: TembusanInput;
       perihal?: string;
       signatories: Array<{
         signerRole: string;
@@ -84,7 +103,7 @@ class HasilController {
         letterId,
         documentType: body.documentType,
         content: body.content,
-        tembusan: body.tembusan,
+        tembusan: normalizeTembusanToStringArray(body.tembusan),
         perihal: body.perihal,
         signatories: body.signatories
       };
@@ -104,7 +123,7 @@ class HasilController {
     documentId: string,
     body: {
       content?: Record<string, unknown>;
-      tembusan?: string[];
+      tembusan?: TembusanInput;
       perihal?: string;
       mode?: 'patch' | 'overwrite';
       signatories?: Array<{
@@ -124,7 +143,7 @@ class HasilController {
       const input: UpdateDraftServiceInput = {
         documentId,
         content: body.content,
-        tembusan: body.tembusan,
+        tembusan: normalizeTembusanToStringArray(body.tembusan),
         perihal: body.perihal,
         mode: body.mode,
         signatories: body.signatories
@@ -203,7 +222,7 @@ class HasilController {
     letterId: string,
     body: {
       content?: Record<string, unknown>;
-      tembusan?: string[];
+      tembusan?: TembusanInput;
       perihal?: string;
     },
     userId: string,
@@ -213,7 +232,7 @@ class HasilController {
       const result = await hasilService.updateDraftAsSupervisor(
         letterId,
         body.content,
-        body.tembusan,
+        normalizeTembusanToStringArray(body.tembusan),
         body.perihal,
         userId,
         userRole
@@ -296,7 +315,7 @@ class HasilController {
       category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM';
       documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
       content: Record<string, unknown>;
-      tembusan?: string[];
+      tembusan?: TembusanInput;
       perihal?: string;
       targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA';
       signatories: Array<{
@@ -318,7 +337,7 @@ class HasilController {
           category: body.category,
           documentType: body.documentType,
           content: body.content,
-          tembusan: body.tembusan,
+          tembusan: normalizeTembusanToStringArray(body.tembusan),
           perihal: body.perihal,
           targetSupervisor: body.targetSupervisor,
           signatories: body.signatories

@@ -16,7 +16,8 @@ import {
   approveVerificationBodySchema,
   returnRevisionBodySchema,
   signDocumentBodySchema,
-  createStaffSuratBodySchema
+  createStaffSuratBodySchema,
+  uploadAttachmentsBodySchema
 } from './hasil.validation';
 import { STAF_ROLES, PEJABAT_ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
@@ -241,20 +242,13 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
       [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
     ) || roles[0];
     
-    // Extract files from body
-    const files: File[] = [];
-    if (body && typeof body === 'object') {
-      const bodyObj = body as Record<string, unknown>;
-      if (bodyObj.files && Array.isArray(bodyObj.files)) {
-        files.push(...(bodyObj.files as File[]));
-      } else if (bodyObj.file instanceof File) {
-        files.push(bodyObj.file);
-      }
-    }
+    // body.files is already an array of File objects from t.Files()
+    const files = body.files || [];
     
     return hasilController.uploadAttachments(params.documentId, files, user.id, activeRole);
   }, {
     params: documentIdParamSchema,
+    body: uploadAttachmentsBodySchema,
     detail: {
       summary: 'Upload attachments',
       description: 'Staff/Supervisor mengunggah lampiran (PDF, JPG, PNG)',
