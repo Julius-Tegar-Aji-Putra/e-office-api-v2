@@ -375,9 +375,9 @@ class HasilService {
    * Pejabat (Wadek/Dekan) verify dan forward ke next role (ketika bukan penandatangan)
    * 
    * PENTING: Flow SELALU urut sesuai hierarki kategori:
-   * - AKADEMIK: Wadek 1 -> Dekan
-   * - SUMBER_DAYA: Wadek 2 -> Dekan  
-   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan
+   * - AKADEMIK: Wadek 1 -> Dekan -> UPA
+   * - SUMBER_DAYA: Wadek 2 -> Dekan -> UPA
+   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan -> UPA
    * 
    * Fungsi ini hanya untuk pejabat yang BUKAN di daftar penandatangan.
    * Jika pejabat ADA di daftar penandatangan, gunakan signDocument.

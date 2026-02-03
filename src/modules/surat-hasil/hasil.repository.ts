@@ -988,9 +988,9 @@ class HasilRepository {
    * Flow SELALU urut sesuai hierarki, tidak boleh skip!
    * 
    * Hierarki berdasarkan kategori:
-   * - AKADEMIK: Wadek 1 -> Dekan
-   * - SUMBER_DAYA: Wadek 2 -> Dekan
-   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan
+   * - AKADEMIK: Wadek 1 -> Dekan -> UPA
+   * - SUMBER_DAYA: Wadek 2 -> Dekan -> UPA
+   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan -> UPA
    */
   async pejabatVerifyDocument(
     letterId: string,
@@ -1023,21 +1023,32 @@ class HasilRepository {
 
       // Determine next role based on category hierarchy
       let nextRole: string;
+      let nextStatus: LetterStatus;
       
       switch (category) {
         case 'AKADEMIK':
-          // Flow: Wadek 1 -> Dekan
+          // Flow: Wadek 1 -> Dekan -> UPA
           if (normalizedActorRole === 'WADEK_1') {
             nextRole = 'DEKAN';
+            nextStatus = LetterStatus.FAKULTAS_SIGNING;
+          } else if (normalizedActorRole === 'DEKAN') {
+            // Dekan bukan penandatangan, langsung ke UPA
+            nextRole = 'UPA';
+            nextStatus = LetterStatus.UPA_NUMBERING;
           } else {
             throw new Error('Flow tidak valid untuk kategori AKADEMIK');
           }
           break;
           
         case 'SUMBER_DAYA':
-          // Flow: Wadek 2 -> Dekan
+          // Flow: Wadek 2 -> Dekan -> UPA
           if (normalizedActorRole === 'WADEK_2') {
             nextRole = 'DEKAN';
+            nextStatus = LetterStatus.FAKULTAS_SIGNING;
+          } else if (normalizedActorRole === 'DEKAN') {
+            // Dekan bukan penandatangan, langsung ke UPA
+            nextRole = 'UPA';
+            nextStatus = LetterStatus.UPA_NUMBERING;
           } else {
             throw new Error('Flow tidak valid untuk kategori SUMBER_DAYA');
           }
@@ -1045,11 +1056,17 @@ class HasilRepository {
           
         case 'UMUM':
         default:
-          // Flow: Wadek 2 -> Wadek 1 -> Dekan
+          // Flow: Wadek 2 -> Wadek 1 -> Dekan -> UPA
           if (normalizedActorRole === 'WADEK_2') {
             nextRole = 'WADEK_1';
+            nextStatus = LetterStatus.FAKULTAS_SIGNING;
           } else if (normalizedActorRole === 'WADEK_1') {
             nextRole = 'DEKAN';
+            nextStatus = LetterStatus.FAKULTAS_SIGNING;
+          } else if (normalizedActorRole === 'DEKAN') {
+            // Dekan bukan penandatangan, langsung ke UPA
+            nextRole = 'UPA';
+            nextStatus = LetterStatus.UPA_NUMBERING;
           } else {
             throw new Error('Flow tidak valid untuk kategori UMUM');
           }
@@ -1059,7 +1076,7 @@ class HasilRepository {
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
         data: {
-          status: LetterStatus.FAKULTAS_SIGNING,
+          status: nextStatus,
           currentActiveRole: nextRole,
           updatedAt: new Date()
         }
@@ -1072,7 +1089,7 @@ class HasilRepository {
           actorRole,
           action: LogAction.VERIFY,
           fromStatus: LetterStatus.FAKULTAS_SIGNING,
-          toStatus: LetterStatus.FAKULTAS_SIGNING,
+          toStatus: nextStatus,
           targetRole: nextRole,
           notes: notes || `Diverifikasi oleh ${actorRole}, diteruskan ke ${nextRole}`
         }
