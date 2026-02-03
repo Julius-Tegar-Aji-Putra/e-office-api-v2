@@ -223,19 +223,32 @@ export class SubmissionService {
           }
 
           // Convert attachmentUrls storage paths to signed URLs
-          let signedAttachmentUrls: string[] | null = null;
+          // Support both old format (string[]) and new format ({ url, name }[])
+          let signedAttachmentUrls: Array<{ url: string; name: string }> | null = null;
           if (doc.attachmentUrls && Array.isArray(doc.attachmentUrls)) {
             signedAttachmentUrls = await Promise.all(
-              doc.attachmentUrls.map(async (url: string) => {
-                if (url && !url.startsWith('http')) {
+              doc.attachmentUrls.map(async (item: any) => {
+                // Handle old string format
+                if (typeof item === 'string') {
+                  const urlPath = item.split('/').pop() || 'Lampiran';
+                  const cleanName = urlPath.replace(/^\d+-/, ''); // Remove timestamp prefix
+                  const signedUrl = item.startsWith('http') 
+                    ? item 
+                    : await this.minio.getFileUrl(item).catch(() => item);
+                  return { url: signedUrl, name: decodeURIComponent(cleanName) };
+                }
+                // Handle new object format { url, name }
+                const attachment = item as { url: string; name: string };
+                if (attachment.url && !attachment.url.startsWith('http')) {
                   try {
-                    return await this.minio.getFileUrl(url);
+                    const signedUrl = await this.minio.getFileUrl(attachment.url);
+                    return { url: signedUrl, name: attachment.name };
                   } catch (error) {
                     console.error(`Failed to get signed URL for attachment:`, error);
-                    return url;
+                    return attachment;
                   }
                 }
-                return url;
+                return attachment;
               })
             );
           }

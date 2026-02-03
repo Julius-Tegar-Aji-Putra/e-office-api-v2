@@ -750,7 +750,7 @@ class HasilService {
     files: File[],
     userId: string,
     userRole: string
-  ): Promise<{ attachmentUrls: string[] }> {
+  ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
     // Check permission - only staff and supervisors can upload
     const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
     if (!allowedRoles.includes(userRole)) {
@@ -784,58 +784,79 @@ class HasilService {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    // Upload files to MinIO
+    // Upload files to MinIO and create metadata objects
     const minioService = new MinioService();
-    const uploadedUrls: string[] = [];
+    const uploadedAttachments: Array<{ url: string; name: string }> = [];
 
     for (const file of files) {
       const buffer = await file.arrayBuffer();
       const fileBuffer = Buffer.from(buffer);
-      const fileName = `${Date.now()}-${file.name}`;
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${file.name}`;
       const folder = `attachments/${documentId}`;
       
       const uploadResult = await minioService.uploadFile(fileBuffer, fileName, file.type, folder);
-      // Store the storage path, not the full URL - this will be converted to signed URL when fetching
-      uploadedUrls.push(uploadResult.path);
+      // Store metadata: { url: storage path, name: original filename }
+      uploadedAttachments.push({
+        url: uploadResult.path,
+        name: file.name // Store original filename
+      });
     }
 
-    // Append to existing attachments
-    const existingUrls = ((document as any).attachmentUrls as string[] | null) || [];
-    const newUrls = [...existingUrls, ...uploadedUrls];
+    // Append to existing attachments (support both old string[] and new object[] format)
+    const existingData = ((document as any).attachmentUrls as any) || [];
+    let existingAttachments: Array<{ url: string; name: string }> = [];
+    
+    // Migrate old format (string[]) to new format (object[])
+    if (Array.isArray(existingData)) {
+      existingAttachments = existingData.map(item => {
+        if (typeof item === 'string') {
+          // Old format: just URL, extract filename from path
+          const urlPath = item.split('/').pop() || 'Lampiran';
+          const cleanName = urlPath.replace(/^\d+-/, ''); // Remove timestamp prefix
+          return { url: item, name: cleanName };
+        }
+        // New format: already an object
+        return item as { url: string; name: string };
+      });
+    }
 
-    // Update document
+    const newAttachments = [...existingAttachments, ...uploadedAttachments];
+
+    // Update document with new format
     await prisma.letterDocument.update({
       where: { id: documentId },
-      data: { attachmentUrls: newUrls } as any
+      data: { attachmentUrls: newAttachments } as any
     });
 
-    // Convert to signed URLs for the response
-    const signedUrls = await Promise.all(
-      newUrls.map(async (path) => {
-        if (path && !path.startsWith('http')) {
+    // Convert storage paths to signed URLs for the response (keeping metadata)
+    const signedAttachments = await Promise.all(
+      newAttachments.map(async (attachment) => {
+        if (attachment.url && !attachment.url.startsWith('http')) {
           try {
-            return await minioService.getFileUrl(path);
+            const signedUrl = await minioService.getFileUrl(attachment.url);
+            return { url: signedUrl, name: attachment.name };
           } catch (error) {
             console.error(`Failed to get signed URL for attachment:`, error);
-            return path;
+            return attachment;
           }
         }
-        return path;
+        return attachment;
       })
     );
 
-    return { attachmentUrls: signedUrls };
+    return { attachmentUrls: signedAttachments };
   }
 
   /**
-   * Remove attachment from document
+   * Remove attachment from document by index
    */
   async removeAttachment(
     documentId: string,
     attachmentIndex: number,
     userId: string,
     userRole: string
-  ): Promise<{ attachmentUrls: string[] }> {
+  ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
     // Check permission - only staff and supervisors can remove
     const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
     if (!allowedRoles.includes(userRole)) {
@@ -851,21 +872,35 @@ class HasilService {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    const existingUrls = ((document as any).attachmentUrls as string[] | null) || [];
-    if (attachmentIndex < 0 || attachmentIndex >= existingUrls.length) {
+    // Support both old format (string[]) and new format (object[])
+    const attachmentData = ((document as any).attachmentUrls as any) || [];
+    let existingAttachments: Array<{ url: string; name: string }> = [];
+    
+    if (Array.isArray(attachmentData)) {
+      existingAttachments = attachmentData.map(item => {
+        if (typeof item === 'string') {
+          const urlPath = item.split('/').pop() || 'Lampiran';
+          const cleanName = urlPath.replace(/^\d+-/, '');
+          return { url: item, name: cleanName };
+        }
+        return item as { url: string; name: string };
+      });
+    }
+
+    if (attachmentIndex < 0 || attachmentIndex >= existingAttachments.length) {
       throw new AppError('Index lampiran tidak valid', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Remove URL at index
-    const newUrls = existingUrls.filter((_, index) => index !== attachmentIndex);
+    // Remove attachment at index
+    const newAttachments = existingAttachments.filter((_, index) => index !== attachmentIndex);
 
     // Update document
     await prisma.letterDocument.update({
       where: { id: documentId },
-      data: { attachmentUrls: newUrls } as any
+      data: { attachmentUrls: newAttachments } as any
     });
 
-    return { attachmentUrls: newUrls };
+    return { attachmentUrls: newAttachments };
   }
 
   /**
@@ -876,7 +911,7 @@ class HasilService {
     fileName: string,
     userId: string,
     userRole: string
-  ): Promise<{ attachmentUrls: string[] }> {
+  ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
     console.log('[SERVICE] removeAttachmentByName called:', { documentId, fileName, userId, userRole });
     
     // Check permission - only staff and supervisors can remove
@@ -894,53 +929,63 @@ class HasilService {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    const existingPaths = ((document as any).attachmentUrls as string[] | null) || [];
-    console.log('[SERVICE] Existing paths:', existingPaths);
+    const attachmentData = ((document as any).attachmentUrls as any) || [];
+    console.log('[SERVICE] Existing attachment data:', attachmentData);
     
-    // Find storage path that ends with the fileName
-    // Storage path format: attachments/{documentId}/timestamp-filename.pdf
-    const pathToRemove = existingPaths.find(path => {
-      const pathFileName = path.split('/').pop() || '';
-      console.log('[SERVICE] Comparing:', { pathFileName, fileName, match: pathFileName === fileName });
-      // Match exact fileName from storage path
-      return pathFileName === fileName;
-    });
+    // Support both old format (string[]) and new format (object[])
+    let existingAttachments: Array<{ url: string; name: string }> = [];
     
-    console.log('[SERVICE] Path to remove:', pathToRemove);
+    if (Array.isArray(attachmentData)) {
+      existingAttachments = attachmentData.map(item => {
+        if (typeof item === 'string') {
+          // Old format: just URL/path
+          const urlPath = item.split('/').pop() || 'Lampiran';
+          const cleanName = urlPath.replace(/^\\d+-/, ''); // Remove timestamp prefix
+          return { url: item, name: cleanName };
+        }
+        // New format: already has metadata
+        return item as { url: string; name: string };
+      });
+    }
     
-    if (!pathToRemove) {
+    // Find attachment by name
+    const attachmentToRemove = existingAttachments.find(att => att.name === fileName);
+    
+    console.log('[SERVICE] Attachment to remove:', attachmentToRemove);
+    
+    if (!attachmentToRemove) {
       throw new AppError(`Lampiran tidak ditemukan: ${fileName}`, HTTP_STATUS.NOT_FOUND);
     }
 
     // Delete file from MinIO
     try {
       const minioService = new MinioService();
-      console.log('[SERVICE] Deleting from MinIO:', pathToRemove);
-      await minioService.deleteFile(pathToRemove);
+      console.log('[SERVICE] Deleting from MinIO:', attachmentToRemove.url);
+      await minioService.deleteFile(attachmentToRemove.url);
       console.log('[SERVICE] Successfully deleted from MinIO');
     } catch (error) {
       console.error('[SERVICE] Failed to delete file from MinIO:', error);
       // Continue with database update even if MinIO delete fails
     }
 
-    // Remove path from array
-    const newPaths = existingPaths.filter(path => path !== pathToRemove);
-    console.log('[SERVICE] New paths after removal:', newPaths);
+    // Remove attachment from array
+    const newAttachments = existingAttachments.filter(att => att.name !== fileName);
+    console.log('[SERVICE] New attachments after removal:', newAttachments);
 
     // Update document
     await prisma.letterDocument.update({
       where: { id: documentId },
-      data: { attachmentUrls: newPaths } as any
+      data: { attachmentUrls: newAttachments } as any
     });
 
     console.log('[SERVICE] Database updated successfully');
-    return { attachmentUrls: newPaths };
+    return { attachmentUrls: newAttachments };
   }
 
   /**
-   * Get attachment URLs for a document
+   * Get attachment URLs for a document with metadata
    */
-  async getAttachments(documentId: string): Promise<string[]> {
+  async getAttachments(documentId: string): Promise<Array<{ url: string; name: string }>> {
     const document = await prisma.letterDocument.findUnique({
       where: { id: documentId }
     });
@@ -949,25 +994,42 @@ class HasilService {
       throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    const storagePaths = ((document as any).attachmentUrls as string[] | null) || [];
+    const attachmentData = ((document as any).attachmentUrls as any) || [];
+    
+    // Support both old format (string[]) and new format (object[])
+    let attachments: Array<{ url: string; name: string }> = [];
+    
+    if (Array.isArray(attachmentData)) {
+      attachments = attachmentData.map(item => {
+        if (typeof item === 'string') {
+          // Old format: just URL/path
+          const urlPath = item.split('/').pop() || 'Lampiran';
+          const cleanName = urlPath.replace(/^\\d+-/, ''); // Remove timestamp prefix
+          return { url: item, name: cleanName };
+        }
+        // New format: already has metadata
+        return item as { url: string; name: string };
+      });
+    }
     
     // Convert storage paths to signed URLs
     const minioService = new MinioService();
-    const signedUrls = await Promise.all(
-      storagePaths.map(async (path) => {
-        if (path && !path.startsWith('http')) {
+    const result = await Promise.all(
+      attachments.map(async (attachment) => {
+        if (attachment.url && !attachment.url.startsWith('http')) {
           try {
-            return await minioService.getFileUrl(path);
+            const signedUrl = await minioService.getFileUrl(attachment.url);
+            return { url: signedUrl, name: attachment.name };
           } catch (error) {
             console.error(`Failed to get signed URL for attachment:`, error);
-            return path;
+            return attachment;
           }
         }
-        return path;
+        return attachment;
       })
     );
 
-    return signedUrls;
+    return result;
   }
 
   // ===========================================================================
