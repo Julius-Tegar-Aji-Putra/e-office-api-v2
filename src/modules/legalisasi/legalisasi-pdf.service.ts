@@ -19,7 +19,8 @@ import puppeteer from 'puppeteer';
 import { prisma } from '../../db';
 import { MinioService } from '../../shared/services/minio.service';
 import { env } from '../../config/env';
-import { encryptVerificationData, generateVerificationUrl } from '../../shared/utils/encryption';
+import { generateVerificationUrl } from '../../shared/utils/encryption';
+import { generateShortToken } from '../../shared/utils/short-token';
 import { suratTugasTemplate, type SuratTugasData, type SignatureBlock, type TembusanRecipient as TembusanRecipientST } from '../../shared/templates/surat-tugas.template';
 import { suratKeputusanTemplate, type SuratKeputusanData, type KeputusanItem, type TembusanRecipient } from '../../shared/templates/surat-keputusan.template';
 import * as fs from 'fs';
@@ -56,10 +57,10 @@ const STEMPEL_CONFIG = {
 };
 
 const QR_CODE_CONFIG = {
-  width: 70,
-  height: 70,
-  offsetFromRight: 40, // Pojok kanan bawah
-  offsetFromBottom: 40,
+  width: 85, // Lebih besar untuk scannability dari HP
+  height: 85,
+  offsetFromRight: 35, // Pojok kanan bawah
+  offsetFromBottom: 35,
   addToAllPages: true,
 };
 
@@ -501,47 +502,175 @@ class LegalisasiPdfService {
   }
 
   /**
-   * Generate QR Code untuk verifikasi dokumen
+   * Load UNDIP logo untuk QR Code
+   * Menggunakan logo dari folder public atau fallback URL
    */
-  async generateVerificationQRCode(documentData: {
-    id: string;
-    nomorSurat: string;
-    tanggalSurat: Date | null;
-    type: string;
-    perihal?: string | null;
-    signerName?: string;
-  }): Promise<{
-    qrCodeDataUrl: string;
-    qrCodeBase64: string;
-    encryptedToken: string;
-    verificationUrl: string;
-  }> {
-    // Build verification payload
-    const payload = {
-      id: documentData.id,
-      no: documentData.nomorSurat,
-      ttd: documentData.signerName || 'Pejabat Berwenang',
-      tgl: documentData.tanggalSurat?.toISOString() || new Date().toISOString(),
-      jenis: documentData.type,
-      perihal: documentData.perihal || undefined,
-    };
+  private async getLogoForQRCode(): Promise<string | null> {
+    try {
+      const logoPath = path.join(process.cwd(), 'public', 'logo-undip.png');
+      if (fs.existsSync(logoPath)) {
+        const logoBuffer = fs.readFileSync(logoPath);
+        return `data:image/png;base64,${logoBuffer.toString('base64')}`;
+      }
+      
+      // Fallback: coba stempel.png sebagai logo
+      const stempelPath = path.join(process.cwd(), 'public', 'stempel.png');
+      if (fs.existsSync(stempelPath)) {
+        const stempelBuffer = fs.readFileSync(stempelPath);
+        return `data:image/png;base64,${stempelBuffer.toString('base64')}`;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[LegalisasiPdf] Error loading logo for QR Code:', error);
+      return null;
+    }
+  }
 
-    // Encrypt payload
-    const encryptedToken = encryptVerificationData(payload);
-
-    // Generate verification URL
-    const verificationUrl = generateVerificationUrl(encryptedToken);
-
-    // Generate QR Code
-    const qrCodeDataUrl = await QRCode.toDataURL(verificationUrl, {
-      errorCorrectionLevel: 'H',
+  /**
+   * Generate QR Code dengan logo UNDIP di tengah
+   * Menggunakan canvas untuk overlay logo pada QR Code
+   */
+  async generateQRCodeWithLogo(
+    data: string,
+    options: {
+      width?: number;
+      logoSize?: number; // Persentase dari QR Code (0.2 = 20%)
+    } = {}
+  ): Promise<string> {
+    const width = options.width || 250;
+    const logoSizePercent = options.logoSize || 0.26; // 26% dari QR code (lebih besar, lebih jelas)
+    
+    // Generate QR Code dengan high error correction
+    const qrCodeDataUrl = await QRCode.toDataURL(data, {
+      errorCorrectionLevel: 'H', // HIGH - bisa terbaca meski 30% tertutup
       type: 'image/png',
-      width: 200,
+      width: width,
       margin: 1,
       color: {
         dark: '#000000',
         light: '#FFFFFF',
       },
+    });
+
+    // Load logo
+    const logoDataUrl = await this.getLogoForQRCode();
+    
+    if (!logoDataUrl) {
+      // Jika tidak ada logo, return QR tanpa logo
+      console.log('[LegalisasiPdf] No logo found, using plain QR Code');
+      return qrCodeDataUrl;
+    }
+
+    // Gabungkan QR Code dengan logo menggunakan sharp atau canvas
+    try {
+      const sharp = (await import('sharp')).default;
+      
+      // Decode base64 QR Code
+      const qrBase64 = qrCodeDataUrl.split(',')[1];
+      const qrBuffer = Buffer.from(qrBase64, 'base64');
+      
+      // Decode base64 logo
+      const logoBase64 = logoDataUrl.split(',')[1];
+      const logoBuffer = Buffer.from(logoBase64, 'base64');
+      
+      // Calculate logo size and position
+      const logoSize = Math.floor(width * logoSizePercent);
+      const logoPosition = Math.floor((width - logoSize) / 2);
+      
+      // White frame padding (8px untuk estetika)
+      const framePadding = 8;
+      const frameSize = logoSize + (framePadding * 2);
+      const framePosition = Math.floor((width - frameSize) / 2);
+      
+      // Resize logo dengan padding internal untuk white space
+      const logoWithPadding = await sharp(logoBuffer)
+        .resize(logoSize - framePadding, logoSize - framePadding, {
+          fit: 'contain',
+          background: { r: 255, g: 255, b: 255, alpha: 0 }
+        })
+        .extend({
+          top: framePadding / 2,
+          bottom: framePadding / 2,
+          left: framePadding / 2,
+          right: framePadding / 2,
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        })
+        .png()
+        .toBuffer();
+      
+      // Create white background frame
+      const whiteFrame = await sharp({
+        create: {
+          width: frameSize,
+          height: frameSize,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 }
+        }
+      })
+      .png()
+      .toBuffer();
+      
+      // Composite: QR Code + white frame + logo
+      const qrWithLogo = await sharp(qrBuffer)
+        .composite([
+          {
+            input: whiteFrame,
+            top: framePosition,
+            left: framePosition,
+          },
+          {
+            input: logoWithPadding,
+            top: logoPosition,
+            left: logoPosition,
+          }
+        ])
+        .png()
+        .toBuffer();
+      
+      return `data:image/png;base64,${qrWithLogo.toString('base64')}`;
+    } catch (error) {
+      console.error('[LegalisasiPdf] Error compositing logo on QR Code:', error);
+      // Fallback: return QR tanpa logo
+      return qrCodeDataUrl;
+    }
+  }
+
+  /**
+   * Generate QR Code untuk verifikasi dokumen
+   * UPDATED: Menggunakan SHORT TOKEN untuk QR Code yang mudah di-scan
+   */
+  async generateVerificationQRCode(documentId: string): Promise<{
+    qrCodeDataUrl: string;
+    qrCodeBase64: string;
+    shortToken: string;
+    verificationUrl: string;
+  }> {
+    // Generate short unique token (8-10 karakter)
+    let shortToken = generateShortToken();
+    
+    // Pastikan token benar-benar unik (cek database)
+    let existingDoc = await prisma.letterDocument.findUnique({
+      where: { verificationToken: shortToken },
+    });
+    
+    // Jika sudah ada, generate ulang sampai dapat yang unik
+    while (existingDoc) {
+      shortToken = generateShortToken();
+      existingDoc = await prisma.letterDocument.findUnique({
+        where: { verificationToken: shortToken },
+      });
+    }
+
+    // Generate verification URL dengan short token
+    const verificationUrl = generateVerificationUrl(shortToken);
+    console.log(`[LegalisasiPdf] Short Token: ${shortToken}`);
+    console.log(`[LegalisasiPdf] Verification URL: ${verificationUrl} (${verificationUrl.length} chars)`);
+
+    // Generate QR Code dengan logo UNDIP - URL pendek = QR sederhana!
+    const qrCodeDataUrl = await this.generateQRCodeWithLogo(verificationUrl, {
+      width: 250, // Ukuran lebih besar untuk scannability
+      logoSize: 0.26, // Logo 26% dari QR dengan white frame (aman dengan error correction H)
     });
 
     // Extract base64
@@ -550,7 +679,7 @@ class LegalisasiPdfService {
     return {
       qrCodeDataUrl,
       qrCodeBase64,
-      encryptedToken,
+      shortToken,
       verificationUrl,
     };
   }
@@ -720,25 +849,19 @@ class LegalisasiPdfService {
   /**
    * Proses lengkap regenerasi PDF setelah generate QR Code
    * Menggunakan Puppeteer untuk regenerate dari template dengan QR Code
+   * UPDATED: Menggunakan short token untuk QR Code yang mudah di-scan
    */
   async regeneratePdfWithQRCode(documentId: string): Promise<{
     pdfUrl: string;
     qrCodeUrl: string;
-    encryptedToken: string;
+    shortToken: string;
     verificationUrl: string;
   }> {
     console.log(`[LegalisasiPdf] Regenerating PDF with QR Code for document ${documentId}`);
 
-    // Get document data untuk generate QR
+    // Get document data
     const document = await prisma.letterDocument.findUnique({
       where: { id: documentId },
-      include: {
-        signatures: {
-          where: { status: 'SIGNED' },
-          orderBy: { order: 'desc' },
-          take: 1,
-        },
-      },
     });
 
     if (!document) {
@@ -749,21 +872,13 @@ class LegalisasiPdfService {
       throw new Error('Nomor surat belum diberikan');
     }
 
-    // Get highest signer name
-    const signerName = document.signatures[0]?.signerName || 'Pejabat Berwenang';
+    // Generate QR Code dengan short token
+    const { qrCodeDataUrl, shortToken, verificationUrl } = 
+      await this.generateVerificationQRCode(documentId);
 
-    // Generate QR Code
-    const { qrCodeDataUrl, encryptedToken, verificationUrl } = 
-      await this.generateVerificationQRCode({
-        id: document.id,
-        nomorSurat: document.nomorSurat,
-        tanggalSurat: document.tanggalSurat,
-        type: document.type,
-        perihal: document.perihal,
-        signerName,
-      });
-
-    console.log(`[LegalisasiPdf] QR Code generated, verification URL: ${verificationUrl}`);
+    console.log(`[LegalisasiPdf] QR Code generated with short token`);
+    console.log(`[LegalisasiPdf] Token: ${shortToken}`);
+    console.log(`[LegalisasiPdf] URL: ${verificationUrl} (${verificationUrl.length} chars)`);
 
     let html: string;
 
@@ -791,8 +906,8 @@ class LegalisasiPdfService {
     );
     console.log(`[LegalisasiPdf] PDF uploaded: ${pdfUrl}`);
 
-    // Return all data - fileUrl akan diupdate oleh repository dalam transaction
-    return { pdfUrl, qrCodeUrl: qrCodeDataUrl, encryptedToken, verificationUrl };
+    // Return all data - fileUrl dan verificationToken akan diupdate oleh repository dalam transaction
+    return { pdfUrl, qrCodeUrl: qrCodeDataUrl, shortToken, verificationUrl };
   }
 
   /**

@@ -3,9 +3,9 @@
  * Business logic untuk modul UPA (penomoran, stempel, QR code, finalisasi)
  */
 
+import { prisma } from '../../db';
 import { legalisasiRepository } from './legalisasi.repository';
 import { LetterStatus, LegalisasiStatus, DocumentType } from '../../generated/prisma/client';
-import { decryptVerificationData } from '../../shared/utils/encryption';
 import { 
   validateNomorFormat, 
   generateNomorSuggestion,
@@ -553,6 +553,7 @@ class LegalisasiService {
       try {
         qrResult = await legalisasiPdfService.regeneratePdfWithQRCode(documentId);
         console.log(`PDF regenerated with QR Code, new URL: ${qrResult.pdfUrl}`);
+        console.log(`Short token: ${qrResult.shortToken}, URL length: ${qrResult.verificationUrl.length} chars`);
       } catch (pdfError) {
         console.error('Error regenerating PDF with QR Code:', pdfError);
         return {
@@ -566,9 +567,10 @@ class LegalisasiService {
       await legalisasiRepository.saveQRCode(
         {
           documentId,
-          barcodeData: qrResult.encryptedToken,
+          barcodeData: qrResult.shortToken, // Short token instead of encrypted
           qrCodeUrl: qrResult.qrCodeUrl,
-          fileUrl: qrResult.pdfUrl
+          fileUrl: qrResult.pdfUrl,
+          verificationToken: qrResult.shortToken // NEW: Save short token
         },
         userId,
         userRole
@@ -582,7 +584,7 @@ class LegalisasiService {
         data: {
           qrCodeBase64,
           qrCodeDataUrl: qrResult.qrCodeUrl,
-          encryptedToken: qrResult.encryptedToken,
+          shortToken: qrResult.shortToken,
           verificationUrl: qrResult.verificationUrl
         }
       };
@@ -681,27 +683,42 @@ class LegalisasiService {
 
   /**
    * Verify document from QR code token (PUBLIC - no auth required)
+   * UPDATED: Menggunakan short token lookup dari database
    */
   async verifyDocument(token: string): Promise<ServiceResult<VerificationResult>> {
     try {
-      // Decrypt token
-      const decryptResult = decryptVerificationData(token);
-
-      if (!decryptResult.success || !decryptResult.data) {
+      // Validate token format
+      if (!token || token.length < 8 || token.length > 12) {
         return {
           success: true, // Return success but with invalid status
           data: {
             valid: false,
             status: 'INVALID_TOKEN',
-            message: '❌ QR Code tidak valid atau telah dipalsukan. Dokumen ini mungkin PALSU!'
+            message: '❌ Format QR Code tidak valid. Dokumen ini mungkin PALSU!'
           }
         };
       }
 
-      const payload = decryptResult.data;
-
-      // Find document by ID
-      const document = await legalisasiRepository.getDocumentForVerification(payload.id);
+      // Find document by verification token (short token)
+      const document = await prisma.letterDocument.findUnique({
+        where: { verificationToken: token },
+        include: {
+          letterInstance: {
+            include: {
+              createdBy: {
+                include: {
+                  mahasiswa: true,
+                  pegawai: true
+                }
+              }
+            }
+          },
+          signatures: {
+            where: { status: 'SIGNED' },
+            orderBy: { order: 'asc' }
+          }
+        }
+      });
 
       if (!document) {
         return {
@@ -710,18 +727,6 @@ class LegalisasiService {
             valid: false,
             status: 'NOT_FOUND',
             message: '❌ Dokumen tidak ditemukan dalam sistem. Dokumen ini mungkin PALSU!'
-          }
-        };
-      }
-
-      // Verify nomor surat matches
-      if (document.nomorSurat !== payload.no) {
-        return {
-          success: true,
-          data: {
-            valid: false,
-            status: 'INVALID_TOKEN',
-            message: '❌ Nomor surat tidak sesuai. Dokumen ini mungkin PALSU!'
           }
         };
       }

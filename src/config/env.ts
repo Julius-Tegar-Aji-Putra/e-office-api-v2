@@ -40,7 +40,12 @@ const envSchema = z.object({
 
   // Encryption & Verification (untuk QR Code legalisasi)
   APP_KEY: z.string().min(32, 'APP_KEY harus minimal 32 karakter untuk keamanan'),
-  VERIFICATION_BASE_URL: z.string().url('VERIFICATION_BASE_URL harus berupa URL yang valid'),
+  // VERIFICATION_BASE_URL bisa berupa URL lengkap atau menggunakan HOST_IP
+  VERIFICATION_BASE_URL: z.string().default('http://localhost:3000'),
+  // HOST_IP untuk network access (HP yang satu jaringan)
+  HOST_IP: z.string().default('localhost'),
+  // Port Frontend untuk verifikasi QR
+  FRONTEND_PORT: z.string().default('3000'),
 
   // Email (Optional)
   MAIL_ENABLED: z.string().optional(),

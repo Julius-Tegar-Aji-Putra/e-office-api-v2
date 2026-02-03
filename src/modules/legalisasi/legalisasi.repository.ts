@@ -403,9 +403,10 @@ class LegalisasiRepository {
 
   /**
    * Save QR code data to document
+   * UPDATED: Save verificationToken untuk short URL
    */
   async saveQRCode(
-    input: GenerateQRInput,
+    input: GenerateQRInput & { verificationToken?: string },
     actorId: string,
     actorRole: string
   ) {
@@ -423,6 +424,7 @@ class LegalisasiRepository {
         data: {
           barcodeData: input.barcodeData,
           qrCodeUrl: input.qrCodeUrl,
+          verificationToken: input.verificationToken, // NEW: Save short token
           legalisasiStatus: LegalisasiStatus.QR_GENERATED,
           ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
@@ -442,8 +444,8 @@ class LegalisasiRepository {
           action: LogAction.GENERATE_QR,
           fromStatus: document.letterInstance.status,
           toStatus: document.letterInstance.status,
-          notes: 'QR Code verifikasi telah di-generate',
-          metadata: { qrCodeUrl: input.qrCodeUrl }
+          notes: `QR Code verifikasi telah di-generate (token: ${input.verificationToken})`,
+          metadata: { qrCodeUrl: input.qrCodeUrl, verificationToken: input.verificationToken }
         }
       });
 

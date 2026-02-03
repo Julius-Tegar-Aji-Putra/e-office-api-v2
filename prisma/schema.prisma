@@ -285,30 +285,32 @@ model LetterInstance {
 }
 
 model LetterDocument {
-  id                String              @id @default(cuid())
-  letterInstanceId  String
-  type              DocumentType
-  content           Json?
-  tembusan          Json?
-  nomorSurat        String?             @unique
-  tanggalSurat      DateTime?
-  perihal           String?
-  isSigned          Boolean             @default(false)
-  fileUrl           String?
-  qrCodeUrl         String?
-  legalisasiStatus  LegalisasiStatus    @default(PENDING)
-  sealImageUrl      String?
-  barcodeData       String?
-  readyToDistribute Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  attachmentUrls    Json?
-  signatures        DocumentSignature[]
-  letterInstance    LetterInstance      @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  letterInstanceId   String
+  type               DocumentType
+  content            Json?
+  tembusan           Json?
+  nomorSurat         String?             @unique
+  tanggalSurat       DateTime?
+  perihal            String?
+  isSigned           Boolean             @default(false)
+  fileUrl            String?
+  qrCodeUrl          String?
+  legalisasiStatus   LegalisasiStatus    @default(PENDING)
+  sealImageUrl       String?
+  barcodeData        String?
+  readyToDistribute  Boolean             @default(false)
+  verificationToken  String?             @unique // Short token untuk QR Code verification (8-10 karakter)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  attachmentUrls     Json?
+  signatures         DocumentSignature[]
+  letterInstance     LetterInstance      @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
 
   @@unique([letterInstanceId, type])
   @@index([letterInstanceId])
   @@index([nomorSurat])
+  @@index([verificationToken])
   @@map("letter_document")
 }
 
