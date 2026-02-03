@@ -228,16 +228,23 @@ async function main() {
         }
       });
     } else if (roleName !== ROLES.SUPERADMIN && profile) {
-      await prisma.pegawai.create({
-        data: {
-          userId: user.id,
-          nip: profile.nip || `NIP${Date.now()}`,
-          jabatan: profile.jabatan || roleName,
-          noHp: profile.noHp,
-          departemenId: deptMap.get(profile.deptCode)!,
-          programStudiId: prodiMap.get(profile.prodiCode)!
-        }
+      // Check if pegawai with this NIP already exists (for users with multiple roles)
+      const existingPegawai = await prisma.pegawai.findUnique({
+        where: { nip: profile.nip || `NIP${Date.now()}` }
       });
+
+      if (!existingPegawai) {
+        await prisma.pegawai.create({
+          data: {
+            userId: user.id,
+            nip: profile.nip || `NIP${Date.now()}`,
+            jabatan: profile.jabatan || roleName,
+            noHp: profile.noHp,
+            departemenId: deptMap.get(profile.deptCode)!,
+            programStudiId: prodiMap.get(profile.prodiCode)!
+          }
+        });
+      }
     }
 
     console.log(`   ✓ ${roleName}: ${name} <${email}>`);
@@ -294,11 +301,11 @@ async function main() {
 
   // --- KETUA PRODI INFORMATIKA ---
   const kaprodiIf = await createUser({
-    name: 'Prof. Dr. Aris Sugiharto, S.Si., M.Kom.',
+    name: 'Dr. Aris Sugiharto, S.Si., M.Kom.',
     email: 'kaprodi.if@undip.ac.id',
     roleName: ROLES.KAPRODI,
     profile: {
-      nip: '197608152005011001',
+      nip: '197108111997021004',
       jabatan: 'Ketua Program Studi S1 Informatika',
       noHp: '081234567100',
       deptCode: 'IF',
@@ -322,11 +329,11 @@ async function main() {
 
   // --- KETUA DEPARTEMEN INFORMATIKA ---
   const kadepIf = await createUser({
-    name: 'Prof. Dr. Ir. Kusworo Adi, M.T.',
+    name: 'Dr. Aris Sugiharto, S.Si., M.Kom.',
     email: 'kadep.if@undip.ac.id',
     roleName: ROLES.KADEP,
     profile: {
-      nip: '196805201995121001',
+      nip: '197108111997021004',
       jabatan: 'Ketua Departemen Informatika',
       noHp: '081234567102',
       deptCode: 'IF',
@@ -348,11 +355,11 @@ async function main() {
   });
 
   const dekan = await createUser({
-    name: 'Prof. Dr. Heru Susanto, S.T., M.M., Ph.D.',
+    name: 'Prof. Dr. Kusworo Adi, S.Si., M.T.',
     email: 'dekan@fsm.undip.ac.id',
     roleName: ROLES.DEKAN,
     profile: {
-      nip: '196903151994031001',
+      nip: '197203171998021001',
       jabatan: 'Dekan FSM',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
@@ -360,23 +367,23 @@ async function main() {
   });
 
   const wadek1 = await createUser({
-    name: 'Dr. Muhammad Nur, S.Si., M.Si.',
+    name: 'Dr. Ngadiwiyana, S.Si., M.Si.',
     email: 'wadek1@fsm.undip.ac.id',
     roleName: ROLES.WADEK_1,
     profile: {
-      nip: '197506151999031001',
-      jabatan: 'Wakil Dekan I (Bidang Akademik)',
+      nip: '196906201999031002',
+      jabatan: 'Wakil Dekan I (Bidang Akademik & Kemahasiswaan)',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
     }
   });
 
   const wadek2 = await createUser({
-    name: 'Dr. Adi Darmawan, S.Si., M.Si.',
+    name: 'Dr. Eng. Adi Wibowo, S.Si., M.Kom.',
     email: 'wadek2@fsm.undip.ac.id',
     roleName: ROLES.WADEK_2,
     profile: {
-      nip: '197808201999031002',
+      nip: '198203092006041002',
       jabatan: 'Wakil Dekan II (Bidang Sumber Daya)',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
@@ -384,11 +391,11 @@ async function main() {
   });
 
   const manajerTu = await createUser({
-    name: 'Drs. Tri Handoko, M.M.',
+    name: 'Lilik Maryuni, S.E., M.Si.',
     email: 'manajer.tu@fsm.undip.ac.id',
     roleName: ROLES.MANAJER_TU,
     profile: {
-      nip: '197010151995031001',
+      nip: '197009031991032002',
       jabatan: 'Manajer Tata Usaha',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
@@ -396,24 +403,24 @@ async function main() {
   });
 
   const spvAkademik = await createUser({
-    name: 'Retno Wulandari, S.E.',
+    name: 'Umi Arbiati, S.Kom.',
     email: 'spv.akademik@fsm.undip.ac.id',
     roleName: ROLES.SUPERVISOR_AKADEMIK,
     profile: {
-      nip: '198305152010032001',
-      jabatan: 'Supervisor Akademik',
+      nip: '197805122005012002',
+      jabatan: 'Supervisor Subbagian Akademik dan Kemahasiswaan',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
     }
   });
 
   const spvSumberDaya = await createUser({
-    name: 'Agus Prasetyo, S.E.',
+    name: 'Awang Kurnia Saputra, S.Kom.',
     email: 'spv.sumberdaya@fsm.undip.ac.id',
     roleName: ROLES.SUPERVISOR_SUMBER_DAYA,
     profile: {
-      nip: '198205152009031001',
-      jabatan: 'Supervisor Sumber Daya',
+      nip: '197906142009101002',
+      jabatan: 'Supervisor Subbagian Sumber Daya',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'
     }

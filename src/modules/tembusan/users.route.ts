@@ -12,10 +12,106 @@ import { getUserRoles } from '../../lib/casbin';
 import type { TembusanUser, TembusanUserListResponse } from '../tembusan/tembusan.types';
 
 // ============================================================================
-// USERS ROUTES FOR TEMBUSAN SELECTION
+// PUBLIC ROUTE - Pejabat list (no auth required)
 // ============================================================================
 
-export const usersRoute = new Elysia({ prefix: '/api/users' })
+const publicUsersRoute = new Elysia({ prefix: '/api/users' })
+  /**
+   * GET /api/users/pejabat
+   * Get list of pejabat (officials) with their roles, names, and NIPs
+   * Used for signature configuration in draft forms
+   * PUBLIC - no auth required for autofill functionality
+   */
+  .get('/pejabat', async () => {
+    try {
+      console.log('📡 [/api/users/pejabat] Request received');
+      
+      // Get pejabat data directly from user + pegawai tables based on roles
+      // Roles that can sign documents: DEKAN, WADEK_1, WADEK_2, KAPRODI, KADEP
+      const pejabatRoles = [ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.KAPRODI, ROLES.KADEP];
+      
+      const users = await prisma.user.findMany({
+        where: {
+          userRoles: {
+            some: {
+              role: {
+                name: {
+                  in: pejabatRoles
+                }
+              }
+            }
+          }
+        },
+        include: {
+          userRoles: {
+            include: {
+              role: true
+            }
+          },
+          pegawai: {
+            select: {
+              nip: true
+            }
+          }
+        }
+      });
+
+      console.log(`Found ${users.length} pejabat users`);
+
+      // Get all pegawai for NIP lookup by name (for users with multiple roles sharing same NIP)
+      const allPegawai = await prisma.pegawai.findMany({
+        select: {
+          nip: true,
+          user: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      // Create name to NIP mapping
+      const nameToNipMap = new Map<string, string>();
+      allPegawai.forEach(p => {
+        if (p.user?.name) {
+          nameToNipMap.set(p.user.name, p.nip);
+        }
+      });
+
+      // Map to expected format
+      const pejabatList = users.flatMap(user => {
+        // A user can have multiple roles, map each pejabat role
+        return user.userRoles
+          .filter(ur => pejabatRoles.includes(ur.role.name))
+          .map(ur => ({
+            role: ur.role.name,
+            name: user.name,
+            // Try to get NIP from direct pegawai relation, fallback to name lookup
+            nip: user.pegawai?.nip || nameToNipMap.get(user.name)
+          }));
+      });
+
+      console.log('📦 Final pejabat list:', pejabatList);
+
+      return {
+        success: true,
+        data: pejabatList
+      };
+    } catch (error) {
+      console.error('❌ Error fetching pejabat list:', error);
+      return {
+        success: false,
+        error: 'Gagal memuat daftar pejabat',
+        data: []
+      };
+    }
+  });
+
+// ============================================================================
+// PROTECTED ROUTES - Require authentication
+// ============================================================================
+
+const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
   .use(authGuardPlugin)
 
   /**
@@ -302,85 +398,12 @@ export const usersRoute = new Elysia({ prefix: '/api/users' })
     query: t.Object({
       q: t.Optional(t.String())
     })
-  })
-
-  /**
-   * GET /api/users/pejabat
-   * Get list of pejabat (officials) with their roles, names, and NIPs
-   * Used for signature configuration in draft forms
-   */
-  .get('/pejabat', async () => {
-    try {
-      // Define pejabat roles we need to fetch
-      const pejabatRoles = [
-        { role: ROLES.DEKAN, label: 'Dekan' },
-        { role: ROLES.WADEK_1, label: 'Wakil Dekan I' },
-        { role: ROLES.WADEK_2, label: 'Wakil Dekan II' },
-        { role: ROLES.KAPRODI, label: 'Ketua Prodi' },
-        { role: ROLES.KADEP, label: 'Ketua Departemen' }
-      ];
-
-      const pejabatList = await Promise.all(
-        pejabatRoles.map(async ({ role, label }) => {
-          // Get user with this role from casbin
-          const usersWithRole = await prisma.$queryRaw<Array<{ subject: string }>>`
-            SELECT DISTINCT v0 as subject
-            FROM casbin_rule
-            WHERE ptype = 'g'
-              AND v1 = ${role}
-          `;
-
-          if (usersWithRole.length === 0) {
-            return { role, name: label, nip: undefined };
-          }
-
-          // Get user details (prioritize pegawai, fallback to user table)
-          const userId = usersWithRole[0].subject;
-          
-          const pegawai = await prisma.pegawai.findFirst({
-            where: {
-              userId,
-              deletedAt: null
-            },
-            include: {
-              user: {
-                select: { name: true }
-              }
-            }
-          });
-
-          if (pegawai) {
-            return {
-              role,
-              name: pegawai.user.name,
-              nip: pegawai.nip
-            };
-          }
-
-          // Fallback to user table if not pegawai
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { name: true }
-          });
-
-          return {
-            role,
-            name: user?.name || label,
-            nip: undefined
-          };
-        })
-      );
-
-      return {
-        success: true,
-        data: pejabatList
-      };
-    } catch (error) {
-      console.error('Error fetching pejabat list:', error);
-      return {
-        success: false,
-        error: 'Gagal memuat daftar pejabat',
-        data: []
-      };
-    }
   });
+
+// ============================================================================
+// COMBINED EXPORT
+// ============================================================================
+
+export const usersRoute = new Elysia()
+  .use(publicUsersRoute)
+  .use(protectedUsersRoute);
