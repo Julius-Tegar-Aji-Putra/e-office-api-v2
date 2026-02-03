@@ -187,8 +187,9 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .post('/:id/return', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
+    // Allow: Supervisor, Manajer TU, dan Pejabat (Wadek/Dekan)
     const activeRole = roles.find(r => 
-      ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
+      ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU', 'WADEK_1', 'WADEK_2', 'DEKAN'].includes(r)
     ) || roles[0];
     return hasilController.returnForRevision(params.id, body, user.id, activeRole);
   }, {
@@ -196,7 +197,28 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     body: returnRevisionBodySchema,
     detail: {
       summary: 'Return for revision',
-      description: 'Supervisor/Manajer TU mengembalikan draft untuk diperbaiki staf',
+      description: 'Supervisor/Manajer TU/Pejabat mengembalikan draft untuk diperbaiki (FLEKSIBEL - bisa skip role)',
+      tags: ['Surat Hasil']
+    }
+  })
+
+  // ==========================================================================
+  // Pejabat (Wadek/Dekan) Verification Actions
+  // PENTING: Untuk pejabat yang BUKAN penandatangan, hanya verifikasi
+  // ==========================================================================
+
+  .post('/:id/pejabat-verify', async ({ params, body, user }) => {
+    const roles = await getUserRoles(user.id);
+    const activeRole = roles.find(r => 
+      (PEJABAT_ROLES as readonly string[]).includes(r)
+    ) || roles[0];
+    return hasilController.pejabatVerifyDocument(params.id, body, user.id, activeRole);
+  }, {
+    params: letterIdParamSchema,
+    body: approveVerificationBodySchema,
+    detail: {
+      summary: 'Pejabat verify SK/ST (bukan penandatangan)',
+      description: 'Pejabat (Wadek/Dekan) yang BUKAN penandatangan memverifikasi dan meneruskan ke next role',
       tags: ['Surat Hasil']
     }
   })

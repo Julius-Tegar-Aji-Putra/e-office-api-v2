@@ -6,12 +6,12 @@
 
 import { submissionRepository, SubmissionRepository } from './submission.repository';
 import { facultyDispositionRepository } from '../faculty-disposition/faculty-disposition.repository';
-import { ROLES } from '../../shared/constants/roles';
+import { ROLES, getReturnTargets } from '../../shared/constants/roles';
 import { getDisplayStatus, DISPLAY_STATUS } from '../../shared/constants/status-mapping';
 import { ERROR_MESSAGES } from '../../shared/constants/error-messages';
 import { minioService, MinioService } from '../../shared/services/minio.service';
 import { prisma } from '../../db';
-import type { LetterStatus, LogAction } from '../../generated/prisma/enums';
+import type { LetterStatus, LogAction, LetterCategory } from '../../generated/prisma/enums';
 import type {
   CreateSubmissionDTO,
   SubmissionFormData,
@@ -670,6 +670,11 @@ export class SubmissionService {
   /**
    * Compute permissions for frontend
    * Sesuai Prompting.md Section 6: Logic Tampilan Detail & Aksi
+   * 
+   * PENTING (SURAT HASIL):
+   * - IF (Role saat ini ADA di daftar target tanda tangan) → canSignSuratHasil=true
+   * - ELSE → canVerifySuratHasil=true
+   * Target signature HANYA menentukan jenis tombol yang tampil!
    */
   private computePermissions(
     status: LetterStatus,
@@ -677,7 +682,14 @@ export class SubmissionService {
     currentActiveRole: string | null,
     createdById: string,
     rejectionReason?: string | null,
-    documents?: Array<{ type: string; content?: unknown }>
+    documents?: Array<{ 
+      type: string; 
+      content?: unknown;
+      signatures?: Array<{
+        signerRole: string;
+        signatureUrl?: string | null;
+      }>;
+    }>
   ): SubmissionPermissions {
     const isSubmitter = viewerRole === ROLES.MAHASISWA || viewerRole === ROLES.DOSEN;
     const isCompleted = status === 'COMPLETED';
@@ -844,23 +856,58 @@ export class SubmissionService {
       currentActiveRole === viewerRole &&
       hasSkstDraft;
     
-    // Supervisor/Manajer TU can return for revision
-    // - Saat VERIFICATION: bisa return ke staff atau supervisor
+    // Supervisor/Manajer TU/Pejabat can return for revision
+    // - Saat VERIFICATION: Supervisor/Manajer TU/Pejabat bisa return ke role sebelumnya
     // - Saat DRAFTING (supervisor): bisa return ke staff
+    // - Saat SIGNING: Pejabat (penandatangan) bisa return ke role sebelumnya
     const canReturnForRevision = 
       ((isSupervisor || isManajerTU) && status === 'FAKULTAS_VERIFICATION' && currentActiveRole === viewerRole) ||
-      (isSupervisor && status === 'FAKULTAS_DRAFTING' && currentActiveRole === viewerRole && hasSkstDraft);
+      (isSupervisor && status === 'FAKULTAS_DRAFTING' && currentActiveRole === viewerRole && hasSkstDraft) ||
+      (isPejabat && (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && currentActiveRole === viewerRole);
     
-    // Pejabat verify surat hasil (alur naik)
-    const canVerifySuratHasil = (isSupervisor || isManajerTU) && 
-      status === 'FAKULTAS_VERIFICATION' && 
-      currentActiveRole === viewerRole;
+    // =====================================================================
+    // SURAT HASIL: LOGIC TOMBOL VERIFIKASI vs TANDA TANGAN
+    // Per dokumen: Target signature HANYA menentukan jenis tombol!
+    // =====================================================================
     
-    // Pejabat sign surat hasil (if they are the target signer)
-    // TODO: Check if viewerRole is in the target signers list
+    // Normalize role untuk perbandingan
+    const normalizeRole = (role: string): string => {
+      const ROLE_MAP: Record<string, string> = {
+        'Dekan': 'DEKAN',
+        'dekan': 'DEKAN',
+        'Wakil Dekan I': 'WADEK_1',
+        'Wakil Dekan 1': 'WADEK_1',
+        'Wakil Dekan II': 'WADEK_2',
+        'Wakil Dekan 2': 'WADEK_2',
+        'DEKAN': 'DEKAN',
+        'WADEK_1': 'WADEK_1',
+        'WADEK_2': 'WADEK_2',
+      };
+      return ROLE_MAP[role] || role.toUpperCase().replace(/\s+/g, '_');
+    };
+
+    // Check if viewer's role is in the signature list (AND hasn't signed yet)
+    const normalizedViewerRole = normalizeRole(viewerRole);
+    const isViewerASigner = suratHasilDoc?.signatures?.some(
+      sig => normalizeRole(sig.signerRole) === normalizedViewerRole && !sig.signatureUrl
+    );
+
+    // LOGIC SESUAI DOKUMEN:
+    // - IF (Role saat ini ADA di daftar penandatangan) → canSignSuratHasil=true
+    // - ELSE → canVerifySuratHasil=true
+    
+    // Pejabat verify surat hasil (HANYA jika BUKAN penandatangan)
+    // Berlaku untuk: Supervisor, Manajer TU, Wadek, Dekan yang BUKAN di daftar TTD
+    const canVerifySuratHasil = (isSupervisor || isManajerTU || isPejabat) && 
+      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && 
+      currentActiveRole === viewerRole &&
+      !isViewerASigner;
+    
+    // Pejabat sign surat hasil (HANYA jika ADA di daftar penandatangan)
     const canSignSuratHasil = isPejabat && 
-      status === 'FAKULTAS_SIGNING' && 
-      currentActiveRole === viewerRole;
+      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && 
+      currentActiveRole === viewerRole &&
+      isViewerASigner;
     
     const canVerify = isSupervisor && status === 'FAKULTAS_VERIFICATION';
     const canFinish = isStaf && status === 'FAKULTAS_DRAFTING';
@@ -918,7 +965,10 @@ export class SubmissionService {
   /**
    * Compute available return targets for a letter
    * 
-   * Logic:
+   * PENTING: Untuk surat hasil (status FAKULTAS_*), return FLEKSIBEL
+   * berdasarkan hierarki kategori, BUKAN berdasarkan history.
+   * 
+   * Untuk disposisi biasa (FAKULTAS_DISPOSITION):
    * 1. ADMIN_PRODI is ALWAYS the first/default target (dead end if selected)
    * 2. All faculty roles that have previously processed the letter are available
    * 3. The current role is excluded from the list
@@ -928,10 +978,41 @@ export class SubmissionService {
    * @returns Array of role strings that can be return targets
    */
   private async computeReturnTargets(letterId: string, currentRole: string): Promise<string[]> {
-    // ADMIN_PRODI always first as default target
-    const targets: string[] = [ROLES.ADMIN_PRODI];
-
     try {
+      // Get the letter to check status and category
+      const letter = await prisma.letterInstance.findUnique({
+        where: { id: letterId },
+        select: { 
+          status: true, 
+          category: true,
+          letterType: { select: { category: true } }
+        }
+      });
+
+      if (!letter) {
+        return [ROLES.ADMIN_PRODI];
+      }
+
+      // For surat hasil status, use hierarchy-based return targets (FLEKSIBEL)
+      const suratHasilStatuses = [
+        'FAKULTAS_DRAFTING',
+        'FAKULTAS_VERIFICATION', 
+        'FAKULTAS_SIGNING'
+      ];
+
+      if (suratHasilStatuses.includes(letter.status)) {
+        // Use getReturnTargets dari roles.ts untuk surat hasil
+        const category = (letter.category || letter.letterType.category) as LetterCategory;
+        
+        // Normalize current role
+        const normalizedRole = currentRole.toUpperCase().replace(/\s+/g, '_');
+        
+        return getReturnTargets(normalizedRole, category);
+      }
+
+      // For disposition status, use history-based targets
+      const targets: string[] = [ROLES.ADMIN_PRODI];
+
       // Get all roles that have processed this letter at faculty level
       const historyActors = await facultyDispositionRepository.getDispositionHistoryActors(letterId);
 
@@ -942,12 +1023,13 @@ export class SubmissionService {
           targets.push(actor);
         }
       }
-    } catch (error) {
-      // If fetching history fails, just return default target
-      console.error('Failed to fetch disposition history actors:', error);
-    }
 
-    return targets;
+      return targets;
+    } catch (error) {
+      // If fetching fails, just return default target
+      console.error('Failed to compute return targets:', error);
+      return [ROLES.ADMIN_PRODI];
+    }
   }
 }
 

@@ -11,19 +11,26 @@ import {
   SIGNATORY_ROLES,
   getVerificationFlow,
   getNextVerifier,
-  getReturnTargets
+  getReturnTargets,
+  getFullVerificationFlow
 } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
 
-// Helper for hierarchy priority (Lower = Higher Priority/Earlier in flow)
-const getSignerHierarchy = (role: string): number => {
-  const HIERARCHY: Record<string, number> = {
-    [ROLES.WADEK_2]: 1,
-    [ROLES.WADEK_1]: 2,
-    [ROLES.DEKAN]: 3
+// Normalisasi role untuk perbandingan
+const normalizeRole = (role: string): string => {
+  const ROLE_MAP: Record<string, string> = {
+    'Dekan': 'DEKAN',
+    'dekan': 'DEKAN',
+    'Wakil Dekan I': 'WADEK_1',
+    'Wakil Dekan 1': 'WADEK_1',
+    'Wakil Dekan II': 'WADEK_2',
+    'Wakil Dekan 2': 'WADEK_2',
+    'DEKAN': 'DEKAN',
+    'WADEK_1': 'WADEK_1',
+    'WADEK_2': 'WADEK_2',
   };
-  return HIERARCHY[role] ?? 99;
+  return ROLE_MAP[role] || role.toUpperCase().replace(/\s+/g, '_');
 };
 
 // ============================================================================
@@ -81,6 +88,16 @@ class FacultyApprovalService {
 
   /**
    * Verify document and forward to next level
+   * 
+   * PENTING (per dokumen):
+   * - Flow SELALU urut sesuai hierarki kategori, TIDAK bisa skip!
+   * - Routing berdasarkan kategori, BUKAN berdasarkan siapa yang menandatangani
+   * - Target signature hanya menentukan JENIS TOMBOL (verifikasi vs tanda tangan)
+   * 
+   * Flow per kategori:
+   * - AKADEMIK: Staf Akademik → Supervisor Akademik → MTU → Wadek 1 → Dekan
+   * - SUMBER_DAYA: Staf SD → Supervisor SD → MTU → Wadek 2 → Dekan
+   * - UMUM: Staf → Supervisor → MTU → Wadek 2 → Wadek 1 → Dekan
    */
   async verifyDocument(
     input: VerifyInput,
@@ -93,56 +110,61 @@ class FacultyApprovalService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    if (letter.status !== LetterStatus.FAKULTAS_VERIFICATION) {
+    // Validate status
+    const validStatuses = [LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.FAKULTAS_SIGNING];
+    if (!validStatuses.includes(letter.status as any)) {
       throw new AppError('Surat tidak dalam status verifikasi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (letter.currentActiveRole !== userRole) {
+    // Normalize roles for comparison
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole || '');
+
+    if (normalizedActiveRole !== normalizedUserRole) {
       throw new AppError('Bukan giliran Anda untuk verifikasi', HTTP_STATUS.FORBIDDEN);
     }
 
-    const category = letter.letterType.category as LetterCategory;
+    // Get category - bisa dari letterInstance atau letterType
+    const category = (letter.category || letter.letterType.category) as LetterCategory;
 
-    // Get SK/ST document to check signature configuration
+    // Get SK/ST document untuk check apakah user adalah penandatangan
     const skstDoc = letter.documents.find(
       d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
 
-    // Determine next role AUTOMATICALLY based on:
-    // 1. Verification flow (jenis surat)
-    // 2. Signature configuration (siapa saja yang TTD)
-    let nextRole: string;
-    let nextStatus: LetterStatus = LetterStatus.FAKULTAS_VERIFICATION;
+    // Check if current user is a signer
+    const isUserASigner = skstDoc?.signatures.some(
+      s => normalizeRole(s.signerRole) === normalizedUserRole && !s.signatureUrl
+    );
 
-    // Get default next verifier from flow
-    const defaultNextVerifier = getNextVerifier(userRole, category);
-
-    // Special handling: setelah Manajer TU, cek signature config untuk routing ke penandatangan (Hierarchical Signing)
-    if (userRole === ROLES.MANAJER_TU && skstDoc) {
-      // Ambil daftar penandatangan yang belum tanda tangan
-      const unsignedSigners = skstDoc.signatures
-        .filter(s => !s.signatureUrl)
-        // Sort berdasarkan hierarki: Wadek 2 -> Wadek 1 -> Dekan
-        .sort((a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole));
-
-      if (unsignedSigners.length > 0) {
-        // Assign ke penandatangan dengan prioritas tertinggi (rank terendah)
-        nextRole = unsignedSigners[0].signerRole;
-      } else {
-        // Tidak ada yang perlu TTD, lanjut ke default flow atau Dekan jika tidak ada
-        nextRole = defaultNextVerifier || ROLES.DEKAN;
-      }
-    } else {
-      // Non-Manajer TU: ikuti flow standar verifikasi
-      if (!defaultNextVerifier) {
-        throw new AppError('Tidak ada verifier selanjutnya', HTTP_STATUS.BAD_REQUEST);
-      }
-      nextRole = defaultNextVerifier;
+    // Jika user adalah penandatangan, TIDAK boleh pakai verifyDocument, harus signDocument
+    if (isUserASigner) {
+      throw new AppError(
+        'Anda adalah penandatangan. Gunakan fungsi tanda tangan, bukan verifikasi',
+        HTTP_STATUS.BAD_REQUEST
+      );
     }
 
-    // Check if next role is a signatory -> change to SIGNING
+    // Get next verifier BERDASARKAN HIERARKI KATEGORI (BUKAN berdasarkan signature config!)
+    const nextRole = getNextVerifier(normalizedUserRole, category);
+
+    if (!nextRole) {
+      throw new AppError('Tidak ada verifier selanjutnya dalam hierarki', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Determine status: jika next role adalah SIGNATORY → FAKULTAS_SIGNING
+    // Tapi cek dulu apakah next role memang ada di daftar penandatangan
+    let nextStatus: LetterStatus = LetterStatus.FAKULTAS_VERIFICATION;
+    
     if ((SIGNATORY_ROLES as readonly string[]).includes(nextRole)) {
-      nextStatus = LetterStatus.FAKULTAS_SIGNING;
+      // Check if next role is actually a signer for this document
+      const isNextRoleASigner = skstDoc?.signatures.some(
+        s => normalizeRole(s.signerRole) === nextRole
+      );
+      
+      if (isNextRoleASigner) {
+        nextStatus = LetterStatus.FAKULTAS_SIGNING;
+      }
     }
 
     return facultyApprovalRepository.verifyDocument(input, userId, userRole, nextRole, nextStatus);
@@ -150,6 +172,16 @@ class FacultyApprovalService {
 
   /**
    * Sign document
+   * 
+   * PENTING (per dokumen):
+   * - HANYA pejabat yang ADA di daftar penandatangan yang bisa tanda tangan
+   * - Setelah tanda tangan, sistem tetap routing ke NEXT ROLE di hierarki
+   * - Next role akan menentukan sendiri: verifikasi atau tanda tangan
+   * 
+   * Contoh: Surat AKADEMIK dengan TTD Wadek 1 + Dekan
+   * - Wadek 1 tanda tangan → sistem route ke Dekan (next di hierarki)
+   * - Dekan adalah penandatangan? Ya → tampil tombol Tanda Tangan
+   * - Dekan tanda tangan → semua sudah TTD → route ke UPA
    */
   async signDocument(input: SignInput, userId: string, userRole: string) {
     const letter = await facultyApprovalRepository.getLetterById(input.letterId);
@@ -163,7 +195,11 @@ class FacultyApprovalService {
       throw new AppError('Surat tidak dalam status yang dapat ditandatangani', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (letter.currentActiveRole !== userRole) {
+    // Normalize roles
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole || '');
+
+    if (normalizedActiveRole !== normalizedUserRole) {
       throw new AppError('Bukan giliran Anda untuk menandatangani', HTTP_STATUS.FORBIDDEN);
     }
 
@@ -176,7 +212,7 @@ class FacultyApprovalService {
       throw new AppError('Dokumen SK/ST tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    const mySig = skstDoc.signatures.find(s => s.signerRole === userRole);
+    const mySig = skstDoc.signatures.find(s => normalizeRole(s.signerRole) === normalizedUserRole);
     if (!mySig) {
       throw new AppError('Anda tidak termasuk penandatangan dokumen ini', HTTP_STATUS.FORBIDDEN);
     }
@@ -185,13 +221,15 @@ class FacultyApprovalService {
       throw new AppError('Anda sudah menandatangani dokumen ini', HTTP_STATUS.BAD_REQUEST);
     }
 
-    // PENTING: Validasi urutan tanda tangan berdasarkan hierarki
-    // Dekan tidak boleh ttd sebelum Wadek 1 dan Wadek 2 menandatangani
-    const myIndex = skstDoc.signatures.findIndex(s => s.signerRole === userRole);
+    // VALIDASI URUTAN: Pastikan semua penandatangan sebelumnya sudah TTD
+    const myIndex = skstDoc.signatures.findIndex(s => normalizeRole(s.signerRole) === normalizedUserRole);
     for (let i = 0; i < myIndex; i++) {
       const prevSigner = skstDoc.signatures[i];
       if (!prevSigner.signatureUrl || !prevSigner.signedAt) {
-        throw new AppError(`${prevSigner.signerRole.replace('_', ' ')} harus menandatangani terlebih dahulu sebelum Anda`, HTTP_STATUS.BAD_REQUEST);
+        throw new AppError(
+          `${prevSigner.signerRole.replace('_', ' ')} harus menandatangani terlebih dahulu`,
+          HTTP_STATUS.BAD_REQUEST
+        );
       }
     }
 
@@ -200,43 +238,44 @@ class FacultyApprovalService {
       throw new AppError('URL tanda tangan wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const category = letter.letterType.category as LetterCategory;
+    const category = (letter.category || letter.letterType.category) as LetterCategory;
 
-    // Determine next role and status
+    // Determine next role dan status
     let nextRole: string | null;
     let nextStatus: LetterStatus;
 
     // Check remaining unsigned signatures
     const unsignedSigs = skstDoc.signatures.filter(
-      s => !s.signatureUrl && s.signerRole !== userRole
+      s => !s.signatureUrl && normalizeRole(s.signerRole) !== normalizedUserRole
     );
 
     if (unsignedSigs.length === 0) {
-      // All signed, move to UPA
+      // SEMUA SUDAH TTD → ke UPA untuk penomoran
       nextRole = ROLES.UPA;
       nextStatus = LetterStatus.UPA_NUMBERING;
     } else {
-      // Find next signer based on hierarchy (Wadek 2 -> Wadek 1 -> Dekan)
-      const sortedRemaining = unsignedSigs.sort(
-        (a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole)
-      );
-
-      if (sortedRemaining.length > 0) {
-        nextRole = sortedRemaining[0].signerRole;
-        nextStatus = LetterStatus.FAKULTAS_SIGNING;
+      // MASIH ADA YANG BELUM TTD
+      // Tetap ikuti hierarki: cari next role berdasarkan kategori
+      const nextVerifier = getNextVerifier(normalizedUserRole, category);
+      
+      if (nextVerifier) {
+        nextRole = nextVerifier;
+        
+        // Check if next role is a signer
+        const isNextRoleASigner = skstDoc.signatures.some(
+          s => normalizeRole(s.signerRole) === nextVerifier && !s.signatureUrl
+        );
+        
+        nextStatus = isNextRoleASigner 
+          ? LetterStatus.FAKULTAS_SIGNING 
+          : LetterStatus.FAKULTAS_VERIFICATION;
       } else {
-        // Fallback checks (should be covered by length check above)
-        // No more signers in hierarchy, might need to continue verification if mixed flow
-        const nextVerifier = getNextVerifier(userRole, category);
-        if (nextVerifier) {
-          nextRole = nextVerifier;
-          nextStatus = (SIGNATORY_ROLES as readonly string[]).includes(nextVerifier)
-            ? LetterStatus.FAKULTAS_SIGNING
-            : LetterStatus.FAKULTAS_VERIFICATION;
-        } else {
-          nextRole = ROLES.UPA;
-          nextStatus = LetterStatus.UPA_NUMBERING;
-        }
+        // Tidak ada next role di hierarki, tapi masih ada yang belum TTD?
+        // Ini seharusnya tidak terjadi jika flow benar, tapi handle sebagai fallback
+        // Cari penandatangan berikutnya yang belum TTD
+        const nextSigner = unsignedSigs[0];
+        nextRole = normalizeRole(nextSigner.signerRole);
+        nextStatus = LetterStatus.FAKULTAS_SIGNING;
       }
     }
 
@@ -298,6 +337,15 @@ class FacultyApprovalService {
   // PRIVATE HELPERS
   // ===========================================================================
 
+  /**
+   * Get action permissions untuk UI
+   * 
+   * PENTING (per dokumen):
+   * - IF (Role saat ini ADA di daftar target tanda tangan) → canSign=true, canVerify=false
+   * - ELSE → canVerify=true, canSign=false
+   * 
+   * Target signature HANYA menentukan jenis tombol yang tampil!
+   */
   private getActionPermissions(
     letter: Awaited<ReturnType<typeof facultyApprovalRepository.getLetterById>>,
     userRoles: string[]
@@ -311,9 +359,10 @@ class FacultyApprovalService {
       };
     }
 
-    const isCurrentRole = letter.currentActiveRole
-      ? userRoles.includes(letter.currentActiveRole)
-      : false;
+    // Find the user's role that matches currentActiveRole
+    const currentRole = userRoles.find(r => normalizeRole(r) === normalizeRole(letter.currentActiveRole || ''));
+    const isCurrentRole = !!currentRole;
+    
     const isPejabat = userRoles.some(r => (PEJABAT_ROLES as readonly string[]).includes(r));
     const supervisorRoles: string[] = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA];
     const isSupervisor = userRoles.some(r => supervisorRoles.includes(r));
@@ -321,21 +370,30 @@ class FacultyApprovalService {
     const isVerification = letter.status === LetterStatus.FAKULTAS_VERIFICATION;
     const isSigning = letter.status === LetterStatus.FAKULTAS_SIGNING;
 
-    // Check if needs to sign
+    // Check if user is in signature list (BELUM menandatangani)
     const skstDoc = letter.documents.find(
       d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
-    const currentRole = userRoles.find(r => r === letter.currentActiveRole);
-    const needsToSign = skstDoc?.signatures.some(
-      s => s.signerRole === currentRole && !s.signatureUrl
+    
+    // PENTING: Check if ANY of user's roles is a signer
+    const userSignerRole = userRoles.find(role => 
+      skstDoc?.signatures.some(
+        s => normalizeRole(s.signerRole) === normalizeRole(role) && !s.signatureUrl
+      )
     );
+    const needsToSign = !!userSignerRole;
+
+    // LOGIC SESUAI DOKUMEN:
+    // - Jika role saat ini ADA di daftar penandatangan → canSign=true
+    // - Jika role saat ini TIDAK ADA di daftar penandatangan → canVerify=true
+    const canSign = isSignatory && (isVerification || isSigning) && isCurrentRole && needsToSign;
+    const canVerify = isPejabat && (isVerification || isSigning) && isCurrentRole && !needsToSign;
 
     return {
-      canVerify: isPejabat && isVerification && isCurrentRole && !needsToSign,
-      canSign: isSignatory && (isVerification || isSigning) && isCurrentRole && (needsToSign ?? false),
+      canVerify,
+      canSign,
       canReturn: isPejabat && (isVerification || isSigning) && isCurrentRole,
       canEditDraft: isSupervisor && isVerification && isCurrentRole
-      // NOTE: showWadekOptions dihapus - routing otomatis berdasarkan signature config
     };
   }
 }

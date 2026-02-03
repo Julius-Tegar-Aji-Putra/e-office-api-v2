@@ -269,6 +269,33 @@ class HasilController {
   }
 
   /**
+   * POST /surat-hasil/:id/pejabat-verify
+   * Pejabat (Wadek/Dekan) verifies and forwards to next role
+   * PENTING: Ini untuk pejabat yang BUKAN penandatangan
+   * Flow SELALU urut sesuai hierarki kategori
+   */
+  async pejabatVerifyDocument(
+    letterId: string,
+    body: {
+      notes?: string;
+    },
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.pejabatVerifyDocument(
+        letterId,
+        userId,
+        userRole,
+        body.notes
+      );
+      return successResponse('Dokumen berhasil diverifikasi', { letter: result });
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
    * POST /surat-hasil/:id/sign
    * Pejabat (Dekan/Wadek) signs SK/ST document
    * Supports:

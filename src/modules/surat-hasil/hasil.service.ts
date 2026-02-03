@@ -5,7 +5,7 @@
 
 import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, CreateStaffSuratInput, SURAT_HASIL_TYPES } from './hasil.repository';
 import { LetterStatus, DocumentType, LetterCategory, Prisma, SignatureType } from '../../generated/prisma/client';
-import { ROLES, STAF_ROLES, SUPERVISOR_ROLES } from '../../shared/constants/roles';
+import { ROLES, STAF_ROLES, SUPERVISOR_ROLES, getReturnTargets, getFullVerificationFlow } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
 import { MinioService } from '../../shared/services/minio.service';
@@ -172,10 +172,20 @@ class HasilService {
 
     const permissions = this.getActionPermissions(letter, userRoles);
 
+    // Get category for return targets calculation
+    const category = (letter.category || letter.letterType.category) as LetterCategory;
+    
+    // Get current user's active role (for return targets)
+    const currentUserRole = userRoles.find(r => r === letter.currentActiveRole) || userRoles[0];
+    
+    // Calculate return targets (fleksibel - bisa ke role manapun di bawah posisi)
+    const hasilReturnTargets = getReturnTargets(normalizeRole(currentUserRole), category);
+
     return {
       letter,
       existingDraft,
-      permissions
+      permissions,
+      hasilReturnTargets
     };
   }
 
@@ -345,12 +355,73 @@ class HasilService {
       return hasilRepository.approveVerification(letterId, userId, userRole, notes);
     }
 
-    // Manajer TU verify -> kirim ke signing
+    // Manajer TU verify -> kirim ke pejabat berdasarkan hierarki kategori
     if (userRole === ROLES.MANAJER_TU) {
       return hasilRepository.manajerTuApproveVerification(letterId, userId, userRole, notes);
     }
 
     throw new AppError('Hanya Supervisor atau Manajer TU yang dapat memverifikasi', HTTP_STATUS.FORBIDDEN);
+  }
+
+  /**
+   * Pejabat (Wadek/Dekan) verify dan forward ke next role (ketika bukan penandatangan)
+   * 
+   * PENTING: Flow SELALU urut sesuai hierarki kategori:
+   * - AKADEMIK: Wadek 1 -> Dekan
+   * - SUMBER_DAYA: Wadek 2 -> Dekan  
+   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan
+   * 
+   * Fungsi ini hanya untuk pejabat yang BUKAN di daftar penandatangan.
+   * Jika pejabat ADA di daftar penandatangan, gunakan signDocument.
+   */
+  async pejabatVerifyDocument(
+    letterId: string,
+    userId: string,
+    userRole: string,
+    notes?: string
+  ) {
+    const letter = await hasilRepository.getLetterById(letterId);
+
+    if (!letter) {
+      throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Validate status - bisa di VERIFICATION atau SIGNING
+    const validStatuses = [LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.FAKULTAS_SIGNING];
+    if (!validStatuses.includes(letter.status as any)) {
+      throw new AppError('Surat tidak dalam status yang bisa diverifikasi pejabat', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Normalize role for comparison
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole || '');
+
+    if (normalizedActiveRole !== normalizedUserRole) {
+      throw new AppError('Bukan giliran Anda untuk memverifikasi', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Validate is pejabat
+    const isPejabat = [ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2].includes(normalizedUserRole as any);
+    if (!isPejabat) {
+      throw new AppError('Hanya pejabat (Dekan/Wadek) yang dapat menggunakan fungsi ini', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Check if this pejabat is a signer
+    const skstDocument = letter.documents.find(d => isSuratHasilType(d.type));
+    if (skstDocument) {
+      const isSigner = skstDocument.signatures.some(
+        sig => normalizeRole(sig.signerRole) === normalizedUserRole
+      );
+      
+      if (isSigner) {
+        throw new AppError(
+          'Anda adalah penandatangan. Gunakan fungsi tanda tangan, bukan verifikasi',
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+    }
+
+    return hasilRepository.pejabatVerifyDocument(letterId, userId, userRole, notes);
   }
 
   /**
@@ -376,7 +447,9 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    if (letter.status !== LetterStatus.FAKULTAS_SIGNING) {
+    // Status bisa SIGNING atau VERIFICATION (untuk backward compatibility dengan surat lama)
+    const validSignStatuses = ['FAKULTAS_SIGNING', 'FAKULTAS_VERIFICATION'];
+    if (!validSignStatuses.includes(letter.status)) {
       throw new AppError('Surat tidak dalam status penandatanganan', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -531,8 +604,12 @@ class HasilService {
   }
 
   /**
-   * Supervisor return draft for revision
-   * @param targetStaff - Target staff/supervisor role to return the letter to
+   * Return letter for revision - FLEKSIBEL (bisa skip role)
+   * 
+   * PENTING: Return TIDAK harus urut. User bisa pilih langsung kembalikan ke role manapun 
+   * yang sudah pernah memproses surat ini (di bawah posisi user saat ini).
+   * 
+   * @param targetStaffParam - Target role untuk revisi (dari dropdown)
    */
   async returnForRevision(
     letterId: string,
@@ -547,48 +624,70 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    // Allow return for revision in both VERIFICATION and DRAFTING status
-    // VERIFICATION: Manajer TU can return to staff/supervisor
-    // DRAFTING: Supervisor can return to staff (after receiving revision from Manajer TU)
-    const isSupervisor = userRole === ROLES.SUPERVISOR_AKADEMIK || userRole === ROLES.SUPERVISOR_SUMBER_DAYA;
-    const isValidStatus = letter.status === LetterStatus.FAKULTAS_VERIFICATION || 
-                          (letter.status === LetterStatus.FAKULTAS_DRAFTING && isSupervisor);
-    
-    if (!isValidStatus) {
-      throw new AppError('Surat tidak dalam status yang dapat direvisi', HTTP_STATUS.BAD_REQUEST);
+    // Validate status - boleh di DRAFTING, VERIFICATION, atau SIGNING
+    const validReturnStatuses = [
+      'FAKULTAS_DRAFTING',
+      'FAKULTAS_VERIFICATION',
+      'FAKULTAS_SIGNING'
+    ];
+    if (!validReturnStatuses.includes(letter.status)) {
+      throw new AppError('Surat tidak dalam status yang bisa dikembalikan', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (letter.currentActiveRole !== userRole) {
+    // Normalize role for comparison
+    const normalizedUserRole = normalizeRole(userRole);
+    const normalizedActiveRole = normalizeRole(letter.currentActiveRole || '');
+
+    // Validasi role active
+    if (normalizedActiveRole !== normalizedUserRole) {
       throw new AppError('Bukan giliran Anda untuk memproses surat ini', HTTP_STATUS.FORBIDDEN);
     }
 
-    // Use targetStaffParam if provided, otherwise determine based on supervisor type
-    let targetStaff: string;
-    if (targetStaffParam) {
-      // Validate target role is allowed based on current status and user role
-      let allowedTargets: string[];
-      
-      if (isSupervisor) {
-        // Supervisor can only return to staff (both in DRAFTING and VERIFICATION)
-        // Supervisor cannot return to another supervisor (including themselves)
-        allowedTargets = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'];
-      } else {
-        // Manajer TU in VERIFICATION can return to staff or supervisor
-        allowedTargets = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA', 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'];
-      }
-      
-      if (!allowedTargets.includes(targetStaffParam)) {
-        throw new AppError('Target revisi tidak valid', HTTP_STATUS.BAD_REQUEST);
-      }
-      targetStaff = targetStaffParam;
-    } else {
-      // Fallback: determine target staff based on supervisor type
-      targetStaff = userRole === ROLES.SUPERVISOR_AKADEMIK 
-        ? ROLES.STAF_AKADEMIK 
-        : ROLES.STAF_SUMBER_DAYA;
+    // Get category untuk determine valid return targets
+    // Default ke UMUM jika kategori tidak tersedia
+    const rawCategory = letter.category || letter.letterType?.category;
+    const category = (rawCategory || 'UMUM') as LetterCategory;
+    
+    console.log('[returnForRevision] Debug:', {
+      normalizedUserRole,
+      category,
+      targetStaffParam,
+      letterStatus: letter.status
+    });
+    
+    // Get valid return targets menggunakan fungsi dari roles.ts
+    const validTargets = getReturnTargets(normalizedUserRole, category);
+    
+    console.log('[returnForRevision] Valid targets:', validTargets);
+    
+    if (validTargets.length === 0) {
+      throw new AppError('Anda tidak dapat mengembalikan surat ini', HTTP_STATUS.FORBIDDEN);
     }
 
-    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetStaff);
+    // Determine target role
+    let targetRole: string;
+    if (targetStaffParam) {
+      // Validate target is in allowed list
+      const normalizedTarget = normalizeRole(targetStaffParam);
+      console.log('[returnForRevision] Checking target:', normalizedTarget, 'in', validTargets);
+      if (!validTargets.includes(normalizedTarget)) {
+        throw new AppError(
+          `Target revisi tidak valid. Target yang diperbolehkan: ${validTargets.join(', ')}`,
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+      targetRole = normalizedTarget;
+    } else {
+      // Default ke target pertama (biasanya langsung di bawah user)
+      targetRole = validTargets[0];
+    }
+
+    // Determine target status based on target role
+    // Staf -> DRAFTING, others -> VERIFICATION
+    const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(targetRole);
+    const targetStatus = isStafTarget ? LetterStatus.FAKULTAS_DRAFTING : LetterStatus.FAKULTAS_VERIFICATION;
+
+    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetRole, targetStatus);
   }
 
   /**
@@ -827,13 +926,8 @@ class HasilService {
     );
 
     return {
-      // Staf actions (saat DRAFTING dan mereka adalah currentActiveRole)
-      canCreateDraft: isStaff && isDrafting && isCurrentRole && !hasDraft,
-      canUpdateDraft: isStaff && isDrafting && isCurrentRole && hasDraft,
-      canSubmitVerification: isStaff && isDrafting && isCurrentRole && hasDraft,
-      
-      // Supervisor actions saat DRAFTING (setelah menerima revisi dari Manajer TU)
-      // Supervisor bisa create draft, update draft, submit verification, dan return for revision
+      // Staf/Supervisor actions (saat DRAFTING dan mereka adalah currentActiveRole)
+      // Supervisor bisa create draft, update draft, submit verification ketika menerima revisi
       canCreateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && !hasDraft,
       canUpdateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,
       canSubmitVerification: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,

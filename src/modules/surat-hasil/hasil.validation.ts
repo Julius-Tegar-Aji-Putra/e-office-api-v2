@@ -102,15 +102,19 @@ export const approveVerificationBodySchema = t.Object({
   notes: t.Optional(t.String())
 });
 
-// Supervisor return for revision
+// Supervisor/Manajer TU/Pejabat return for revision (FLEKSIBEL)
 export const returnRevisionBodySchema = t.Object({
   reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' }),
-  // Target staff or supervisor for returning the letter
+  // Target role for returning the letter (semua role yang valid bisa jadi target)
   targetStaff: t.Optional(t.Union([
     t.Literal('STAF_AKADEMIK'),
     t.Literal('STAF_SUMBER_DAYA'),
     t.Literal('SUPERVISOR_AKADEMIK'),
-    t.Literal('SUPERVISOR_SUMBER_DAYA')
+    t.Literal('SUPERVISOR_SUMBER_DAYA'),
+    t.Literal('MANAJER_TU'),
+    t.Literal('WADEK_1'),
+    t.Literal('WADEK_2'),
+    t.Literal('DEKAN')
   ]))
 });
 

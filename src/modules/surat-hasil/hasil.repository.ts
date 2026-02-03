@@ -348,10 +348,10 @@ class HasilRepository {
       } else {
         // Patch mode: Only update provided fields, keep existing
         if (input.content !== undefined) {
-          updateData.content = input.content;
+          updateData.content = input.content as Prisma.InputJsonValue;
         }
         if (input.tembusan !== undefined) {
-          updateData.tembusan = input.tembusan;
+          updateData.tembusan = input.tembusan as Prisma.InputJsonValue;
         }
         if (input.perihal !== undefined) {
           updateData.perihal = input.perihal;
@@ -559,8 +559,16 @@ class HasilRepository {
   }
 
   /**
-   * Manajer TU approve verification -> FAKULTAS_SIGNING
-   * Flow: MANAJER_TU → approve → First Signer by HIERARCHY (WADEK_2 -> WADEK_1 -> DEKAN)
+   * Manajer TU approve verification -> Next role in HIERARCHY
+   * PENTING: Flow SELALU berurutan sesuai hierarki, tidak boleh skip!
+   * 
+   * Flow berdasarkan kategori:
+   * - AKADEMIK: MTU -> Wadek 1 -> Dekan
+   * - SUMBER_DAYA: MTU -> Wadek 2 -> Dekan  
+   * - UMUM: MTU -> Wadek 2 -> Wadek 1 -> Dekan
+   * 
+   * Target tanda tangan HANYA menentukan jenis tombol (Verifikasi atau Tanda Tangan),
+   * BUKAN urutan alur!
    */
   async manajerTuApproveVerification(
     letterId: string,
@@ -569,16 +577,17 @@ class HasilRepository {
     notes?: string
   ) {
     return prisma.$transaction(async (tx) => {
-      // Get signers from ST/SK document
+      // Get letter with category
       const letter = await tx.letterInstance.findUnique({
         where: { id: letterId },
         include: {
+          letterType: true,
           documents: {
             where: {
               type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
             },
             include: {
-              signatures: true // Get all signatures, we'll sort by hierarchy
+              signatures: true
             }
           }
         }
@@ -588,27 +597,32 @@ class HasilRepository {
         throw new Error('Surat atau dokumen tidak ditemukan');
       }
 
-      // Sort signatures by hierarchy: WADEK_2 (1) -> WADEK_1 (2) -> DEKAN (3)
-      const sortedSignatures = [...letter.documents[0].signatures]
-        .filter(s => !s.signatureUrl) // Only unsigned
-        .sort((a, b) => getSignerHierarchy(a.signerRole) - getSignerHierarchy(b.signerRole));
-
-      // Get first signer by hierarchy (lowest rank = first to sign)
-      const firstByHierarchy = sortedSignatures[0];
-      const rawRole = firstByHierarchy?.signerRole || 'DEKAN';
-      const nextRole = normalizeSignerRole(rawRole);
-
-      // Also update the signature record if it needs normalization
-      if (firstByHierarchy && firstByHierarchy.signerRole !== nextRole) {
-        await tx.documentSignature.update({
-          where: { id: firstByHierarchy.id },
-          data: { signerRole: nextRole }
-        });
+      // Determine next role based on category hierarchy (BUKAN berdasarkan target tanda tangan)
+      const category = (letter.category || letter.letterType.category) as LetterCategory;
+      
+      let nextRole: string;
+      
+      // Flow SELALU urut sesuai hierarki:
+      // AKADEMIK: MTU -> Wadek 1 -> Dekan
+      // SUMBER_DAYA: MTU -> Wadek 2 -> Dekan
+      // UMUM: MTU -> Wadek 2 -> Wadek 1 -> Dekan
+      switch (category) {
+        case 'AKADEMIK':
+          nextRole = 'WADEK_1';
+          break;
+        case 'SUMBER_DAYA':
+          nextRole = 'WADEK_2';
+          break;
+        case 'UMUM':
+        default:
+          nextRole = 'WADEK_2'; // UMUM mulai dari Wadek 2
+          break;
       }
 
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
         data: {
+          // Status berubah ke SIGNING karena sudah masuk fase pejabat
           status: LetterStatus.FAKULTAS_SIGNING,
           currentActiveRole: nextRole,
           updatedAt: new Date()
@@ -620,11 +634,11 @@ class HasilRepository {
           letterInstanceId: letterId,
           actorId,
           actorRole,
-          action: LogAction.APPROVE,
+          action: LogAction.VERIFY,
           fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
           toStatus: LetterStatus.FAKULTAS_SIGNING,
           targetRole: nextRole,
-          notes: notes || `Draft diverifikasi Manajer TU, diteruskan ke ${nextRole} untuk ditandatangani`
+          notes: notes || `Draft diverifikasi Manajer TU, diteruskan ke ${nextRole}`
         }
       });
 
@@ -633,21 +647,37 @@ class HasilRepository {
   }
 
   /**
-   * Supervisor return draft for revision -> FAKULTAS_DRAFTING
+   * Return letter for revision - FLEKSIBEL (bisa skip role)
+   * Target bisa ke role manapun yang ada di bawah posisi user saat ini
+   * Status: DRAFTING jika target adalah staf, VERIFICATION jika target adalah supervisor/pejabat
    */
   async returnForRevision(
     letterId: string,
     actorId: string,
     actorRole: string,
     reason: string,
-    targetStaff: string
+    targetRole: string,
+    targetStatus?: LetterStatus
   ) {
     return prisma.$transaction(async (tx) => {
+      const letter = await tx.letterInstance.findUnique({
+        where: { id: letterId },
+        select: { status: true }
+      });
+
+      if (!letter) {
+        throw new Error('Surat tidak ditemukan');
+      }
+
+      // Determine status based on target role if not provided
+      const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(targetRole);
+      const finalStatus = targetStatus || (isStafTarget ? LetterStatus.FAKULTAS_DRAFTING : LetterStatus.FAKULTAS_VERIFICATION);
+
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
         data: {
-          status: LetterStatus.FAKULTAS_DRAFTING,
-          currentActiveRole: targetStaff,
+          status: finalStatus,
+          currentActiveRole: targetRole,
           updatedAt: new Date()
         }
       });
@@ -658,9 +688,9 @@ class HasilRepository {
           actorId,
           actorRole,
           action: LogAction.RETURN,
-          fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
-          toStatus: LetterStatus.FAKULTAS_DRAFTING,
-          targetRole: targetStaff,
+          fromStatus: letter.status,
+          toStatus: finalStatus,
+          targetRole: targetRole,
           notes: reason
         }
       });
@@ -686,6 +716,7 @@ class HasilRepository {
       const letter = await tx.letterInstance.findUnique({
         where: { id: letterId },
         include: {
+          letterType: true, // IMPORTANT: Include letterType untuk get category
           documents: {
             where: {
               type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
@@ -752,16 +783,29 @@ class HasilRepository {
         }
       });
 
-      // Check if all signatures complete
-      const remainingPending = document.signatures.filter(
-        s => s.id !== pendingSignature.id && s.status === 'PENDING'
-      );
-
+      // Get category untuk determine next role berdasarkan hierarki
+      // Safe navigation untuk backward compatibility dengan data lama
+      const category = (letter.category || letter.letterType?.category || 'UMUM') as LetterCategory;
+      
+      console.log('[signDocument] DEBUG CATEGORY:', {
+        letterId,
+        letterCategory: letter.category,
+        letterTypeCategory: letter.letterType?.category,
+        finalCategory: category,
+        currentSigner: normalizedActorRole
+      });
+      
+      // Determine next role based on CATEGORY HIERARCHY, bukan berdasarkan daftar signature!
+      // AKADEMIK: ... → Wadek 1 → Dekan
+      // SUMBER_DAYA: ... → Wadek 2 → Dekan
+      // UMUM: ... → Wadek 2 → Wadek 1 → Dekan
+      
       let nextStatus: LetterStatus;
       let nextRole: string;
-
-      if (remainingPending.length === 0) {
-        // All signed -> UPA_NUMBERING
+      
+      // Check apakah current signer adalah Dekan (final signer)
+      if (normalizedActorRole === 'DEKAN') {
+        // Dekan sudah sign, semua selesai → UPA
         nextStatus = LetterStatus.UPA_NUMBERING;
         nextRole = 'UPA';
         
@@ -771,10 +815,48 @@ class HasilRepository {
           data: { isSigned: true, updatedAt: new Date() }
         });
       } else {
-        // Still have pending signers
+        // Tentukan next role berdasarkan hierarki kategori
         nextStatus = LetterStatus.FAKULTAS_SIGNING;
-        nextRole = remainingPending[0].signerRole;
+        
+        switch (category) {
+          case 'AKADEMIK':
+            // Flow: Wadek 1 → Dekan
+            if (normalizedActorRole === 'WADEK_1') {
+              nextRole = 'DEKAN';
+            } else {
+              nextRole = 'WADEK_1'; // Fallback
+            }
+            break;
+            
+          case 'SUMBER_DAYA':
+            // Flow: Wadek 2 → Dekan
+            if (normalizedActorRole === 'WADEK_2') {
+              nextRole = 'DEKAN';
+            } else {
+              nextRole = 'WADEK_2'; // Fallback
+            }
+            break;
+            
+          case 'UMUM':
+          default:
+            // Flow: Wadek 2 → Wadek 1 → Dekan
+            if (normalizedActorRole === 'WADEK_2') {
+              nextRole = 'WADEK_1';
+            } else if (normalizedActorRole === 'WADEK_1') {
+              nextRole = 'DEKAN';
+            } else {
+              nextRole = 'WADEK_2'; // Fallback
+            }
+            break;
+        }
       }
+      
+      console.log('[signDocument] Routing based on hierarchy:', {
+        category,
+        currentSigner: normalizedActorRole,
+        nextRole,
+        nextStatus
+      });
 
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
@@ -897,6 +979,106 @@ class HasilRepository {
         letterInstance,
         document
       };
+    });
+  }
+
+  /**
+   * Pejabat (Wadek/Dekan) verifikasi surat dan teruskan ke next role
+   * PENTING: Ini untuk pejabat yang BUKAN penandatangan, hanya memverifikasi
+   * Flow SELALU urut sesuai hierarki, tidak boleh skip!
+   * 
+   * Hierarki berdasarkan kategori:
+   * - AKADEMIK: Wadek 1 -> Dekan
+   * - SUMBER_DAYA: Wadek 2 -> Dekan
+   * - UMUM: Wadek 2 -> Wadek 1 -> Dekan
+   */
+  async pejabatVerifyDocument(
+    letterId: string,
+    actorId: string,
+    actorRole: string,
+    notes?: string
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const letter = await tx.letterInstance.findUnique({
+        where: { id: letterId },
+        include: {
+          letterType: true,
+          documents: {
+            where: {
+              type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
+            },
+            include: {
+              signatures: true
+            }
+          }
+        }
+      });
+
+      if (!letter) {
+        throw new Error('Surat tidak ditemukan');
+      }
+
+      const category = (letter.category || letter.letterType.category) as LetterCategory;
+      const normalizedActorRole = normalizeSignerRole(actorRole);
+
+      // Determine next role based on category hierarchy
+      let nextRole: string;
+      
+      switch (category) {
+        case 'AKADEMIK':
+          // Flow: Wadek 1 -> Dekan
+          if (normalizedActorRole === 'WADEK_1') {
+            nextRole = 'DEKAN';
+          } else {
+            throw new Error('Flow tidak valid untuk kategori AKADEMIK');
+          }
+          break;
+          
+        case 'SUMBER_DAYA':
+          // Flow: Wadek 2 -> Dekan
+          if (normalizedActorRole === 'WADEK_2') {
+            nextRole = 'DEKAN';
+          } else {
+            throw new Error('Flow tidak valid untuk kategori SUMBER_DAYA');
+          }
+          break;
+          
+        case 'UMUM':
+        default:
+          // Flow: Wadek 2 -> Wadek 1 -> Dekan
+          if (normalizedActorRole === 'WADEK_2') {
+            nextRole = 'WADEK_1';
+          } else if (normalizedActorRole === 'WADEK_1') {
+            nextRole = 'DEKAN';
+          } else {
+            throw new Error('Flow tidak valid untuk kategori UMUM');
+          }
+          break;
+      }
+
+      const updated = await tx.letterInstance.update({
+        where: { id: letterId },
+        data: {
+          status: LetterStatus.FAKULTAS_SIGNING,
+          currentActiveRole: nextRole,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.letterLog.create({
+        data: {
+          letterInstanceId: letterId,
+          actorId,
+          actorRole,
+          action: LogAction.VERIFY,
+          fromStatus: LetterStatus.FAKULTAS_SIGNING,
+          toStatus: LetterStatus.FAKULTAS_SIGNING,
+          targetRole: nextRole,
+          notes: notes || `Diverifikasi oleh ${actorRole}, diteruskan ke ${nextRole}`
+        }
+      });
+
+      return updated;
     });
   }
 }

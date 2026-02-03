@@ -191,6 +191,35 @@ export const VERIFICATION_FLOW_SUMBER_DAYA = [
 ] as const;
 
 /**
+ * Verifikasi Flow by Letter Category (UMUM)
+ * Urutan: Staf -> Supervisor (dipilih saat submit) -> Manajer TU -> Wadek II -> Wadek I -> Dekan
+ * NOTE: Staf bisa akademik atau sumber daya, supervisor dipilih saat submit
+ */
+export const VERIFICATION_FLOW_UMUM = [
+  // Staf ditentukan saat runtime (STAF_AKADEMIK atau STAF_SUMBER_DAYA)
+  // Supervisor ditentukan saat submit (SUPERVISOR_AKADEMIK atau SUPERVISOR_SUMBER_DAYA)
+  ROLES.MANAJER_TU,
+  ROLES.WADEK_2,
+  ROLES.WADEK_1,
+  ROLES.DEKAN
+] as const;
+
+/**
+ * Full verification flow for UMUM with all possible roles
+ * Used for return targets and button logic
+ */
+export const VERIFICATION_FLOW_UMUM_FULL = [
+  ROLES.STAF_AKADEMIK,
+  ROLES.STAF_SUMBER_DAYA,
+  ROLES.SUPERVISOR_AKADEMIK,
+  ROLES.SUPERVISOR_SUMBER_DAYA,
+  ROLES.MANAJER_TU,
+  ROLES.WADEK_2,
+  ROLES.WADEK_1,
+  ROLES.DEKAN
+] as const;
+
+/**
  * Get disposisi targets based on letter category
  */
 export function getDisposisiTargets(category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'): readonly string[] {
@@ -208,6 +237,7 @@ export function getDisposisiTargets(category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM
 
 /**
  * Get verification flow based on letter category
+ * PENTING: Flow HARUS selalu urut sesuai hierarki, tidak boleh skip
  */
 export function getVerificationFlow(category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'): readonly string[] {
   switch (category) {
@@ -216,8 +246,25 @@ export function getVerificationFlow(category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM
     case 'SUMBER_DAYA':
       return VERIFICATION_FLOW_SUMBER_DAYA;
     case 'UMUM':
-      // For UMUM, defaults to AKADEMIK flow but with options at Manajer TU level
+      // UMUM: MTU -> Wadek 2 -> Wadek 1 -> Dekan
+      // Staf dan Supervisor ditentukan saat runtime
+      return VERIFICATION_FLOW_UMUM;
+    default:
       return VERIFICATION_FLOW_AKADEMIK;
+  }
+}
+
+/**
+ * Get full verification flow including staf/supervisor for return targets
+ */
+export function getFullVerificationFlow(category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'): readonly string[] {
+  switch (category) {
+    case 'AKADEMIK':
+      return VERIFICATION_FLOW_AKADEMIK;
+    case 'SUMBER_DAYA':
+      return VERIFICATION_FLOW_SUMBER_DAYA;
+    case 'UMUM':
+      return VERIFICATION_FLOW_UMUM_FULL;
     default:
       return VERIFICATION_FLOW_AKADEMIK;
   }
@@ -234,8 +281,26 @@ export function canDispositionTo(fromRole: string, toRole: string): boolean {
 
 /**
  * Get next role in verification chain
+ * PENTING: Flow SELALU berurutan, tidak boleh skip role apapun
+ * Target tanda tangan HANYA menentukan jenis tombol, BUKAN routing
  */
 export function getNextVerifier(currentRole: string, category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'): string | null {
+  // Untuk kategori UMUM, kita perlu handling khusus karena staf/supervisor dinamis
+  if (category === 'UMUM') {
+    // Mapping next role untuk UMUM
+    const umurNextMap: Record<string, string> = {
+      [ROLES.STAF_AKADEMIK]: '', // Ditentukan saat submit (supervisor dipilih)
+      [ROLES.STAF_SUMBER_DAYA]: '', // Ditentukan saat submit (supervisor dipilih)
+      [ROLES.SUPERVISOR_AKADEMIK]: ROLES.MANAJER_TU,
+      [ROLES.SUPERVISOR_SUMBER_DAYA]: ROLES.MANAJER_TU,
+      [ROLES.MANAJER_TU]: ROLES.WADEK_2,
+      [ROLES.WADEK_2]: ROLES.WADEK_1,
+      [ROLES.WADEK_1]: ROLES.DEKAN,
+      [ROLES.DEKAN]: '', // End of flow
+    };
+    return umurNextMap[currentRole] || null;
+  }
+  
   const flow = getVerificationFlow(category);
   const currentIndex = flow.indexOf(currentRole as any);
   
@@ -247,17 +312,62 @@ export function getNextVerifier(currentRole: string, category: 'AKADEMIK' | 'SUM
 }
 
 /**
- * Get return targets (roles below current in hierarchy)
+ * Get return targets for "Kembalikan" action
+ * ATURAN DOKUMEN:
+ * - Kembalikan BOLEH loncat role (tidak wajib mengikuti hierarki)
+ * - Dropdown berisi: Staff, Supervisor, Manajer TU, Wadek 2, Wadek 1, Dekan
+ * - Opsi disesuaikan dengan jalur surat dan role di bawah current
  */
 export function getReturnTargets(currentRole: string, category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'): string[] {
-  const flow = getVerificationFlow(category);
-  const currentIndex = flow.indexOf(currentRole as any);
+  // Semua role yang bisa jadi target kembalikan (sesuai dokumen)
+  const allTargets: Record<string, string[]> = {
+    AKADEMIK: [
+      ROLES.STAF_AKADEMIK,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.MANAJER_TU,
+      ROLES.WADEK_1,
+      ROLES.DEKAN
+    ],
+    SUMBER_DAYA: [
+      ROLES.STAF_SUMBER_DAYA,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.MANAJER_TU,
+      ROLES.WADEK_2,
+      ROLES.DEKAN
+    ],
+    UMUM: [
+      ROLES.STAF_AKADEMIK,
+      ROLES.STAF_SUMBER_DAYA,
+      ROLES.SUPERVISOR_AKADEMIK,
+      ROLES.SUPERVISOR_SUMBER_DAYA,
+      ROLES.MANAJER_TU,
+      ROLES.WADEK_2,
+      ROLES.WADEK_1,
+      ROLES.DEKAN
+    ]
+  };
+
+  const targets = allTargets[category] || allTargets.UMUM;
   
-  if (currentIndex <= 0) {
-    return [];
-  }
+  // Hierarki untuk filter (hanya bisa kembalikan ke role di bawah)
+  const hierarchy: Record<string, number> = {
+    [ROLES.STAF_AKADEMIK]: 1,
+    [ROLES.STAF_SUMBER_DAYA]: 1,
+    [ROLES.SUPERVISOR_AKADEMIK]: 2,
+    [ROLES.SUPERVISOR_SUMBER_DAYA]: 2,
+    [ROLES.MANAJER_TU]: 3,
+    [ROLES.WADEK_2]: 4,
+    [ROLES.WADEK_1]: 5,
+    [ROLES.DEKAN]: 6,
+  };
+
+  const currentLevel = hierarchy[currentRole] || 0;
   
-  return flow.slice(0, currentIndex) as unknown as string[];
+  // Filter: hanya role di bawah current role
+  return targets.filter(role => {
+    const roleLevel = hierarchy[role] || 0;
+    return roleLevel < currentLevel;
+  });
 }
 
 /**

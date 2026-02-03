@@ -211,7 +211,7 @@ model SavedSignature {
   type      SignatureType @default(UPLOAD)
   fileUrl   String
   fileName  String
-  alias     String?       // Nama TTD (misal: "TTD Formal", "TTD Resmi")
+  alias     String?
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -262,15 +262,15 @@ model LetterInstance {
   status            LetterStatus       @default(SUBMITTED)
   currentActiveRole String?
   priority          Priority           @default(NORMAL)
-  category          LetterCategory?    // Kategori surat yang dipilih saat forward (AKADEMIK, SUMBER_DAYA, UMUM)
-  signatureConfig   Json?              // Array koordinat TTD dari frontend: [{ signerId, x, y, page }]
-  contentHtml       String?            @db.Text // HTML hasil generate surat final
+  signatureConfig   Json?
+  contentHtml       String?
   letterTypeId      String
   createdById       String
   submittedAt       DateTime           @default(now())
   completedAt       DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  category          LetterCategory?
   attachments       LetterAttachment[]
   documents         LetterDocument[]
   createdBy         User               @relation("LetterCreator", fields: [createdById], references: [id])
@@ -285,27 +285,26 @@ model LetterInstance {
 }
 
 model LetterDocument {
-  id               String              @id @default(cuid())
-  letterInstanceId String
-  type             DocumentType
-  content          Json?
-  tembusan         Json?
-  nomorSurat       String?             @unique
-  tanggalSurat     DateTime?
-  perihal          String?
-  isSigned         Boolean             @default(false)
-  fileUrl          String?
-  qrCodeUrl        String?
-  attachmentUrls   Json?               // Array of attachment URLs (PDF, JPG, PNG) uploaded by staff/supervisor
-  // Legalisasi fields
-  legalisasiStatus LegalisasiStatus    @default(PENDING)
-  sealImageUrl     String?             // URL gambar stempel resmi
-  barcodeData      String?             // Encrypted verification data
-  readyToDistribute Boolean            @default(false)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  signatures       DocumentSignature[]
-  letterInstance   LetterInstance      @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
+  id                String              @id @default(cuid())
+  letterInstanceId  String
+  type              DocumentType
+  content           Json?
+  tembusan          Json?
+  nomorSurat        String?             @unique
+  tanggalSurat      DateTime?
+  perihal           String?
+  isSigned          Boolean             @default(false)
+  fileUrl           String?
+  qrCodeUrl         String?
+  legalisasiStatus  LegalisasiStatus    @default(PENDING)
+  sealImageUrl      String?
+  barcodeData       String?
+  readyToDistribute Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  attachmentUrls    Json?
+  signatures        DocumentSignature[]
+  letterInstance    LetterInstance      @relation(fields: [letterInstanceId], references: [id], onDelete: Cascade)
 
   @@unique([letterInstanceId, type])
   @@index([letterInstanceId])
@@ -314,23 +313,22 @@ model LetterDocument {
 }
 
 model DocumentSignature {
-  id              String           @id @default(cuid())
-  documentId      String
-  signerId        String
-  signerRole      String
-  signerName      String
-  signerNip       String?
-  signatureUrl    String?          // URL gambar TTD final (dari MinIO)
-  status          SignatureStatus  @default(PENDING)
-  signedAt        DateTime?
-  notes           String?
-  order           Int              @default(0)
-  // Position data for signature placement on PDF
-  positionX       Float?           // X coordinate on PDF (0-1 normalized)
-  positionY       Float?           // Y coordinate on PDF (0-1 normalized)
-  positionPage    Int?             // Page number for signature
-  document        LetterDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  signer          User             @relation("SignatureOwner", fields: [signerId], references: [id])
+  id           String          @id @default(cuid())
+  documentId   String
+  signerId     String
+  signerRole   String
+  signerName   String
+  signerNip    String?
+  signatureUrl String?
+  status       SignatureStatus @default(PENDING)
+  signedAt     DateTime?
+  notes        String?
+  order        Int             @default(0)
+  positionPage Int?
+  positionX    Float?
+  positionY    Float?
+  document     LetterDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer       User            @relation("SignatureOwner", fields: [signerId], references: [id])
 
   @@unique([documentId, signerRole])
   @@index([documentId])
@@ -472,11 +470,11 @@ enum LetterStatus {
 }
 
 enum LegalisasiStatus {
-  PENDING          // Belum diproses UPA
-  NOMOR_DIBERIKAN  // Nomor surat sudah diberikan
-  STEMPEL_DIBERIKAN // Stempel sudah dibubuhkan
-  QR_GENERATED     // QR Code sudah di-generate
-  COMPLETED        // Semua proses legalisasi selesai
+  PENDING
+  NOMOR_DIBERIKAN
+  STEMPEL_DIBERIKAN
+  QR_GENERATED
+  COMPLETED
 
   @@map("legalisasi_status")
 }
