@@ -108,7 +108,7 @@ export interface CreateStaffSuratInput {
   category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM';
   documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
   content: Prisma.JsonValue;
-  tembusan?: string[];
+  tembusan?: Prisma.JsonValue;  // Now supports TembusanRecipient[] format
   perihal?: string;
   targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA'; // Untuk kategori UMUM
   signatories: Array<{

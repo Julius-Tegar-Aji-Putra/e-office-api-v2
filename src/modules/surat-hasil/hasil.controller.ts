@@ -15,22 +15,27 @@ function getErrorMessage(error: unknown): string {
 }
 
 // Type for tembusan recipient
-type TembusanRecipient = { userId: string; name: string; description?: string };
+type TembusanRecipient = { userId: string; name: string; description?: string; email?: string };
 type TembusanInput = string[] | TembusanRecipient[];
 
-// Helper to normalize tembusan to string array (for backward compatibility)
-function normalizeTembusanToStringArray(tembusan?: TembusanInput): string[] | undefined {
+// Helper to normalize tembusan - now preserves object format to keep userId
+// This is important for features like "Pengaju Surat" checkbox which uses __PENGAJU__ marker
+function normalizeTembusanInput(tembusan?: TembusanInput): TembusanRecipient[] | undefined {
   if (!tembusan) return undefined;
   if (tembusan.length === 0) return [];
   
   // Check if it's new format (array of objects)
   if (typeof tembusan[0] === 'object') {
-    // New format: extract name from objects
-    return (tembusan as TembusanRecipient[]).map(t => t.name);
+    // Already in object format - return as is
+    return tembusan as TembusanRecipient[];
   }
   
-  // Old format: already string array
-  return tembusan as string[];
+  // Old format: convert string array to object array
+  return (tembusan as string[]).map(t => ({
+    userId: '',
+    name: t,
+    description: t
+  }));
 }
 
 // ============================================================================
@@ -103,7 +108,7 @@ class HasilController {
         letterId,
         documentType: body.documentType,
         content: body.content,
-        tembusan: normalizeTembusanToStringArray(body.tembusan),
+        tembusan: normalizeTembusanInput(body.tembusan),
         perihal: body.perihal,
         signatories: body.signatories
       };
@@ -143,7 +148,7 @@ class HasilController {
       const input: UpdateDraftServiceInput = {
         documentId,
         content: body.content,
-        tembusan: normalizeTembusanToStringArray(body.tembusan),
+        tembusan: normalizeTembusanInput(body.tembusan),
         perihal: body.perihal,
         mode: body.mode,
         signatories: body.signatories
@@ -232,7 +237,7 @@ class HasilController {
       const result = await hasilService.updateDraftAsSupervisor(
         letterId,
         body.content,
-        normalizeTembusanToStringArray(body.tembusan),
+        normalizeTembusanInput(body.tembusan),
         body.perihal,
         userId,
         userRole
@@ -364,7 +369,7 @@ class HasilController {
           category: body.category,
           documentType: body.documentType,
           content: body.content,
-          tembusan: normalizeTembusanToStringArray(body.tembusan),
+          tembusan: normalizeTembusanInput(body.tembusan),
           perihal: body.perihal,
           targetSupervisor: body.targetSupervisor,
           signatories: body.signatories

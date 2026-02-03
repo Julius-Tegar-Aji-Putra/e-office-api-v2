@@ -16,11 +16,19 @@ import { prisma } from '../../db';
 // TYPES
 // ============================================================================
 
+// Tembusan recipient type - supports both user accounts and text entries
+export interface TembusanRecipient {
+  userId: string;  // Empty string for text-only entries, '__PENGAJU__' for special marker
+  name: string;
+  description?: string;
+  email?: string;
+}
+
 export interface CreateDraftServiceInput {
   letterId: string;
   documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_PENGANTAR' | 'SURAT_TUGAS_TABEL';
   content: Record<string, unknown>;
-  tembusan?: string[];
+  tembusan?: TembusanRecipient[];
   perihal?: string;
   signatories: Array<{
     signerRole: string;
@@ -37,7 +45,7 @@ export interface CreateDraftServiceInput {
 export interface UpdateDraftServiceInput {
   documentId: string;
   content?: Record<string, unknown>;
-  tembusan?: string[];
+  tembusan?: TembusanRecipient[];
   perihal?: string;
   mode?: 'patch' | 'overwrite';
   signatories?: Array<{
@@ -55,7 +63,7 @@ export interface CreateStaffSuratServiceInput {
   category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM';
   documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL';
   content: Record<string, unknown>;
-  tembusan?: string[];
+  tembusan?: TembusanRecipient[];
   perihal?: string;
   targetSupervisor?: 'SUPERVISOR_AKADEMIK' | 'SUPERVISOR_SUMBER_DAYA'; // Untuk kategori UMUM
   signatories: Array<{
@@ -238,7 +246,7 @@ class HasilService {
       letterInstanceId: input.letterId,
       documentType: docType,
       content: input.content as Prisma.JsonValue,
-      tembusan: input.tembusan,
+      tembusan: input.tembusan as Prisma.JsonValue | undefined,
       perihal: input.perihal,
       signatories: input.signatories
     };
@@ -273,7 +281,7 @@ class HasilService {
     const updateInput: UpdateDraftInput = {
       documentId: input.documentId,
       content: input.content as Prisma.JsonValue | undefined,
-      tembusan: input.tembusan,
+      tembusan: input.tembusan as Prisma.JsonValue | undefined,
       perihal: input.perihal,
       mode: input.mode || 'patch',
       signatories: input.signatories
@@ -557,7 +565,7 @@ class HasilService {
   async updateDraftAsSupervisor(
     letterId: string,
     content: Record<string, unknown> | undefined,
-    tembusan: string[] | undefined,
+    tembusan: TembusanRecipient[] | undefined,
     perihal: string | undefined,
     userId: string,
     userRole: string
@@ -596,7 +604,7 @@ class HasilService {
     const updateInput: UpdateDraftInput = {
       documentId: skstDocument.id,
       content: content as Prisma.JsonValue | undefined,
-      tembusan,
+      tembusan: tembusan as Prisma.JsonValue | undefined,
       perihal
     };
 
@@ -721,7 +729,7 @@ class HasilService {
       category: input.category,
       documentType: input.documentType,
       content: input.content as Prisma.JsonValue,
-      tembusan: input.tembusan,
+      tembusan: input.tembusan as Prisma.JsonValue | undefined,
       perihal: input.perihal,
       targetSupervisor: input.targetSupervisor,
       signatories: input.signatories
