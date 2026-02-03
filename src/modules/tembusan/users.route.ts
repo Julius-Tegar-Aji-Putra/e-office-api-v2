@@ -7,7 +7,7 @@
 import { Elysia, t } from 'elysia';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { prisma } from '../../db';
-import { ROLES, STAF_ROLES } from '../../shared/constants/roles';
+import { ROLES, STAF_ROLES, SUPERVISOR_ROLES } from '../../shared/constants/roles';
 import { getUserRoles } from '../../lib/casbin';
 import type { TembusanUser, TembusanUserListResponse } from '../tembusan/tembusan.types';
 
@@ -121,14 +121,16 @@ const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
    */
   .get('/tembusan-list', async ({ user, query }): Promise<TembusanUserListResponse> => {
     try {
-      // Check if user is staff
+      // Check if user is staff, supervisor, or manajer TU
       const roles = await getUserRoles(user.id);
       const isStaff = roles.some(r => (STAF_ROLES as readonly string[]).includes(r));
+      const isSupervisor = roles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
+      const isManajerTU = roles.includes(ROLES.MANAJER_TU);
       
-      if (!isStaff) {
+      if (!isStaff && !isSupervisor && !isManajerTU) {
         return {
           success: false,
-          error: 'Hanya staf yang dapat mengakses daftar pengguna untuk tembusan'
+          error: 'Anda tidak memiliki akses ke daftar pengguna untuk tembusan'
         };
       }
 
@@ -291,13 +293,16 @@ const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
    */
   .get('/search', async ({ user, query }) => {
     try {
+      // Allow staff, supervisor, and manajer TU to search users
       const roles = await getUserRoles(user.id);
       const isStaff = roles.some(r => (STAF_ROLES as readonly string[]).includes(r));
+      const isSupervisor = roles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
+      const isManajerTU = roles.includes(ROLES.MANAJER_TU);
       
-      if (!isStaff) {
+      if (!isStaff && !isSupervisor && !isManajerTU) {
         return {
           success: false,
-          error: 'Hanya staf yang dapat mengakses fitur ini'
+          error: 'Anda tidak memiliki akses ke fitur pencarian pengguna'
         };
       }
 
