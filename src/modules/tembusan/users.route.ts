@@ -302,4 +302,85 @@ export const usersRoute = new Elysia({ prefix: '/api/users' })
     query: t.Object({
       q: t.Optional(t.String())
     })
+  })
+
+  /**
+   * GET /api/users/pejabat
+   * Get list of pejabat (officials) with their roles, names, and NIPs
+   * Used for signature configuration in draft forms
+   */
+  .get('/pejabat', async () => {
+    try {
+      // Define pejabat roles we need to fetch
+      const pejabatRoles = [
+        { role: ROLES.DEKAN, label: 'Dekan' },
+        { role: ROLES.WADEK_1, label: 'Wakil Dekan I' },
+        { role: ROLES.WADEK_2, label: 'Wakil Dekan II' },
+        { role: ROLES.KAPRODI, label: 'Ketua Prodi' },
+        { role: ROLES.KADEP, label: 'Ketua Departemen' }
+      ];
+
+      const pejabatList = await Promise.all(
+        pejabatRoles.map(async ({ role, label }) => {
+          // Get user with this role from casbin
+          const usersWithRole = await prisma.$queryRaw<Array<{ subject: string }>>`
+            SELECT DISTINCT v0 as subject
+            FROM casbin_rule
+            WHERE ptype = 'g'
+              AND v1 = ${role}
+          `;
+
+          if (usersWithRole.length === 0) {
+            return { role, name: label, nip: undefined };
+          }
+
+          // Get user details (prioritize pegawai, fallback to user table)
+          const userId = usersWithRole[0].subject;
+          
+          const pegawai = await prisma.pegawai.findFirst({
+            where: {
+              userId,
+              deletedAt: null
+            },
+            include: {
+              user: {
+                select: { name: true }
+              }
+            }
+          });
+
+          if (pegawai) {
+            return {
+              role,
+              name: pegawai.user.name,
+              nip: pegawai.nip
+            };
+          }
+
+          // Fallback to user table if not pegawai
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true }
+          });
+
+          return {
+            role,
+            name: user?.name || label,
+            nip: undefined
+          };
+        })
+      );
+
+      return {
+        success: true,
+        data: pejabatList
+      };
+    } catch (error) {
+      console.error('Error fetching pejabat list:', error);
+      return {
+        success: false,
+        error: 'Gagal memuat daftar pejabat',
+        data: []
+      };
+    }
   });
