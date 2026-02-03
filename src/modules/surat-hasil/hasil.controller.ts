@@ -423,6 +423,24 @@ class HasilController {
   }
 
   /**
+   * DELETE /surat-hasil/document/:documentId/attachments/file/:fileName
+   * Remove attachment from document by fileName
+   */
+  async removeAttachmentByName(
+    documentId: string,
+    fileName: string,
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await hasilService.removeAttachmentByName(documentId, fileName, userId, userRole);
+      return successResponse('Lampiran berhasil dihapus', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
    * GET /surat-hasil/document/:documentId/attachments
    * Get attachments for document
    */

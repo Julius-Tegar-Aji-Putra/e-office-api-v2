@@ -278,6 +278,42 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     }
   })
 
+  // IMPORTANT: More specific route MUST come BEFORE generic route
+  // Route '/attachments/file/:fileName' must be before '/attachments/:index'
+  .delete('/document/:documentId/attachments/file/:fileName', async ({ params, user }) => {
+    try {
+      console.log('[DELETE ATTACHMENT] Received request:', {
+        documentId: params.documentId,
+        fileName: params.fileName,
+        user: user.id
+      });
+      
+      const roles = await getUserRoles(user.id);
+      const activeRole = roles.find(r => 
+        [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+      ) || roles[0];
+      
+      const result = await hasilController.removeAttachmentByName(
+        params.documentId, 
+        params.fileName, 
+        user.id, 
+        activeRole
+      );
+      
+      console.log('[DELETE ATTACHMENT] Success:', result);
+      return result;
+    } catch (error) {
+      console.error('[DELETE ATTACHMENT] Error:', error);
+      throw error;
+    }
+  }, {
+    detail: {
+      summary: 'Remove attachment by fileName',
+      description: 'Staff/Supervisor menghapus lampiran berdasarkan nama file',
+      tags: ['Surat Hasil']
+    }
+  })
+
   .delete('/document/:documentId/attachments/:index', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
     const activeRole = roles.find(r => 
@@ -288,8 +324,8 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
     return hasilController.removeAttachment(params.documentId, index, user.id, activeRole);
   }, {
     detail: {
-      summary: 'Remove attachment',
-      description: 'Staff/Supervisor menghapus lampiran',
+      summary: 'Remove attachment by index',
+      description: 'Staff/Supervisor menghapus lampiran berdasarkan index',
       tags: ['Surat Hasil']
     }
   });

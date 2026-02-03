@@ -869,6 +869,75 @@ class HasilService {
   }
 
   /**
+   * Remove attachment from document by fileName
+   */
+  async removeAttachmentByName(
+    documentId: string,
+    fileName: string,
+    userId: string,
+    userRole: string
+  ): Promise<{ attachmentUrls: string[] }> {
+    console.log('[SERVICE] removeAttachmentByName called:', { documentId, fileName, userId, userRole });
+    
+    // Check permission - only staff and supervisors can remove
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    if (!allowedRoles.includes(userRole)) {
+      throw new AppError('Anda tidak memiliki izin untuk menghapus lampiran', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Get document
+    const document = await prisma.letterDocument.findUnique({
+      where: { id: documentId }
+    });
+
+    if (!document) {
+      throw new AppError('Dokumen tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    const existingPaths = ((document as any).attachmentUrls as string[] | null) || [];
+    console.log('[SERVICE] Existing paths:', existingPaths);
+    
+    // Find storage path that ends with the fileName
+    // Storage path format: attachments/{documentId}/timestamp-filename.pdf
+    const pathToRemove = existingPaths.find(path => {
+      const pathFileName = path.split('/').pop() || '';
+      console.log('[SERVICE] Comparing:', { pathFileName, fileName, match: pathFileName === fileName });
+      // Match exact fileName from storage path
+      return pathFileName === fileName;
+    });
+    
+    console.log('[SERVICE] Path to remove:', pathToRemove);
+    
+    if (!pathToRemove) {
+      throw new AppError(`Lampiran tidak ditemukan: ${fileName}`, HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Delete file from MinIO
+    try {
+      const minioService = new MinioService();
+      console.log('[SERVICE] Deleting from MinIO:', pathToRemove);
+      await minioService.deleteFile(pathToRemove);
+      console.log('[SERVICE] Successfully deleted from MinIO');
+    } catch (error) {
+      console.error('[SERVICE] Failed to delete file from MinIO:', error);
+      // Continue with database update even if MinIO delete fails
+    }
+
+    // Remove path from array
+    const newPaths = existingPaths.filter(path => path !== pathToRemove);
+    console.log('[SERVICE] New paths after removal:', newPaths);
+
+    // Update document
+    await prisma.letterDocument.update({
+      where: { id: documentId },
+      data: { attachmentUrls: newPaths } as any
+    });
+
+    console.log('[SERVICE] Database updated successfully');
+    return { attachmentUrls: newPaths };
+  }
+
+  /**
    * Get attachment URLs for a document
    */
   async getAttachments(documentId: string): Promise<string[]> {
