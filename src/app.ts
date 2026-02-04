@@ -12,6 +12,8 @@ import { env } from './config/env';
 import { routes } from './routes';
 import { auth } from './lib/auth';
 import './types'; // Import global type declarations
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 // ============================================
 // CREATE ELYSIA APP
@@ -95,6 +97,38 @@ const app = new Elysia()
     version: '2.0.0',
     environment: env.NODE_ENV,
   }))
+
+  // ==========================================
+  // STATIC FILES (Public folder - stempel, logo, etc.)
+  // ==========================================
+  .get('/stempel.png', async ({ set }) => {
+    try {
+      const filePath = join(process.cwd(), 'public', 'stempel.png');
+      const fileBuffer = await readFile(filePath);
+      set.headers['Content-Type'] = 'image/png';
+      set.headers['Cache-Control'] = 'public, max-age=86400';
+      set.headers['Access-Control-Allow-Origin'] = '*';
+      return new Response(fileBuffer, { headers: { 'Content-Type': 'image/png' } });
+    } catch (error) {
+      console.error('Failed to serve stempel.png:', error);
+      set.status = 404;
+      return { error: 'Stempel not found' };
+    }
+  })
+  .get('/logo-undip.png', async ({ set }) => {
+    try {
+      const filePath = join(process.cwd(), 'public', 'logo-undip.png');
+      const fileBuffer = await readFile(filePath);
+      set.headers['Content-Type'] = 'image/png';
+      set.headers['Cache-Control'] = 'public, max-age=86400';
+      set.headers['Access-Control-Allow-Origin'] = '*';
+      return new Response(fileBuffer, { headers: { 'Content-Type': 'image/png' } });
+    } catch (error) {
+      console.error('Failed to serve logo-undip.png:', error);
+      set.status = 404;
+      return { error: 'Logo not found' };
+    }
+  })
 
   // ==========================================
   // BETTER AUTH HANDLER

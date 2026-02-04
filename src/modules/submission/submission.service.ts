@@ -253,6 +253,59 @@ export class SubmissionService {
             );
           }
 
+          // Convert sealImageUrl storage path to signed URL
+          let signedSealImageUrl = doc.sealImageUrl;
+          if (doc.sealImageUrl && !doc.sealImageUrl.startsWith('http') && !doc.sealImageUrl.startsWith('local:')) {
+            try {
+              signedSealImageUrl = await this.minio.getFileUrl(doc.sealImageUrl);
+            } catch (error) {
+              console.error(`Failed to get signed URL for seal image:`, error);
+            }
+          }
+          // Handle local stempel (from public folder)
+          if (doc.sealImageUrl && doc.sealImageUrl.startsWith('local:')) {
+            // local:stempel.png -> full backend URL (e.g. http://localhost:3079/stempel.png)
+            const baseUrl = process.env.BACKEND_URL || 'http://localhost:3079';
+            signedSealImageUrl = `${baseUrl}/${doc.sealImageUrl.replace('local:', '')}`;
+          }
+
+          // Convert qrCodeUrl storage path to signed URL
+          let signedQrCodeUrl = doc.qrCodeUrl;
+          if (doc.qrCodeUrl && !doc.qrCodeUrl.startsWith('http') && !doc.qrCodeUrl.startsWith('data:')) {
+            try {
+              signedQrCodeUrl = await this.minio.getFileUrl(doc.qrCodeUrl);
+            } catch (error) {
+              console.error(`Failed to get signed URL for QR code:`, error);
+            }
+          }
+
+          // Convert signature URLs to signed URLs
+          const signaturesWithSignedUrls = await Promise.all(
+            doc.signatures.map(async (sig: any) => {
+              let signedSignatureUrl = sig.signatureUrl;
+              if (sig.signatureUrl && !sig.signatureUrl.startsWith('http')) {
+                try {
+                  signedSignatureUrl = await this.minio.getFileUrl(sig.signatureUrl);
+                } catch (error) {
+                  console.error(`Failed to get signed URL for signature:`, error);
+                }
+              }
+              return {
+                signerRole: sig.signerRole,
+                signerName: sig.signerName,
+                signerNip: sig.signerNip || null,
+                prefix: sig.prefix || null, // Awalan seperti "Mengetahui,"
+                signatureUrl: signedSignatureUrl || null, // URL of the actual signature image (signed)
+                signedAt: sig.signedAt,
+                order: sig.order,
+                // Position data for signature placement on PDF
+                positionX: sig.positionX,
+                positionY: sig.positionY,
+                positionPage: sig.positionPage,
+              };
+            })
+          );
+
           return {
             id: doc.id,
             type: doc.type,
@@ -261,23 +314,13 @@ export class SubmissionService {
             perihal: doc.perihal,
             isSigned: doc.isSigned,
             fileUrl: signedFileUrl,
+            sealImageUrl: signedSealImageUrl || null, // Stempel URL
+            qrCodeUrl: signedQrCodeUrl || null, // QR Code URL
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
             tembusan: doc.tembusan || null, // Tembusan recipients dari draft
             attachmentUrls: signedAttachmentUrls, // Lampiran PDF/JPG/PNG dari staf/supervisor (signed URLs)
-            signatures: doc.signatures.map((sig: any) => ({
-              signerRole: sig.signerRole,
-              signerName: sig.signerName,
-              signerNip: sig.signerNip || null,
-              prefix: sig.prefix || null, // Awalan seperti "Mengetahui,"
-              signatureUrl: sig.signatureUrl || null, // URL of the actual signature image
-              signedAt: sig.signedAt,
-              order: sig.order,
-              // Position data for signature placement on PDF
-              positionX: sig.positionX,
-              positionY: sig.positionY,
-              positionPage: sig.positionPage,
-            })),
+            signatures: signaturesWithSignedUrls,
           };
         })
       ),
