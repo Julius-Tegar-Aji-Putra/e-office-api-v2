@@ -60,6 +60,7 @@ export interface CreateDepartmentApprovalDraftInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
     order: number;
     // Position data for signature placement on PDF
     x?: number;
@@ -398,6 +399,7 @@ class DepartmentApprovalRepository {
             signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
+            prefix: sig.prefix,
             order: sig.order,
             positionX: sig.x,
             positionY: sig.y,
@@ -467,6 +469,7 @@ class DepartmentApprovalRepository {
             signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
+            prefix: sig.prefix,
             order: sig.order,
             positionX: sig.x,
             positionY: sig.y,

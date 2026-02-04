@@ -108,6 +108,7 @@ class LegalisasiService {
           signatures: document?.signatures?.map(sig => ({
             signerName: sig.signerName,
             signerRole: sig.signerRole,
+            prefix: sig.prefix || null,
             signedAt: sig.signedAt,
             status: sig.status
           })) || []
@@ -214,6 +215,7 @@ class LegalisasiService {
             signerName: sig.signerName,
             signerRole: sig.signerRole,
             signerNip: sig.signerNip,
+            prefix: sig.prefix || null,
             signatureUrl: sig.signatureUrl,
             status: sig.status,
             signedAt: sig.signedAt,

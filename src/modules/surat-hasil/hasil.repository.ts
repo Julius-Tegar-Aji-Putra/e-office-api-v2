@@ -96,6 +96,7 @@ export interface CreateDraftInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
     order: number;
     // Position data for signature placement on PDF
     x?: number;
@@ -115,6 +116,7 @@ export interface CreateStaffSuratInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
     order: number;
     x?: number;
     y?: number;
@@ -132,6 +134,7 @@ export interface UpdateDraftInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
     order: number;
     x?: number;
     y?: number;
@@ -290,6 +293,7 @@ class HasilRepository {
             signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
+            prefix: sig.prefix,
             order: sig.order,
             positionX: sig.x,
             positionY: sig.y,
@@ -401,6 +405,7 @@ class HasilRepository {
               data: {
                 signerName: sig.signerName,
                 signerNip: sig.signerNip,
+                prefix: sig.prefix,
                 order: sig.order,
                 positionX: sig.x,
                 positionY: sig.y,
@@ -416,6 +421,7 @@ class HasilRepository {
                 signerRole: normalizedRole,
                 signerName: sig.signerName,
                 signerNip: sig.signerNip,
+                prefix: sig.prefix,
                 order: sig.order,
                 positionX: sig.x,
                 positionY: sig.y,
@@ -954,6 +960,7 @@ class HasilRepository {
             signerRole: normalizeSignerRole(sig.signerRole),
             signerName: sig.signerName,
             signerNip: sig.signerNip,
+            prefix: sig.prefix,
             order: sig.order,
             positionX: sig.x,
             positionY: sig.y,

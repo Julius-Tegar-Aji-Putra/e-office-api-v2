@@ -34,6 +34,7 @@ export interface CreateDraftServiceInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,"
     order: number;
     // Position data for signature placement on PDF
     x?: number;
@@ -52,6 +53,7 @@ export interface UpdateDraftServiceInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,"
     order: number;
     x?: number;
     y?: number;
@@ -70,6 +72,7 @@ export interface CreateStaffSuratServiceInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,"
     order: number;
     x?: number;
     y?: number;

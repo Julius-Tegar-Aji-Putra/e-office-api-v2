@@ -40,6 +40,7 @@ export const signatorySchema = t.Object({
   signerRole: t.String({ minLength: 1 }),
   signerName: t.String({ minLength: 1 }),
   signerNip: t.Optional(t.String()),
+  prefix: t.Optional(t.String()), // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
   order: t.Number({ minimum: 0 }),
   // Position data for signature placement on PDF
   x: t.Optional(t.Number()),

@@ -97,7 +97,11 @@ class HasilController {
         signerRole: string;
         signerName: string;
         signerNip?: string;
+        prefix?: string;
         order: number;
+        x?: number;
+        y?: number;
+        page?: number;
       }>;
     },
     userId: string,
@@ -135,6 +139,7 @@ class HasilController {
         signerRole: string;
         signerName: string;
         signerNip?: string;
+        prefix?: string;
         order: number;
         x?: number;
         y?: number;
@@ -354,6 +359,7 @@ class HasilController {
         signerRole: string;
         signerName: string;
         signerNip?: string;
+        prefix?: string;
         order: number;
         x?: number;
         y?: number;

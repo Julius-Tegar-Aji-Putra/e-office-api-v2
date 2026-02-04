@@ -9,6 +9,7 @@ export interface SignatureBlock {
   signerNip?: string;
   signatureUrl?: string;
   signedAt?: string;
+  prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
 }
 
 // Tembusan recipient for display in letter
@@ -90,6 +91,7 @@ const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string, sh
   
   return `
     <div class="signature-block" style="text-align: center; min-width: 200px; position: relative;">
+      ${signature.prefix ? `<p style="margin: 0 0 5px 0; font-style: italic; color: #000000 !important;">${signature.prefix}</p>` : ''}
       <p style="margin: 0 0 5px 0; color: #000000 !important;">${signature.signerRole}</p>
       ${signatureImage}
       ${stempelOverlay}

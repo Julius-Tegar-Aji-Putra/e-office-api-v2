@@ -172,6 +172,7 @@ class LegalisasiPdfService {
       signerName: sig.signerName || '',
       signerNip: sig.signerNip || undefined,
       signatureUrl: sig.signatureUrl || undefined,
+      prefix: sig.prefix || undefined,
       signedAt: sig.signedAt
         ? new Date(sig.signedAt).toLocaleDateString('id-ID', {
             day: 'numeric',
@@ -276,6 +277,7 @@ class LegalisasiPdfService {
       signerName: sig.signerName || '',
       signerNip: sig.signerNip || undefined,
       signatureUrl: sig.signatureUrl || undefined,
+      prefix: sig.prefix || undefined,
       signedAt: sig.signedAt
         ? new Date(sig.signedAt).toLocaleDateString('id-ID', {
             day: 'numeric',

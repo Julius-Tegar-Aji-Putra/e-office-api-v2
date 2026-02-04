@@ -269,6 +269,7 @@ export class SubmissionService {
               signerRole: sig.signerRole,
               signerName: sig.signerName,
               signerNip: sig.signerNip || null,
+              prefix: sig.prefix || null, // Awalan seperti "Mengetahui,"
               signatureUrl: sig.signatureUrl || null, // URL of the actual signature image
               signedAt: sig.signedAt,
               order: sig.order,

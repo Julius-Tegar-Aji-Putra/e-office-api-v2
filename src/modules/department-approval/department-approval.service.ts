@@ -35,6 +35,7 @@ export interface SaveDraftInput {
     signerRole: string;
     signerName: string;
     signerNip?: string;
+    prefix?: string; // Awalan tanda tangan, e.g., "Mengetahui,"
     order: number;
     // Position data for signature placement on PDF
     x?: number;

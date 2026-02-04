@@ -321,6 +321,7 @@ model DocumentSignature {
   signerRole   String
   signerName   String
   signerNip    String?
+  prefix       String?         // Awalan tanda tangan, e.g., "Mengetahui,", "Menyetujui,"
   signatureUrl String?
   status       SignatureStatus @default(PENDING)
   signedAt     DateTime?
