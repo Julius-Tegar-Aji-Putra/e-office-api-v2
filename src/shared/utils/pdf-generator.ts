@@ -4,6 +4,37 @@
  */
 
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Load logo UNDIP dari folder public dan konversi ke base64 data URL
+ * @returns Base64 data URL atau fallback URL jika file tidak ditemukan
+ */
+export function getLogoUndipDataUrl(): string {
+  const fallbackUrl = 'https://mm.feb.undip.ac.id/wp-content/uploads/2021/11/universitas-diponegoro-logo.png';
+  
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'logo-undip.png');
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      return `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+    
+    // Fallback: coba Undip-Logo.png (nama alternatif)
+    const altLogoPath = path.join(process.cwd(), 'public', 'Undip-Logo.png');
+    if (fs.existsSync(altLogoPath)) {
+      const logoBuffer = fs.readFileSync(altLogoPath);
+      return `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+    
+    console.warn('[PDF Generator] Logo UNDIP tidak ditemukan di folder public, menggunakan URL fallback');
+    return fallbackUrl;
+  } catch (error) {
+    console.error('[PDF Generator] Error loading logo UNDIP:', error);
+    return fallbackUrl;
+  }
+}
 
 export interface SignaturePosition {
   signatureUrl: string;

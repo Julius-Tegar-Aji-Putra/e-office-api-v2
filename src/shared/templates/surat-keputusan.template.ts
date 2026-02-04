@@ -46,7 +46,11 @@ export interface SuratKeputusanData {
   verificationUrl?: string;
   stempelUrl?: string;
   tembusan?: TembusanRecipient[];
+  logoUrl?: string; // URL atau base64 data URL logo UNDIP
 }
+
+// Default logo URL (fallback jika logoUrl tidak disediakan)
+const DEFAULT_LOGO_URL = 'https://mm.feb.undip.ac.id/wp-content/uploads/2021/11/universitas-diponegoro-logo.png';
 
 /**
  * Get hierarchy rank for a signer role
@@ -163,7 +167,7 @@ const renderQRCode = (qrCodeDataUrl?: string): string => {
 };
 
 /**
- * Render tembusan section at bottom left of the letter, above QR code
+ * Render tembusan section below the signature block
  * Hanya menampilkan tembusan text (userId kosong)
  * Tembusan user (userId terisi) hanya untuk akses sistem, tidak ditampilkan di surat
  * Mendukung format lama (string[]) dan format baru (TembusanRecipient[])
@@ -187,24 +191,19 @@ const renderTembusan = (tembusan?: (TembusanRecipient | string)[]): string => {
   if (textBasedTembusan.length === 0) return '';
 
   const recipients = textBasedTembusan
-    .map((t) => {
+    .map((t, index) => {
       const desc = t.description ? ` (${t.description})` : '';
-      return `<li style="color: #000000 !important; margin-bottom: 2px;">${t.name}${desc}</li>`;
+      return `<li style="color: #000000 !important; margin-bottom: 2px;">${index + 1}. ${t.name}${desc}</li>`;
     })
     .join('\n');
 
-  // Calculate bottom position based on number of tembusan items
-  const itemCount = textBasedTembusan.length;
-  const baseBottom = 110; // Base position above QR code
-  const additionalHeight = Math.max(0, (itemCount - 2) * 18); // 18px per extra item
-  const bottomPosition = baseBottom + additionalHeight;
-
+  // Tembusan menggunakan static position, berada di bawah tanda tangan
   return `
-    <div class="tembusan-container" style="position: fixed; bottom: ${bottomPosition}px; left: 50px; max-width: 280px; z-index: 100; background: white;">
+    <div class="tembusan-container">
       <p style="margin: 0 0 5px 0; color: #000000 !important; font-weight: bold; font-size: 11pt;">Tembusan:</p>
-      <ol style="margin: 0; padding-left: 20px; color: #000000 !important; font-size: 10pt; line-height: 1.4;">
+      <ul style="margin: 0; padding-left: 20px; color: #000000 !important; font-size: 10pt; line-height: 1.4; list-style: none;">
         ${recipients}
-      </ol>
+      </ul>
     </div>
   `;
 };
@@ -240,10 +239,12 @@ export const suratKeputusanTemplate = (data: SuratKeputusanData): string => `<!D
       font-size: 11pt;
       line-height: 1.6;
       margin: 0;
-      padding: 40px 50px 100px 50px;
-      max-width: 21cm;
+      padding: 50px 60px 100px 60px; 
+      width: 210mm;
+      min-height: 297mm;
       color: #000000 !important;
       background: #ffffff !important;
+      position: relative;
       word-wrap: break-word;
       overflow-wrap: break-word;
       box-sizing: border-box;
@@ -455,12 +456,17 @@ export const suratKeputusanTemplate = (data: SuratKeputusanData): string => `<!D
       max-width: 300px;
       font-size: 11pt;
       line-height: 1.4;
+      position: static;
+      page-break-inside: avoid;
     }
     @media print {
       .qr-code-container {
         position: fixed;
         bottom: 20px;
         right: 20px;
+      }
+      .tembusan-container {
+        position: static;
       }
     }
     b, strong {
@@ -470,7 +476,7 @@ export const suratKeputusanTemplate = (data: SuratKeputusanData): string => `<!D
 </head>
 <body>
   <div class="logo-container">
-    <img src="https://mm.feb.undip.ac.id/wp-content/uploads/2021/11/universitas-diponegoro-logo.png" alt="Logo UNDIP" class="logo">
+    <img src="${data.logoUrl || DEFAULT_LOGO_URL}" alt="Logo UNDIP" class="logo">
   </div>
   
   <div class="judul-keputusan">

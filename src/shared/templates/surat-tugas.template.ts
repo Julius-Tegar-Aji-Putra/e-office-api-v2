@@ -36,7 +36,11 @@ export interface SuratTugasData {
   verificationUrl?: string;
   stempelUrl?: string; // URL stempel UNDIP
   tembusan?: TembusanRecipient[]; // List of tembusan recipients
+  logoUrl?: string; // URL atau base64 data URL logo UNDIP
 }
+
+// Default logo URL (fallback jika logoUrl tidak disediakan)
+const DEFAULT_LOGO_URL = 'https://mm.feb.undip.ac.id/wp-content/uploads/2021/11/universitas-diponegoro-logo.png';
 
 /**
  * Get hierarchy rank for a signer role
@@ -429,7 +433,7 @@ export const suratTugasTemplate = (data: SuratTugasData): string => `<!DOCTYPE h
 <body style="color: #000000;">
   <div class="header-container">
     <div class="logo-container">
-      <img src="https://mm.feb.undip.ac.id/wp-content/uploads/2021/11/universitas-diponegoro-logo.png" alt="Logo UNDIP" class="logo">
+      <img src="${data.logoUrl || DEFAULT_LOGO_URL}" alt="Logo UNDIP" class="logo">
     </div>
     <div class="kop-surat">
       <h3 style="color: #000000;">KEMENTERIAN PENDIDIKAN TINGGI, SAINS,<br>DAN TEKNOLOGI</h3>
