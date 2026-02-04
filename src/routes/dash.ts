@@ -75,6 +75,7 @@ interface DashboardResult {
     waiting: number;
   };
   tabs?: { key: string; label: string; count: number }[];
+  filters?: { status: string[] };
 }
 
 // ============================================================================
@@ -90,6 +91,86 @@ type DisplayStatusType =
   | 'MENUNGGU ANDA'
   | 'MENUNGGU DIVERIFIKASI'
   | 'MENUNGGU DITANDATANGANI';
+
+// ============================================================================
+// PRIORITY SORTING FOR DASHBOARD
+// ============================================================================
+
+/**
+ * Mendapatkan prioritas untuk sorting berdasarkan displayStatus
+ * Semakin kecil angkanya, semakin tinggi prioritasnya (muncul di atas)
+ * 
+ * Urutan prioritas:
+ * 1. MENUNGGU ANDA / MENUNGGU DIVERIFIKASI / MENUNGGU DITANDATANGANI (prioritas tertinggi)
+ * 2. DIPROSES
+ * 3. SELESAI
+ * 4. DIKEMBALIKAN / DIKEMBALIKAN KE PENGAJU
+ * 5. DITOLAK (prioritas terendah)
+ */
+function getDisplayStatusPriority(displayStatus: string): number {
+  const upperStatus = displayStatus.toUpperCase();
+  
+  // Menunggu (prioritas tertinggi)
+  if (upperStatus.includes('MENUNGGU')) {
+    return 1;
+  }
+  
+  // Diproses
+  if (upperStatus === 'DIPROSES') {
+    return 2;
+  }
+  
+  // Selesai
+  if (upperStatus === 'SELESAI') {
+    return 3;
+  }
+  
+  // Dikembalikan
+  if (upperStatus.includes('DIKEMBALIKAN')) {
+    return 4;
+  }
+  
+  // Ditolak
+  if (upperStatus === 'DITOLAK') {
+    return 5;
+  }
+  
+  // Default (unknown status)
+  return 99;
+}
+
+/**
+ * Sort items berdasarkan prioritas displayStatus, kemudian tanggal (terbaru di atas dalam grup yang sama)
+ */
+function sortByDisplayStatusPriority<T extends { displayStatus: string; tanggalSurat: Date }>(items: T[]): T[] {
+  return items.sort((a, b) => {
+    const priorityA = getDisplayStatusPriority(a.displayStatus);
+    const priorityB = getDisplayStatusPriority(b.displayStatus);
+    
+    // Urutkan berdasarkan prioritas dulu
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // Jika prioritas sama, urutkan berdasarkan tanggal (terbaru di atas)
+    return new Date(b.tanggalSurat).getTime() - new Date(a.tanggalSurat).getTime();
+  });
+}
+
+// ============================================================================
+// AVAILABLE STATUS OPTIONS FOR FILTERS
+// ============================================================================
+
+const AVAILABLE_DISPLAY_STATUSES = [
+  'MENUNGGU ANDA',
+  'MENUNGGU DIVERIFIKASI',
+  'MENUNGGU DITANDATANGANI',
+  'DIPROSES',
+  'SELESAI',
+  'DIKEMBALIKAN',
+  'DIKEMBALIKAN KE PENGAJU',
+  'DITOLAK',
+];
 
 function getDisplayStatusForRole(status: LetterStatus, role: string, currentActiveRole?: string | null): DisplayStatusType {
   // AKTOR 1: MAHASISWA/DOSEN
@@ -504,6 +585,9 @@ async function getDashboardPengaju(
     );
   }
 
+  // Sort by displayStatus priority (MENUNGGU > DIPROSES > SELESAI > DIKEMBALIKAN > DITOLAK)
+  mappedItems = sortByDisplayStatusPriority(mappedItems);
+
   // Calculate total AFTER displayStatus filter
   const total = mappedItems.length;
 
@@ -527,6 +611,7 @@ async function getDashboardPengaju(
     items: paginatedItems,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     statistics: { total: allItems.length, pending, completed, waiting: 0 },
+    filters: { status: AVAILABLE_DISPLAY_STATUSES },
   };
 }
 
@@ -719,6 +804,9 @@ async function getDashboardDepartemen(
     );
   }
 
+  // Sort by displayStatus priority (MENUNGGU > DIPROSES > SELESAI > DIKEMBALIKAN > DITOLAK)
+  mappedItems = sortByDisplayStatusPriority(mappedItems);
+
   // Calculate totals AFTER displayStatus filter
   const total = mappedItems.length;
 
@@ -739,6 +827,7 @@ async function getDashboardDepartemen(
       completed: allItems.filter((i) => i.status === LetterStatus.COMPLETED).length,
       waiting,
     },
+    filters: { status: AVAILABLE_DISPLAY_STATUSES },
   };
 }
 
@@ -1032,6 +1121,9 @@ async function getDashboardFakultas(
     );
   }
 
+  // Sort by displayStatus priority (MENUNGGU > DIPROSES > SELESAI > DIKEMBALIKAN > DITOLAK)
+  mappedItems = sortByDisplayStatusPriority(mappedItems);
+
   // Calculate total AFTER displayStatus filter
   const total = mappedItems.length;
 
@@ -1056,6 +1148,7 @@ async function getDashboardFakultas(
       { key: 'masuk', label: 'Surat Masuk', count: masukCount },
       { key: 'keluar', label: 'Surat Keluar', count: keluarCount },
     ],
+    filters: { status: AVAILABLE_DISPLAY_STATUSES },
   };
 }
 
@@ -1164,6 +1257,9 @@ async function getDashboardUPA(
     );
   }
 
+  // Sort by displayStatus priority (MENUNGGU > DIPROSES > SELESAI > DIKEMBALIKAN > DITOLAK)
+  mappedItems = sortByDisplayStatusPriority(mappedItems);
+
   // Calculate total AFTER displayStatus filter
   const total = mappedItems.length;
 
@@ -1185,6 +1281,7 @@ async function getDashboardUPA(
       { key: 'stempel', label: 'Stempel', count: stempel },
       { key: 'finalisasi', label: 'Finalisasi', count: finalisasi },
     ],
+    filters: { status: AVAILABLE_DISPLAY_STATUSES },
   };
 }
 
