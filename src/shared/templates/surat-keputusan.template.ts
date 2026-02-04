@@ -48,14 +48,52 @@ export interface SuratKeputusanData {
   tembusan?: TembusanRecipient[];
 }
 
-const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string): string => {
+/**
+ * Get hierarchy rank for a signer role
+ * Higher rank = higher authority
+ * Dekan = 3 (highest), Wadek 1 = 2, Wadek 2 = 1
+ */
+const getHierarchyRank = (role: string): number => {
+  const upperRole = role.toUpperCase();
+  if (upperRole.includes('DEKAN') && !upperRole.includes('WAKIL')) return 3; // Dekan = tertinggi
+  if (upperRole.includes('WAKIL') && upperRole.includes('1')) return 2; // Wadek 1
+  if (upperRole.includes('WAKIL') && upperRole.includes('2')) return 1; // Wadek 2
+  if (upperRole.includes('WADEK') && upperRole.includes('1')) return 2;
+  if (upperRole.includes('WADEK') && upperRole.includes('2')) return 1;
+  return 0;
+};
+
+/**
+ * Find the role that should receive the stempel overlay
+ * Priority: Dekan > Wadek 1 > Wadek 2
+ * If Dekan exists, stempel goes to Dekan
+ * If only Wadek 1 and Wadek 2, stempel goes to Wadek 1
+ * If only Wadek 2, stempel goes to Wadek 2
+ */
+const findStempelRecipientRole = (signatures: SignatureBlock[]): string | null => {
+  if (!signatures || signatures.length === 0) return null;
+  
+  let highestRank = 0;
+  let stempelRecipientRole: string | null = null;
+  
+  for (const sig of signatures) {
+    const rank = getHierarchyRank(sig.signerRole);
+    if (rank > highestRank) {
+      highestRank = rank;
+      stempelRecipientRole = sig.signerRole;
+    }
+  }
+  
+  return stempelRecipientRole;
+};
+
+const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string, shouldHaveStempel = false): string => {
   const signatureImage = signature.signatureUrl
     ? `<img src="${signature.signatureUrl}" alt="Tanda Tangan" style="max-width: 120px; max-height: 60px; object-fit: contain;" />`
     : '<div style="height: 60px;"></div>';
   
-  // Stempel overlay hanya untuk Dekan (jabatan tertinggi)
-  const isDekan = signature.signerRole.toUpperCase().includes('DEKAN') && !signature.signerRole.toUpperCase().includes('WAKIL');
-  const stempelOverlay = isDekan && stempelUrl ? `
+  // Stempel overlay untuk jabatan tertinggi yang ada di surat
+  const stempelOverlay = shouldHaveStempel && stempelUrl ? `
     <div style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); width: 80px; height: 80px; opacity: 0.85; z-index: 5;">
       <img src="${stempelUrl}" alt="Stempel" style="width: 100%; height: 100%; object-fit: contain;" />
     </div>
@@ -80,16 +118,6 @@ const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string): s
 const sortSignaturesByHierarchy = (signatures: SignatureBlock[]): SignatureBlock[] => {
   if (signatures.length !== 3) return signatures;
   
-  const getHierarchyRank = (role: string): number => {
-    const upperRole = role.toUpperCase();
-    if (upperRole.includes('DEKAN') && !upperRole.includes('WAKIL')) return 3; // Tertinggi
-    if (upperRole.includes('WAKIL') && upperRole.includes('1')) return 2; // Wadek 1
-    if (upperRole.includes('WAKIL') && upperRole.includes('2')) return 1; // Wadek 2
-    if (upperRole.includes('WADEK') && upperRole.includes('1')) return 2;
-    if (upperRole.includes('WADEK') && upperRole.includes('2')) return 1;
-    return 0;
-  };
-  
   const sorted = [...signatures].sort((a, b) => getHierarchyRank(a.signerRole) - getHierarchyRank(b.signerRole));
   
   // Layout: [0] = Wadek2 (top-left), [1] = Wadek1 (top-right), [2] = Dekan (bottom-center)
@@ -111,9 +139,15 @@ const renderSignatures = (signatures?: SignatureBlock[], stempelUrl?: string): s
   // Sort signatures by hierarchy for proper layout
   const sortedSignatures = sortSignaturesByHierarchy(signatures);
   
+  // Find which signature should receive the stempel (highest ranking)
+  const stempelRecipientRole = findStempelRecipientRole(signatures);
+  
   const count = sortedSignatures.length;
   const countClass = `ttd-count-${Math.min(count, 4)}`;
-  const signatureBlocks = sortedSignatures.map(sig => renderSignatureBlock(sig, stempelUrl)).join('');
+  const signatureBlocks = sortedSignatures.map(sig => {
+    const shouldHaveStempel = sig.signerRole === stempelRecipientRole;
+    return renderSignatureBlock(sig, stempelUrl, shouldHaveStempel);
+  }).join('');
   return `<div class="${countClass}">${signatureBlocks}</div>`;
 };
 
