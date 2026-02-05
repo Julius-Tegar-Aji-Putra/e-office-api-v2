@@ -525,9 +525,15 @@ class DepartmentApprovalRepository {
     actorRole: string
   ) {
     const { letterInstanceId, content, tembusan, signatories } = input;
+    
+    // Extract nomorSurat, tanggalSurat, perihal from content to store in separate columns
+    const contentObj = content as Record<string, unknown> || {};
+    const nomorSurat = contentObj.nomorSurat as string || null;
+    const tanggalSurat = contentObj.tanggalSurat ? new Date(contentObj.tanggalSurat as string) : null;
+    const perihal = contentObj.perihal as string || null;
 
     return prisma.$transaction(async (tx) => {
-      // Upsert document
+      // Upsert document - include nomorSurat, tanggalSurat, perihal in separate columns
       const document = await tx.letterDocument.upsert({
         where: {
           letterInstanceId_type: {
@@ -539,11 +545,17 @@ class DepartmentApprovalRepository {
           letterInstanceId,
           type: DocumentType.SURAT_PENGANTAR,
           content: content as any,
-          tembusan: (tembusan ?? []) as any
+          tembusan: (tembusan ?? []) as any,
+          nomorSurat: nomorSurat,
+          tanggalSurat: tanggalSurat,
+          perihal: perihal,
         },
         update: {
           content: content as any,
           tembusan: (tembusan ?? []) as any,
+          nomorSurat: nomorSurat,
+          tanggalSurat: tanggalSurat,
+          perihal: perihal,
           updatedAt: new Date()
         }
       });
