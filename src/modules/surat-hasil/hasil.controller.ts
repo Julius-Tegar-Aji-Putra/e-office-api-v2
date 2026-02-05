@@ -234,6 +234,16 @@ class HasilController {
       content?: Record<string, unknown>;
       tembusan?: TembusanInput;
       perihal?: string;
+      signatories?: Array<{
+        signerRole: string;
+        signerName: string;
+        signerNip?: string;
+        prefix?: string;
+        order: number;
+        x?: number;
+        y?: number;
+        page?: number;
+      }>;
     },
     userId: string,
     userRole: string
@@ -244,6 +254,7 @@ class HasilController {
         body.content,
         normalizeTembusanInput(body.tembusan),
         body.perihal,
+        body.signatories,
         userId,
         userRole
       );

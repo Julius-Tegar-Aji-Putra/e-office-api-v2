@@ -570,6 +570,16 @@ class HasilService {
     content: Record<string, unknown> | undefined,
     tembusan: TembusanRecipient[] | undefined,
     perihal: string | undefined,
+    signatories: Array<{
+      signerRole: string;
+      signerName: string;
+      signerNip?: string;
+      prefix?: string;
+      order: number;
+      x?: number;
+      y?: number;
+      page?: number;
+    }> | undefined,
     userId: string,
     userRole: string
   ) {
@@ -608,7 +618,8 @@ class HasilService {
       documentId: skstDocument.id,
       content: content as Prisma.JsonValue | undefined,
       tembusan: tembusan as Prisma.JsonValue | undefined,
-      perihal
+      perihal,
+      signatories
     };
 
     return hasilRepository.updateDraft(updateInput, userId, userRole);
