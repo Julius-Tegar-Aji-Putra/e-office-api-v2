@@ -50,7 +50,21 @@ const publicUsersRoute = new Elysia({ prefix: '/api/users' })
           },
           pegawai: {
             select: {
-              nip: true
+              nip: true,
+              departemenId: true,
+              programStudiId: true,
+              departemen: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              },
+              programStudi: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
             }
           }
         }
@@ -87,7 +101,13 @@ const publicUsersRoute = new Elysia({ prefix: '/api/users' })
             role: ur.role.name,
             name: user.name,
             // Try to get NIP from direct pegawai relation, fallback to name lookup
-            nip: user.pegawai?.nip || nameToNipMap.get(user.name)
+            nip: user.pegawai?.nip || nameToNipMap.get(user.name),
+            // Include departemen info for filtering KADEP/KAPRODI
+            departemenId: user.pegawai?.departemenId || null,
+            departemenName: user.pegawai?.departemen?.name || null,
+            // Include program studi info for filtering KAPRODI
+            programStudiId: user.pegawai?.programStudiId || null,
+            programStudiName: user.pegawai?.programStudi?.name || null
           }));
       });
 
