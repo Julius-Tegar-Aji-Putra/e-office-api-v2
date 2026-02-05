@@ -167,8 +167,12 @@ class DepartmentApprovalController {
         tembusan: body.tembusan,
         signatories: body.signatories
       };
-      const result = await departmentApprovalService.saveDraft(input, userId, userRole);
-      return successResponse('Draft berhasil disimpan', result);
+      const document = await departmentApprovalService.saveDraft(input, userId, userRole);
+      // Return with documentId explicitly for frontend attachment upload
+      return successResponse('Draft berhasil disimpan', { 
+        ...document, 
+        documentId: document.id 
+      });
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
     }
@@ -214,6 +218,29 @@ class DepartmentApprovalController {
       };
       const result = await departmentApprovalService.signPengantar(input, userId, userRole);
       return successResponse('Surat berhasil ditandatangani', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
+   * DELETE /department-approval/:id/attachments/:attachmentId
+   * Admin Prodi removes pengaju attachment
+   */
+  async removePengajuAttachment(
+    letterId: string,
+    attachmentId: string,
+    userId: string,
+    userRole: string
+  ) {
+    try {
+      const result = await departmentApprovalService.removePengajuAttachment(
+        letterId, 
+        attachmentId, 
+        userId, 
+        userRole
+      );
+      return successResponse('Lampiran pengaju berhasil dihapus', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
     }

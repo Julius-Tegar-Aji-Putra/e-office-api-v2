@@ -508,6 +508,57 @@ class DepartmentApprovalService {
       canDownload: letter.status === LetterStatus.COMPLETED
     };
   }
+
+  /**
+   * Admin Prodi removes pengaju attachment
+   * This allows Admin Prodi to delete attachments uploaded by pengaju during submission
+   */
+  async removePengajuAttachment(letterId: string, attachmentId: string, userId: string, userRole: string) {
+    // Only Admin Prodi can remove pengaju attachments during drafting
+    if (userRole !== ROLES.ADMIN_PRODI) {
+      throw new AppError('Hanya Admin Prodi yang dapat menghapus lampiran pengaju', HTTP_STATUS.FORBIDDEN);
+    }
+
+    const letter = await departmentApprovalRepository.getLetterById(letterId);
+    if (!letter) {
+      throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Only allow during drafting phase
+    if (letter.status !== LetterStatus.SURAT_PENGANTAR_DRAFT) {
+      throw new AppError('Lampiran hanya dapat dihapus saat tahap drafting', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Get attachment details
+    const attachment = await prisma.letterAttachment.findFirst({
+      where: { 
+        id: attachmentId,
+        letterInstanceId: letterId
+      }
+    });
+
+    if (!attachment) {
+      throw new AppError('Lampiran tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Delete from database
+    await prisma.letterAttachment.delete({
+      where: { id: attachmentId }
+    });
+
+    // Delete from MinIO if storage path exists
+    if (attachment.storagePath) {
+      try {
+        const minio = new MinioService();
+        await minio.deleteFile(attachment.storagePath);
+      } catch (error) {
+        console.error('[REMOVE_PENGAJU_ATTACHMENT] Failed to delete from MinIO:', error);
+        // Continue anyway - file might already be deleted
+      }
+    }
+
+    return { message: 'Lampiran pengaju berhasil dihapus', attachmentId };
+  }
 }
 
 export const departmentApprovalService = new DepartmentApprovalService();

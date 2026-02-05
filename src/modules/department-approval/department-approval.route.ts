@@ -7,7 +7,7 @@
  *       Kaprodi Sign -> Kadep Sign (optional) -> Forward ke Fakultas
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { departmentApprovalController } from './department-approval.controller';
 import {
   departmentApprovalQuerySchema,
@@ -207,6 +207,29 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
     detail: {
       summary: 'Sign document',
       description: 'Kaprodi/Kadep menandatangani surat pengantar',
+      tags: ['Department Approval']
+    }
+  })
+
+  // ==========================================================================
+  // Attachment Endpoints
+  // ==========================================================================
+
+  .delete('/:id/attachments/:attachmentId', async ({ params, user }) => {
+    return departmentApprovalController.removePengajuAttachment(
+      params.id, 
+      params.attachmentId, 
+      user.id, 
+      ROLES.ADMIN_PRODI
+    );
+  }, {
+    params: t.Object({
+      id: t.String({ description: 'Letter Instance ID' }),
+      attachmentId: t.String({ description: 'Attachment ID' }),
+    }),
+    detail: {
+      summary: 'Remove pengaju attachment',
+      description: 'Admin Prodi menghapus lampiran yang di-upload oleh pengaju',
       tags: ['Department Approval']
     }
   });

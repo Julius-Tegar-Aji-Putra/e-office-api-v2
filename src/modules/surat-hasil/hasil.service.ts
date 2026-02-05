@@ -765,8 +765,8 @@ class HasilService {
     userId: string,
     userRole: string
   ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
-    // Check permission - only staff and supervisors can upload
-    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    // Check permission - staff, supervisors, and admin prodi can upload
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES, ROLES.ADMIN_PRODI];
     if (!allowedRoles.includes(userRole)) {
       throw new AppError('Anda tidak memiliki izin untuk mengunggah lampiran', HTTP_STATUS.FORBIDDEN);
     }
@@ -871,8 +871,8 @@ class HasilService {
     userId: string,
     userRole: string
   ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
-    // Check permission - only staff and supervisors can remove
-    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    // Check permission - staff, supervisors, and admin prodi can remove
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES, ROLES.ADMIN_PRODI];
     if (!allowedRoles.includes(userRole)) {
       throw new AppError('Anda tidak memiliki izin untuk menghapus lampiran', HTTP_STATUS.FORBIDDEN);
     }
@@ -928,8 +928,8 @@ class HasilService {
   ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
     console.log('[SERVICE] removeAttachmentByName called:', { documentId, fileName, userId, userRole });
     
-    // Check permission - only staff and supervisors can remove
-    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES];
+    // Check permission - staff, supervisors, and admin prodi can remove
+    const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES, ROLES.ADMIN_PRODI];
     if (!allowedRoles.includes(userRole)) {
       throw new AppError('Anda tidak memiliki izin untuk menghapus lampiran', HTTP_STATUS.FORBIDDEN);
     }

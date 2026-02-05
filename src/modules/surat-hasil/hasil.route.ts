@@ -261,7 +261,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .post('/document/:documentId/attachments', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
     const activeRole = roles.find(r => 
-      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
     ) || roles[0];
     
     // body.files is already an array of File objects from t.Files()
@@ -290,7 +290,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
       
       const roles = await getUserRoles(user.id);
       const activeRole = roles.find(r => 
-        [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+        [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
       ) || roles[0];
       
       const result = await hasilController.removeAttachmentByName(
@@ -317,7 +317,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .delete('/document/:documentId/attachments/:index', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
     const activeRole = roles.find(r => 
-      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA'].includes(r)
+      [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
     ) || roles[0];
     
     const index = parseInt(params.index, 10);
