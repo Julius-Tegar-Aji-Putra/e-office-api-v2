@@ -209,7 +209,7 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   if (role === ROLES.KADEP) {
     // KADEP approval untuk prodi tanpa Kaprodi
     if (status === LetterStatus.SUBMITTED && currentActiveRole === ROLES.KADEP) {
-      return 'MENUNGGU VERIFIKASI';
+      return 'MENUNGGU DIVERIFIKASI';
     }
     // KADEP signing surat pengantar
     if (status === LetterStatus.SURAT_PENGANTAR_REVIEW && currentActiveRole === ROLES.KADEP) {

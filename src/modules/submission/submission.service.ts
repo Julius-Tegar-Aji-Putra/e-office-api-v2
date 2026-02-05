@@ -1082,7 +1082,6 @@ export class SubmissionService {
       canSubmitVerification,
       canVerifySuratHasil,
       canSignSuratHasil,
-      canReturnForRevision,
     };
   }
 
