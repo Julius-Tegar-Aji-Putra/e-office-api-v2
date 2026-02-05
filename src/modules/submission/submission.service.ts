@@ -153,6 +153,37 @@ export class SubmissionService {
     if (!submission) return null;
 
     const formData = submission.submissionValues as unknown as SubmissionFormData;
+    
+    // Fetch programStudi details to get hasKaprodi flag
+    let hasKaprodi = false;
+    if (formData.programStudi) {
+      try {
+        // Try by ID first (if it's a UUID)
+        let prodi = null;
+        if (formData.programStudi.length > 20) {
+          prodi = await prisma.programStudi.findUnique({
+            where: { id: formData.programStudi },
+            select: { name: true, hasKaprodi: true }
+          });
+          if (prodi) {
+            formData.programStudi = prodi.name;
+            hasKaprodi = prodi.hasKaprodi;
+          }
+        } else {
+          // Try by name
+          prodi = await prisma.programStudi.findFirst({
+            where: { name: formData.programStudi },
+            select: { hasKaprodi: true }
+          });
+          if (prodi) {
+            hasKaprodi = prodi.hasKaprodi;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve programStudi:', error);
+      }
+    }
+    
     const sigConfig = submission.signatureConfig as unknown as SignatureConfigDTO | null;
 
     // Get rejection reason from logs if any
@@ -192,6 +223,7 @@ export class SubmissionService {
     return {
       id: submission.id,
       submissionValues: formData,
+      hasKaprodi, // Flag from program studi to determine if program has KAPRODI or only KADEP
       status: submission.status,
       displayStatus: getDisplayStatus(submission.status, viewerRole as any, submission.currentActiveRole),
       priority: submission.priority,
@@ -350,7 +382,9 @@ export class SubmissionService {
 
   /**
    * Create new submission with attachments
-   * Flow: Mahasiswa/Dosen submit -> Status SUBMITTED -> Role KAPRODI
+   * Flow: 
+   * - If prodi has Kaprodi: Status SUBMITTED -> Role KAPRODI
+   * - If prodi has NO Kaprodi: Status SUBMITTED -> Role KADEP (skip Kaprodi)
    * Uses transaction for atomicity with MinIO rollback on failure
    */
   async createSubmission(userId: string, dto: CreateSubmissionDTO, files?: File[]) {
@@ -359,6 +393,35 @@ export class SubmissionService {
     if (!letterType) {
       throw new Error(ERROR_MESSAGES.SUBMISSION.INVALID_TYPE);
     }
+
+    // Get user's program studi to determine initial routing
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        mahasiswa: {
+          include: {
+            programStudi: true
+          }
+        },
+        pegawai: {
+          include: {
+            programStudi: true
+          }
+        }
+      }
+    });
+
+    const prodi = user?.mahasiswa?.programStudi || user?.pegawai?.programStudi;
+    
+    if (!prodi) {
+      throw new Error('Program Studi tidak ditemukan untuk pengguna ini');
+    }
+
+    // Determine initial active role based on prodi configuration
+    const initialActiveRole = prodi.hasKaprodi ? ROLES.KAPRODI : ROLES.KADEP;
+    const routingMessage = prodi.hasKaprodi 
+      ? 'Pengajuan berhasil dibuat dan diteruskan ke Ketua Program Studi untuk diverifikasi'
+      : 'Pengajuan berhasil dibuat dan diteruskan ke Kepala Departemen untuk diverifikasi';
 
     // Track uploaded files for rollback
     const uploadedFiles: Array<{ storagePath: string }> = [];
@@ -407,7 +470,7 @@ export class SubmissionService {
             submissionValues: dto.formData as object,
             signatureConfig: dto.signatureConfig as object,
             status: 'SUBMITTED' as LetterStatus,
-            currentActiveRole: ROLES.KAPRODI,
+            currentActiveRole: initialActiveRole, // KAPRODI or KADEP based on prodi.hasKaprodi
           },
         });
 
@@ -443,9 +506,9 @@ export class SubmissionService {
 
       return {
         id: submission.id,
-        message: 'Pengajuan berhasil dibuat dan diteruskan ke Ketua Program Studi untuk diverifikasi',
+        message: routingMessage,
         status: submission.status,
-        currentActiveRole: ROLES.KAPRODI,
+        currentActiveRole: initialActiveRole,
         attachmentCount: attachmentData.length,
       };
     } catch (error) {
@@ -849,9 +912,13 @@ export class SubmissionService {
     // Untuk mahasiswa/dosen: tampilkan jika dokumen sudah ada
     const hasHasil = hasFakultasStatus && (isSubmitter ? isSuratHasilDocReady : true);
 
-    // Kaprodi can approve/reject when status is SUBMITTED
-    const canApprove = isKaprodi && status === 'SUBMITTED';
-    const canReject = isKaprodi && status === 'SUBMITTED';
+    // Kaprodi/Kadep can approve/reject when status is SUBMITTED and currentActiveRole matches
+    const canApprove = status === 'SUBMITTED' && currentActiveRole !== null && 
+      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
+       (isKadep && currentActiveRole === 'KADEP'));
+    const canReject = status === 'SUBMITTED' && currentActiveRole !== null && 
+      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
+       (isKadep && currentActiveRole === 'KADEP'));
 
     // Admin Prodi can draft when status is SURAT_PENGANTAR_DRAFT
     const canDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';

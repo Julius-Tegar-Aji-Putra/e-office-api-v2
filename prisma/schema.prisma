@@ -189,17 +189,19 @@ model Departemen {
 }
 
 model ProgramStudi {
-  id           String      @id @default(cuid())
-  name         String
-  code         String      @unique
-  jenjang      Jenjang     @default(S1)
-  departemenId String
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  deletedAt    DateTime?
-  mahasiswa    Mahasiswa[]
-  pegawai      Pegawai[]
-  departemen   Departemen  @relation(fields: [departemenId], references: [id])
+  id             String      @id @default(cuid())
+  name           String
+  code           String      @unique
+  jenjang        Jenjang     @default(S1)
+  departemenId   String
+  hasKaprodi     Boolean     @default(false)
+  managedByRole  String?     @default("KADEP")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+  mahasiswa      Mahasiswa[]
+  pegawai        Pegawai[]
+  departemen     Departemen  @relation(fields: [departemenId], references: [id])
 
   @@index([departemenId])
   @@map("program_studi")
@@ -385,6 +387,7 @@ enum Jenjang {
   S1
   S2
   S3
+  PROFESI
 }
 
 enum SignatureType {

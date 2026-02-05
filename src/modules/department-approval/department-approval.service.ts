@@ -66,6 +66,13 @@ class DepartmentApprovalService {
   }
 
   /**
+   * Get letters for Kadep dashboard (pending approval - untuk prodi tanpa Kaprodi)
+   */
+  async getKadepQueue(userId: string, params: DepartmentApprovalListParams) {
+    return departmentApprovalRepository.getLettersForKadepApproval(userId, params);
+  }
+
+  /**
    * Get letters for Admin Prodi dashboard (pending drafting)
    */
   async getAdminProdiQueue(userId: string, params: DepartmentApprovalListParams) {
@@ -102,7 +109,7 @@ class DepartmentApprovalService {
   }
 
   /**
-   * Kaprodi approves submission
+   * Kaprodi/Kadep approves submission
    */
   async approveSubmission(input: ApproveInput, userId: string, userRole: string) {
     const letter = await departmentApprovalRepository.getLetterById(input.letterId);
@@ -115,8 +122,9 @@ class DepartmentApprovalService {
       throw new AppError('Surat tidak dalam status yang dapat disetujui', HTTP_STATUS.BAD_REQUEST);
     }
 
-    if (letter.currentActiveRole !== ROLES.KAPRODI) {
-      throw new AppError('Surat tidak sedang di meja Kaprodi', HTTP_STATUS.BAD_REQUEST);
+    // Check if current active role matches user role
+    if (letter.currentActiveRole !== userRole) {
+      throw new AppError(`Surat tidak sedang di meja ${userRole}`, HTTP_STATUS.BAD_REQUEST);
     }
 
     return departmentApprovalRepository.approveSubmission(
@@ -128,7 +136,7 @@ class DepartmentApprovalService {
   }
 
   /**
-   * Kaprodi rejects submission
+   * Kaprodi/Kadep rejects submission
    */
   async rejectSubmission(input: RejectInput, userId: string, userRole: string) {
     const letter = await departmentApprovalRepository.getLetterById(input.letterId);
@@ -178,27 +186,71 @@ class DepartmentApprovalService {
       throw new AppError('Surat pengantar sudah dibuat sebelumnya', HTTP_STATUS.BAD_REQUEST);
     }
 
+    // Get the prodi information to check if it has Kaprodi
+    const createdByUser = await prisma.user.findUnique({
+      where: { id: letter.createdById },
+      include: {
+        mahasiswa: {
+          include: {
+            programStudi: true
+          }
+        },
+        pegawai: {
+          include: {
+            programStudi: true
+          }
+        }
+      }
+    });
+
+    const prodi = createdByUser?.mahasiswa?.programStudi || createdByUser?.pegawai?.programStudi;
+    
+    if (!prodi) {
+      throw new AppError('Program Studi tidak ditemukan untuk pengguna ini', HTTP_STATUS.BAD_REQUEST);
+    }
+
     // Get signature config from submission
     const signatureConfig = letter.signatureConfig as { requestKadepSign?: boolean } | null;
     const needsKadepSignature = signatureConfig?.requestKadepSign || false;
 
-    // Default signatories based on request
-    const defaultSignatories = [
-      {
-        signerRole: 'KAPRODI',
-        signerName: '', // Will be filled when signing
-        signerNip: '',
-        order: 1
-      }
-    ];
+    // Conditional signature flow based on prodi.hasKaprodi
+    let defaultSignatories: Array<{
+      signerRole: string;
+      signerName: string;
+      signerNip: string;
+      order: number;
+    }>;
 
-    if (needsKadepSignature) {
-      defaultSignatories.push({
-        signerRole: 'KADEP',
-        signerName: '',
-        signerNip: '',
-        order: 2
-      });
+    if (!prodi.hasKaprodi) {
+      // Prodi doesn't have Kaprodi - direct to KADEP only
+      defaultSignatories = [
+        {
+          signerRole: 'KADEP',
+          signerName: '',
+          signerNip: '',
+          order: 1
+        }
+      ];
+    } else {
+      // Prodi has Kaprodi - start with KAPRODI
+      defaultSignatories = [
+        {
+          signerRole: 'KAPRODI',
+          signerName: '',
+          signerNip: '',
+          order: 1
+        }
+      ];
+
+      // Add KADEP if requested
+      if (needsKadepSignature) {
+        defaultSignatories.push({
+          signerRole: 'KADEP',
+          signerName: '',
+          signerNip: '',
+          order: 2
+        });
+      }
     }
 
     // Create initial empty draft

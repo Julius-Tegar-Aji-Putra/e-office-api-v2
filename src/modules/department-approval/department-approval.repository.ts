@@ -156,6 +156,76 @@ class DepartmentApprovalRepository {
   }
 
   /**
+   * Get letters pending Kadep approval (status: SUBMITTED)
+   * For prodi WITHOUT Kaprodi (hasKaprodi=false)
+   */
+  async getLettersForKadepApproval(
+    kadepUserId: string,
+    params: DepartmentApprovalListParams
+  ) {
+    const { page = 1, limit = 10, search } = params;
+    const skip = (page - 1) * limit;
+
+    // Get departemen from kadep's pegawai profile
+    const kadep = await prisma.pegawai.findUnique({
+      where: { userId: kadepUserId },
+      select: { departemenId: true }
+    });
+
+    if (!kadep) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const where: Prisma.LetterInstanceWhereInput = {
+      status: LetterStatus.SUBMITTED,
+      currentActiveRole: 'KADEP',
+      createdBy: {
+        OR: [
+          { mahasiswa: { departemenId: kadep.departemenId } },
+          { pegawai: { departemenId: kadep.departemenId } }
+        ]
+      },
+      ...(search && {
+        OR: [
+          { submissionValues: { path: ['keperluan'], string_contains: search } },
+          { createdBy: { name: { contains: search, mode: 'insensitive' } } }
+        ]
+      })
+    };
+
+    const [data, total] = await Promise.all([
+      prisma.letterInstance.findMany({
+        where,
+        include: {
+          letterType: true,
+          createdBy: {
+            include: {
+              mahasiswa: { include: { programStudi: true } },
+              pegawai: { include: { programStudi: true } }
+            }
+          },
+          logs: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        },
+        orderBy: { submittedAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.letterInstance.count({ where })
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  /**
    * Get letters pending Admin Prodi drafting (status: SURAT_PENGANTAR_DRAFT)
    */
   async getLettersForAdminProdiDraft(
@@ -212,6 +282,7 @@ class DepartmentApprovalRepository {
 
   /**
    * Get letters pending signature (status: SURAT_PENGANTAR_REVIEW)
+   * Filtered by signer's programStudiId for KAPRODI, or departemenId for KADEP
    */
   async getLettersForSignature(
     signerUserId: string,
@@ -221,9 +292,31 @@ class DepartmentApprovalRepository {
     const { page = 1, limit = 10 } = params;
     const skip = (page - 1) * limit;
 
+    // Get signer's program studi or departemen
+    const signer = await prisma.pegawai.findUnique({
+      where: { userId: signerUserId },
+      select: { programStudiId: true, departemenId: true }
+    });
+
+    if (!signer) {
+      return { data: [], total: 0, page, limit, totalPages: 0 };
+    }
+
     const where: Prisma.LetterInstanceWhereInput = {
       status: LetterStatus.SURAT_PENGANTAR_REVIEW,
       currentActiveRole: signerRole,
+      // Filter by programStudi for KAPRODI, by departemen for KADEP
+      createdBy: signerRole === 'KAPRODI' ? {
+        OR: [
+          { mahasiswa: { programStudiId: signer.programStudiId } },
+          { pegawai: { programStudiId: signer.programStudiId } }
+        ]
+      } : {
+        OR: [
+          { mahasiswa: { departemenId: signer.departemenId } },
+          { pegawai: { departemenId: signer.departemenId } }
+        ]
+      },
       documents: {
         some: {
           type: DocumentType.SURAT_PENGANTAR,

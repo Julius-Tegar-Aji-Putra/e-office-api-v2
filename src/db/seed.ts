@@ -146,17 +146,19 @@ async function main() {
   // -- Program Studi --
   const prodiMap = new Map<string, string>();
   const programStudi = [
-    { name: 'S1 Matematika', code: 'S1-MATH', dept: 'MATH', jenjang: Jenjang.S1 },
-    { name: 'S2 Matematika', code: 'S2-MATH', dept: 'MATH', jenjang: Jenjang.S2 },
-    { name: 'S1 Biologi', code: 'S1-BIO', dept: 'BIO', jenjang: Jenjang.S1 },
-    { name: 'S1 Bioteknologi', code: 'S1-BIOTEK', dept: 'BIO', jenjang: Jenjang.S1 },
-    { name: 'S1 Kimia', code: 'S1-KIM', dept: 'KIM', jenjang: Jenjang.S1 },
-    { name: 'S1 Fisika', code: 'S1-FIS', dept: 'FIS', jenjang: Jenjang.S1 },
-    { name: 'S2 Fisika', code: 'S2-FIS', dept: 'FIS', jenjang: Jenjang.S2 },
-    { name: 'S1 Statistika', code: 'S1-STAT', dept: 'STAT', jenjang: Jenjang.S1 },
-    { name: 'S1 Informatika', code: 'S1-IF', dept: 'IF', jenjang: Jenjang.S1 },
-    { name: 'S2 Informatika', code: 'S2-IF', dept: 'IF', jenjang: Jenjang.S2 },
-    { name: 'Fakultas', code: 'FAKULTAS', dept: 'FSM', jenjang: Jenjang.S1 } // Placeholder for faculty staff
+    { name: 'S1 Matematika', code: 'S1-MATH', dept: 'MATH', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'S2 Matematika', code: 'S2-MATH', dept: 'MATH', jenjang: Jenjang.S2, hasKaprodi: true },
+    { name: 'S1 Biologi', code: 'S1-BIO', dept: 'BIO', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'S1 Bioteknologi', code: 'S1-BIOTEK', dept: 'BIO', jenjang: Jenjang.S1, hasKaprodi: true },
+    { name: 'S2 Biologi', code: 'S2-BIO', dept: 'BIO', jenjang: Jenjang.S2, hasKaprodi: true },
+    { name: 'S1 Fisika', code: 'S1-FIS', dept: 'FIS', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'S2 Fisika', code: 'S2-FIS', dept: 'FIS', jenjang: Jenjang.S2, hasKaprodi: true },
+    { name: 'Profesi Fisikawan Medik', code: 'PROF-FM', dept: 'FIS', jenjang: Jenjang.PROFESI, hasKaprodi: true },
+    { name: 'S1 Kimia', code: 'S1-KIM', dept: 'KIM', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'S2 Kimia', code: 'S2-KIM', dept: 'KIM', jenjang: Jenjang.S2, hasKaprodi: true },
+    { name: 'S1 Statistika', code: 'S1-STAT', dept: 'STAT', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'S1 Informatika', code: 'S1-IF', dept: 'IF', jenjang: Jenjang.S1, hasKaprodi: false },
+    { name: 'Fakultas', code: 'FAKULTAS', dept: 'FSM', jenjang: Jenjang.S1, hasKaprodi: false } // Placeholder for faculty staff
   ];
 
   for (const p of programStudi) {
@@ -165,6 +167,8 @@ async function main() {
         name: p.name,
         code: p.code,
         jenjang: p.jenjang,
+        hasKaprodi: p.hasKaprodi,
+        managedByRole: p.hasKaprodi ? 'KAPRODI' : 'KADEP',
         departemenId: deptMap.get(p.dept)!
       }
     });
@@ -258,7 +262,8 @@ async function main() {
     roleName: ROLES.SUPERADMIN
   });
 
-  // --- MAHASISWA (Informatika) ---
+  // --- MAHASISWA ---
+  // Informatika
   const mhsIf1 = await createUser({
     name: 'Ahmad Budi Santoso',
     email: 'ahmad.budi@students.undip.ac.id',
@@ -285,6 +290,148 @@ async function main() {
     }
   });
 
+  // Biologi - S1 Biologi (ke KADEP)
+  const mhsBioS1 = await createUser({
+    name: 'Siti Aminah',
+    email: 'siti.aminah@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24020121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567003',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIO'
+    }
+  });
+
+  // Biologi - S1 Bioteknologi (ke KAPRODI karena hasKaprodi=true)
+  const mhsBiotek = await createUser({
+    name: 'Rudi Hartono',
+    email: 'rudi.hartono@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24021121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567004',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIOTEK'
+    }
+  });
+
+  // Biologi - S2 Biologi (ke KAPRODI)
+  const mhsBioS2 = await createUser({
+    name: 'Dewi Lestari',
+    email: 'dewi.lestari@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24020221130001',
+      tahunMasuk: '2024',
+      noHp: '081234567005',
+      deptCode: 'BIO',
+      prodiCode: 'S2-BIO'
+    }
+  });
+
+  // Fisika - S1 Fisika (ke KADEP)
+  const mhsFisS1 = await createUser({
+    name: 'Budi Prasetyo',
+    email: 'budi.prasetyo@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24030121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567006',
+      deptCode: 'FIS',
+      prodiCode: 'S1-FIS'
+    }
+  });
+
+  // Fisika - S2 Fisika (ke KAPRODI)
+  const mhsFisS2 = await createUser({
+    name: 'Andi Wijaya',
+    email: 'andi.wijaya@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24030221130001',
+      tahunMasuk: '2024',
+      noHp: '081234567007',
+      deptCode: 'FIS',
+      prodiCode: 'S2-FIS'
+    }
+  });
+
+  // Kimia - S1 Kimia (ke KADEP)
+  const mhsKimS1 = await createUser({
+    name: 'Fitri Rahmawati',
+    email: 'fitri.rahmawati@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24040121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567008',
+      deptCode: 'KIM',
+      prodiCode: 'S1-KIM'
+    }
+  });
+
+  // Kimia - S2 Kimia (ke KAPRODI)
+  const mhsKimS2 = await createUser({
+    name: 'Hendra Gunawan',
+    email: 'hendra.gunawan@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24040221130001',
+      tahunMasuk: '2024',
+      noHp: '081234567009',
+      deptCode: 'KIM',
+      prodiCode: 'S2-KIM'
+    }
+  });
+
+  // Matematika - S1 Matematika (ke KADEP)
+  const mhsMathS1 = await createUser({
+    name: 'Rina Susanti',
+    email: 'rina.susanti@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24010121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567020',
+      deptCode: 'MATH',
+      prodiCode: 'S1-MATH'
+    }
+  });
+
+  // Matematika - S2 Matematika (ke KAPRODI)
+  const mhsMathS2 = await createUser({
+    name: 'Joko Santoso',
+    email: 'joko.santoso@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24010221130001',
+      tahunMasuk: '2024',
+      noHp: '081234567021',
+      deptCode: 'MATH',
+      prodiCode: 'S2-MATH'
+    }
+  });
+
+  // Statistika - S1 Statistika (ke KADEP)
+  const mhsStatS1 = await createUser({
+    name: 'Lisa Anggraini',
+    email: 'lisa.anggraini@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24050121130001',
+      tahunMasuk: '2024',
+      noHp: '081234567022',
+      deptCode: 'STAT',
+      prodiCode: 'S1-STAT'
+    }
+  });
+
+  console.log('   ✓ Created 12 MAHASISWA accounts from various departments');
+
   // --- DOSEN (Informatika) ---
   const dosenIf = await createUser({
     name: 'Dr. Raden Satrio, M.Kom.',
@@ -299,47 +446,326 @@ async function main() {
     }
   });
 
-  // --- KETUA PRODI INFORMATIKA ---
-  const kaprodiIf = await createUser({
-    name: 'Dr. Aris Sugiharto, S.Si., M.Kom.',
-    email: 'kaprodi.if@undip.ac.id',
+  // --- KETUA PRODI (KAPRODI) - 7 accounts for prodi with hasKaprodi=true ---
+  const kaprodiS2Math = await createUser({
+    name: 'Dr. Lucia Ratnasari, S.Si., M.Si.',
+    email: 'kaprodi.s2.matematika@fsm.undip.ac.id',
     roleName: ROLES.KAPRODI,
     profile: {
-      nip: '197108111997021004',
-      jabatan: 'Ketua Program Studi S1 Informatika',
+      nip: '197012061996032001',
+      jabatan: 'Ketua Program Studi Magister Matematika',
       noHp: '081234567100',
-      deptCode: 'IF',
-      prodiCode: 'S1-IF'
+      deptCode: 'MATH',
+      prodiCode: 'S2-MATH'
     }
   });
 
-  // --- ADMIN PRODI INFORMATIKA ---
-  const adminProdiIf = await createUser({
-    name: 'Siti Aminah, S.Kom.',
-    email: 'admin.prodi.if@undip.ac.id',
+  const kaprodiS1Biotek = await createUser({
+    name: 'Dr. Sri Pujiyanto, S.Si., M.Si.',
+    email: 'kaprodi.s1.bioteknologi@fsm.undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '197305141999031003',
+      jabatan: 'Ketua Program Studi S1 Bioteknologi',
+      noHp: '081234567101',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIOTEK'
+    }
+  });
+
+  const kaprodiS2Bio = await createUser({
+    name: 'Prof. Dr. Dra. Erma Prihastanti, M.Si.',
+    email: 'kaprodi.s2.biologi@fsm.undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '196204211987032001',
+      jabatan: 'Ketua Program Studi Magister Biologi',
+      noHp: '081234567102',
+      deptCode: 'BIO',
+      prodiCode: 'S2-BIO'
+    }
+  });
+
+  const kaprodiS2Fis = await createUser({
+    name: 'Dr. Eng. Eko Hidayanto, S.Si., M.Si.',
+    email: 'kaprodi.s2.fisika@fsm.undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '197301031998021001',
+      jabatan: 'Ketua Program Studi Magister Fisika',
+      noHp: '081234567103',
+      deptCode: 'FIS',
+      prodiCode: 'S2-FIS'
+    }
+  });
+
+  const kaprodiProfFM = await createUser({
+    name: 'Dr. Choirul Anam, S.Si., M.Si., F.Med.',
+    email: 'kaprodi.profesi.fisikawanmedik@fsm.undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '198004272005011002',
+      jabatan: 'Ketua Prodi Pendidikan Profesi Fisikawan Medik',
+      noHp: '081234567104',
+      deptCode: 'FIS',
+      prodiCode: 'PROF-FM'
+    }
+  });
+
+  const kaprodiS2Kim = await createUser({
+    name: 'Drs. Gunawan, M.Si., Ph.D.',
+    email: 'kaprodi.s2.kimia@fsm.undip.ac.id',
+    roleName: ROLES.KAPRODI,
+    profile: {
+      nip: '196307181991031002',
+      jabatan: 'Ketua Program Studi Magister Kimia',
+      noHp: '081234567105',
+      deptCode: 'KIM',
+      prodiCode: 'S2-KIM'
+    }
+  });
+
+  console.log('   ✓ Created 7 KAPRODI accounts');
+
+  // --- ADMIN PRODI - 12 accounts (1 per prodi) ---
+  const adminProdiS1Math = await createUser({
+    name: 'Admin Prodi S1 Matematika',
+    email: 'admin.s1.matematika@fsm.undip.ac.id',
     roleName: ROLES.ADMIN_PRODI,
     profile: {
-      nip: '199012152018032001',
-      jabatan: 'Admin Program Studi Informatika',
-      noHp: '081234567101',
+      nip: '199001010001',
+      jabatan: 'Admin Program Studi S1 Matematika',
+      noHp: '081234567200',
+      deptCode: 'MATH',
+      prodiCode: 'S1-MATH'
+    }
+  });
+
+  const adminProdiS2Math = await createUser({
+    name: 'Admin Prodi S2 Matematika',
+    email: 'admin.s2.matematika@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010002',
+      jabatan: 'Admin Program Studi S2 Matematika',
+      noHp: '081234567201',
+      deptCode: 'MATH',
+      prodiCode: 'S2-MATH'
+    }
+  });
+
+  const adminProdiS1Bio = await createUser({
+    name: 'Admin Prodi S1 Biologi',
+    email: 'admin.s1.biologi@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010003',
+      jabatan: 'Admin Program Studi S1 Biologi',
+      noHp: '081234567202',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIO'
+    }
+  });
+
+  const adminProdiS1Biotek = await createUser({
+    name: 'Admin Prodi S1 Bioteknologi',
+    email: 'admin.s1.bioteknologi@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010004',
+      jabatan: 'Admin Program Studi S1 Bioteknologi',
+      noHp: '081234567203',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIOTEK'
+    }
+  });
+
+  const adminProdiS2Bio = await createUser({
+    name: 'Admin Prodi S2 Biologi',
+    email: 'admin.s2.biologi@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010005',
+      jabatan: 'Admin Program Studi S2 Biologi',
+      noHp: '081234567204',
+      deptCode: 'BIO',
+      prodiCode: 'S2-BIO'
+    }
+  });
+
+  const adminProdiS1Fis = await createUser({
+    name: 'Admin Prodi S1 Fisika',
+    email: 'admin.s1.fisika@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010006',
+      jabatan: 'Admin Program Studi S1 Fisika',
+      noHp: '081234567205',
+      deptCode: 'FIS',
+      prodiCode: 'S1-FIS'
+    }
+  });
+
+  const adminProdiS2Fis = await createUser({
+    name: 'Admin Prodi S2 Fisika',
+    email: 'admin.s2.fisika@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010007',
+      jabatan: 'Admin Program Studi S2 Fisika',
+      noHp: '081234567206',
+      deptCode: 'FIS',
+      prodiCode: 'S2-FIS'
+    }
+  });
+
+  const adminProdiProfFM = await createUser({
+    name: 'Admin Prodi Profesi Fisikawan Medik',
+    email: 'admin.profesi.fisikawanmedik@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010008',
+      jabatan: 'Admin Prodi Pendidikan Profesi Fisikawan Medik',
+      noHp: '081234567207',
+      deptCode: 'FIS',
+      prodiCode: 'PROF-FM'
+    }
+  });
+
+  const adminProdiS1Kim = await createUser({
+    name: 'Admin Prodi S1 Kimia',
+    email: 'admin.s1.kimia@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010009',
+      jabatan: 'Admin Program Studi S1 Kimia',
+      noHp: '081234567208',
+      deptCode: 'KIM',
+      prodiCode: 'S1-KIM'
+    }
+  });
+
+  const adminProdiS2Kim = await createUser({
+    name: 'Admin Prodi S2 Kimia',
+    email: 'admin.s2.kimia@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010010',
+      jabatan: 'Admin Program Studi S2 Kimia',
+      noHp: '081234567209',
+      deptCode: 'KIM',
+      prodiCode: 'S2-KIM'
+    }
+  });
+
+  const adminProdiS1Stat = await createUser({
+    name: 'Admin Prodi S1 Statistika',
+    email: 'admin.s1.statistika@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010011',
+      jabatan: 'Admin Program Studi S1 Statistika',
+      noHp: '081234567210',
+      deptCode: 'STAT',
+      prodiCode: 'S1-STAT'
+    }
+  });
+
+  const adminProdiS1If = await createUser({
+    name: 'Admin Prodi S1 Informatika',
+    email: 'admin.s1.informatika@fsm.undip.ac.id',
+    roleName: ROLES.ADMIN_PRODI,
+    profile: {
+      nip: '199001010012',
+      jabatan: 'Admin Program Studi S1 Informatika',
+      noHp: '081234567211',
       deptCode: 'IF',
       prodiCode: 'S1-IF'
     }
   });
 
-  // --- KETUA DEPARTEMEN INFORMATIKA ---
+  console.log('   ✓ Created 12 ADMIN_PRODI accounts');
+
+  // --- KETUA DEPARTEMEN (KADEP) - 6 accounts (1 per department) ---
+  const kadepMath = await createUser({
+    name: 'Dr. Susilo Hariyanto, S.Si., M.Si.',
+    email: 'kadep.matematika@fsm.undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '197410142000121001',
+      jabatan: 'Ketua Departemen Matematika',
+      noHp: '081234567300',
+      deptCode: 'MATH',
+      prodiCode: 'S1-MATH'
+    }
+  });
+
+  const kadepBio = await createUser({
+    name: 'Prof. Drs. Sapto Purnomo Putro, M.Si., Ph.D.',
+    email: 'kadep.biologi@fsm.undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '196612261994031008',
+      jabatan: 'Ketua Departemen Biologi',
+      noHp: '081234567301',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIO'
+    }
+  });
+
+  const kadepFis = await createUser({
+    name: 'Prof. Dr. Heri Sutanto, S.Si., M.Si.',
+    email: 'kadep.fisika@fsm.undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '197502151998021001',
+      jabatan: 'Ketua Departemen Fisika',
+      noHp: '081234567302',
+      deptCode: 'FIS',
+      prodiCode: 'S1-FIS'
+    }
+  });
+
+  const kadepKim = await createUser({
+    name: 'Adi Darmawan, S.Si., M.Si., Ph.D.',
+    email: 'kadep.kimia@fsm.undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '197311211997021001',
+      jabatan: 'Ketua Departemen Kimia',
+      noHp: '081234567303',
+      deptCode: 'KIM',
+      prodiCode: 'S1-KIM'
+    }
+  });
+
+  const kadepStat = await createUser({
+    name: 'Dr. Drs. Tarno, M.Si.',
+    email: 'kadep.statistika@fsm.undip.ac.id',
+    roleName: ROLES.KADEP,
+    profile: {
+      nip: '196307061991021001',
+      jabatan: 'Ketua Departemen Statistika',
+      noHp: '081234567304',
+      deptCode: 'STAT',
+      prodiCode: 'S1-STAT'
+    }
+  });
+
   const kadepIf = await createUser({
     name: 'Dr. Aris Sugiharto, S.Si., M.Kom.',
-    email: 'kadep.if@undip.ac.id',
+    email: 'kadep.informatika@fsm.undip.ac.id',
     roleName: ROLES.KADEP,
     profile: {
       nip: '197108111997021004',
       jabatan: 'Ketua Departemen Informatika',
-      noHp: '081234567102',
+      noHp: '081234567305',
       deptCode: 'IF',
       prodiCode: 'S1-IF'
     }
   });
+
+  console.log('   ✓ Created 6 KADEP accounts');
 
   // --- PEJABAT FAKULTAS ---
   const adminFakultas = await createUser({
@@ -685,8 +1111,8 @@ async function main() {
               notes: 'Pengajuan ST untuk konferensi internasional'
             },
             {
-              actorId: kaprodiIf.id,
-              actorRole: ROLES.KAPRODI,
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
               action: LogAction.APPROVE,
               fromStatus: LetterStatus.SUBMITTED,
               toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
@@ -748,15 +1174,15 @@ async function main() {
               notes: 'Pengajuan ST untuk workshop'
             },
             {
-              actorId: kaprodiIf.id,
-              actorRole: ROLES.KAPRODI,
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
               action: LogAction.APPROVE,
               fromStatus: LetterStatus.SUBMITTED,
               toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
               notes: 'Disetujui'
             },
             {
-              actorId: adminProdiIf.id,
+              actorId: adminProdiS1If.id,
               actorRole: ROLES.ADMIN_PRODI,
               action: LogAction.DRAFT_CREATE,
               fromStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
@@ -802,18 +1228,13 @@ async function main() {
             createMany: {
               data: [
                 {
-                  signerId: kaprodiIf.id,
-                  signerRole: ROLES.KAPRODI,
-                  signerName: 'Prof. Dr. Aris Sugiharto, S.Si., M.Kom.',
-                  signerNip: '197608152005011001',
-                  order: 0
-                },
-                {
                   signerId: kadepIf.id,
                   signerRole: ROLES.KADEP,
-                  signerName: 'Prof. Dr. Ir. Kusworo Adi, M.T.',
-                  signerNip: '196805201995121001',
-                  order: 1
+                  signerName: 'Dr. Aris Sugiharto, S.Si., M.Kom.',
+                  signerNip: '197108111997021004',
+                  signatureUrl: '/signatures/kadep-if-signed.png',
+                  signedAt: new Date('2026-01-20T10:00:00Z'),
+                  order: 0
                 }
               ]
             }
@@ -831,22 +1252,22 @@ async function main() {
               notes: 'Pengajuan ST pembicara seminar'
             },
             {
-              actorId: kaprodiIf.id,
-              actorRole: ROLES.KAPRODI,
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
               action: LogAction.APPROVE,
               fromStatus: LetterStatus.SUBMITTED,
               toStatus: LetterStatus.SURAT_PENGANTAR_DRAFT,
               notes: 'Disetujui'
             },
             {
-              actorId: adminProdiIf.id,
+              actorId: adminProdiS1If.id,
               actorRole: ROLES.ADMIN_PRODI,
               action: LogAction.DRAFT_CREATE,
               notes: 'Draft surat pengantar'
             },
             {
-              actorId: kaprodiIf.id,
-              actorRole: ROLES.KAPRODI,
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
               action: LogAction.SIGN,
               notes: 'TTD Kaprodi'
             },
@@ -1218,8 +1639,8 @@ async function main() {
               notes: 'Pengajuan ST'
             },
             {
-              actorId: kaprodiIf.id,
-              actorRole: ROLES.KAPRODI,
+              actorId: kadepIf.id,
+              actorRole: ROLES.KADEP,
               action: LogAction.REJECT,
               fromStatus: LetterStatus.SUBMITTED,
               toStatus: LetterStatus.REJECTED,
@@ -1758,3 +2179,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

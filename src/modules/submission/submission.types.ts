@@ -113,6 +113,7 @@ export interface SubmissionListItem {
 export interface SubmissionDetail {
   id: string;
   submissionValues: SubmissionFormData;
+  hasKaprodi: boolean; // Flag from ProgramStudi - determines if KAPRODI exists (true) or only KADEP (false)
   status: LetterStatus;
   displayStatus: string;
   priority: Priority;

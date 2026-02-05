@@ -33,6 +33,19 @@ class DepartmentApprovalController {
   }
 
   /**
+   * GET /department-approval/kadep-queue
+   * Get letters pending Kadep approval (untuk prodi tanpa Kaprodi)
+   */
+  async getKadepQueue(userId: string, params: DepartmentApprovalListParams) {
+    try {
+      const result = await departmentApprovalService.getKadepQueue(userId, params);
+      return successResponse('Berhasil mengambil daftar surat', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
+
+  /**
    * GET /department-approval/admin-queue
    * Get letters pending Admin Prodi drafting
    */

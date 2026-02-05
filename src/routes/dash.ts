@@ -207,6 +207,11 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
 
   // AKTOR 4: KETUA DEPARTEMEN
   if (role === ROLES.KADEP) {
+    // KADEP approval untuk prodi tanpa Kaprodi
+    if (status === LetterStatus.SUBMITTED && currentActiveRole === ROLES.KADEP) {
+      return 'MENUNGGU VERIFIKASI';
+    }
+    // KADEP signing surat pengantar
     if (status === LetterStatus.SURAT_PENGANTAR_REVIEW && currentActiveRole === ROLES.KADEP) {
       return 'MENUNGGU DITANDATANGANI';
     }
@@ -391,7 +396,7 @@ function getColumnsForRole(role: string, type?: 'masuk' | 'keluar'): DashboardCo
 // HELPER FUNCTIONS
 // ============================================================================
 
-function getActionsForItem(role: string, status: LetterStatus): string[] {
+function getActionsForItem(role: string, status: LetterStatus, currentActiveRole?: string | null): string[] {
   const actions: string[] = ['view'];
 
   switch (role) {
@@ -424,7 +429,12 @@ function getActionsForItem(role: string, status: LetterStatus): string[] {
       break;
 
     case ROLES.KADEP:
-      if (status === LetterStatus.SURAT_PENGANTAR_REVIEW) {
+      // KADEP approval untuk prodi tanpa Kaprodi
+      if (status === LetterStatus.SUBMITTED && currentActiveRole === ROLES.KADEP) {
+        actions.push('approve', 'reject');
+      }
+      // KADEP signing surat pengantar
+      if (status === LetterStatus.SURAT_PENGANTAR_REVIEW && currentActiveRole === ROLES.KADEP) {
         actions.push('sign');
       }
       if (status === LetterStatus.COMPLETED) {
@@ -575,7 +585,7 @@ async function getDashboardPengaju(
     tanggalSurat: item.createdAt,
     status: item.status,
     displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-    actions: getActionsForItem(user.role, item.status),
+    actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
   }));
 
   // Apply displayStatus filter if provided
@@ -628,10 +638,22 @@ async function getDashboardDepartemen(
 
   const where: any = {};
 
-  // Filter berdasarkan program studi user
-  if (user.programStudiId) {
+  // Filter berdasarkan program studi user (baik dari mahasiswa maupun pegawai)
+  // Untuk KAPRODI dan ADMIN_PRODI: filter by programStudiId
+  // Untuk KADEP: filter by departemenId (semua prodi di departemen) via join ke ProgramStudi
+  if (user.role === ROLES.KADEP && user.departemenId) {
     where.createdBy = {
-      mahasiswa: { programStudiId: user.programStudiId },
+      OR: [
+        { mahasiswa: { programStudi: { departemenId: user.departemenId } } },
+        { pegawai: { programStudi: { departemenId: user.departemenId } } },
+      ],
+    };
+  } else if (user.programStudiId) {
+    where.createdBy = {
+      OR: [
+        { mahasiswa: { programStudiId: user.programStudiId } },
+        { pegawai: { programStudiId: user.programStudiId } },
+      ],
     };
   }
 
@@ -683,6 +705,7 @@ async function getDashboardDepartemen(
     case ROLES.KADEP:
       where.status = {
         in: [
+          LetterStatus.SUBMITTED, // Tambahkan ini untuk prodi tanpa Kaprodi
           LetterStatus.SURAT_PENGANTAR_REVIEW,
           LetterStatus.SURAT_PENGANTAR_SIGNED,
           LetterStatus.FAKULTAS_RECEIVED,
@@ -697,33 +720,6 @@ async function getDashboardDepartemen(
           LetterStatus.CANCELLED,
         ],
       };
-      // PERBAIKAN: Kadep melihat surat yang:
-      // 1. Memiliki DocumentSignature dengan signerRole = 'KADEP' (prioritas: konfigurasi Admin Prodi)
-      // 2. ATAU signatureConfig.requestKadepSign = true (fallback: permintaan awal pengaju)
-      // Ini memastikan jika Admin Prodi menetapkan Kadep sebagai penandatangan,
-      // surat akan muncul di dashboard Kadep meskipun pengaju awalnya memilih "Hanya Kaprodi"
-      where.OR = [
-        // Prioritas 1: Ada signature KADEP dari konfigurasi Admin Prodi
-        {
-          documents: {
-            some: {
-              type: DocumentType.SURAT_PENGANTAR,
-              signatures: {
-                some: {
-                  signerRole: 'KADEP',
-                },
-              },
-            },
-          },
-        },
-        // Prioritas 2 (fallback): signatureConfig dari pengaju meminta Kadep
-        {
-          signatureConfig: {
-            path: ['requestKadepSign'],
-            equals: true,
-          },
-        },
-      ];
       break;
   }
 
@@ -732,8 +728,6 @@ async function getDashboardDepartemen(
   }
 
   if (filters.search) {
-    // PERBAIKAN: Jika sudah ada where.OR (untuk filter Kadep), 
-    // gunakan AND untuk menggabungkan dengan search filter
     const searchCondition = {
       OR: [
         { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
@@ -741,15 +735,11 @@ async function getDashboardDepartemen(
       ]
     };
     
-    if (where.OR) {
-      // Kadep case: gabungkan dengan AND
-      where.AND = [
-        { OR: where.OR },
-        searchCondition
-      ];
-      delete where.OR;
+    // Combine with existing filters using AND
+    if (where.AND) {
+      where.AND.push(searchCondition);
     } else {
-      where.OR = searchCondition.OR;
+      where.AND = [searchCondition];
     }
   }
 
@@ -763,14 +753,14 @@ async function getDashboardDepartemen(
     }
   }
 
-  // Fetch ALL items first (without pagination) to apply displayStatus filter
+  // Fetch all items matching the filter
   const allItems = await db.letterInstance.findMany({
     where,
     include: {
       letterType: {
         select: {
           code: true,
-          category: true,
+          name: true,
         },
       },
       documents: {
@@ -794,7 +784,7 @@ async function getDashboardDepartemen(
     tanggalSurat: item.createdAt,
     status: item.status,
     displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-    actions: getActionsForItem(user.role, item.status),
+    actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
   }));
 
   // Apply displayStatus filter if provided
@@ -1110,7 +1100,7 @@ async function getDashboardFakultas(
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus,
-      actions: getActionsForItem(user.role, item.status),
+      actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
     };
   });
 
@@ -1246,7 +1236,7 @@ async function getDashboardUPA(
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-      actions: getActionsForItem(user.role, item.status),
+      actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
     };
   });
 
@@ -1304,8 +1294,27 @@ export default new Elysia()
     const userDetails = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        mahasiswa: { select: { departemenId: true, programStudiId: true } },
-        pegawai: { select: { departemenId: true } },
+        mahasiswa: { 
+          select: { 
+            departemenId: true, 
+            programStudiId: true,
+            programStudi: {
+              select: {
+                departemenId: true,
+              },
+            },
+          } 
+        },
+        pegawai: { 
+          select: { 
+            programStudiId: true,
+            programStudi: {
+              select: {
+                departemenId: true,
+              },
+            },
+          } 
+        },
       },
     });
 
@@ -1314,8 +1323,8 @@ export default new Elysia()
       name: user.name,
       email: user.email,
       role: primaryRole,
-      departemenId: userDetails?.mahasiswa?.departemenId || userDetails?.pegawai?.departemenId,
-      programStudiId: userDetails?.mahasiswa?.programStudiId,
+      departemenId: userDetails?.mahasiswa?.programStudi?.departemenId || userDetails?.pegawai?.programStudi?.departemenId,
+      programStudiId: userDetails?.mahasiswa?.programStudiId || userDetails?.pegawai?.programStudiId,
     };
 
     const filters: DashboardFilters = {

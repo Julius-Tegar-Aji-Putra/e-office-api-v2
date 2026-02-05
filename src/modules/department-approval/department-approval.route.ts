@@ -47,6 +47,22 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
     }
   })
 
+  .get('/kadep-queue', async ({ query, user }) => {
+    return departmentApprovalController.getKadepQueue(user.id, {
+      page: query.page,
+      limit: query.limit,
+      status: query.status as any,
+      search: query.search
+    });
+  }, {
+    query: departmentApprovalQuerySchema,
+    detail: {
+      summary: 'Get Kadep approval queue',
+      description: 'Mendapatkan daftar surat yang menunggu approval Kadep (untuk prodi tanpa Kaprodi)',
+      tags: ['Department Approval']
+    }
+  })
+
   .get('/admin-queue', async ({ query, user }) => {
     return departmentApprovalController.getAdminProdiQueue(user.id, {
       page: query.page,
@@ -101,25 +117,29 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
   // ==========================================================================
 
   .post('/:id/approve', async ({ params, body, user }) => {
-    return departmentApprovalController.approveSubmission(params.id, body, user.id, ROLES.KAPRODI);
+    const roles = await getUserRoles(user.id);
+    const userRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    return departmentApprovalController.approveSubmission(params.id, body, user.id, userRole);
   }, {
     params: letterIdParamSchema,
     body: approveBodySchema,
     detail: {
       summary: 'Approve submission',
-      description: 'Kaprodi menyetujui pengajuan surat',
+      description: 'Kaprodi/Kadep menyetujui pengajuan surat',
       tags: ['Department Approval']
     }
   })
 
   .post('/:id/reject', async ({ params, body, user }) => {
-    return departmentApprovalController.rejectSubmission(params.id, body, user.id, ROLES.KAPRODI);
+    const roles = await getUserRoles(user.id);
+    const userRole = roles.includes(ROLES.KADEP) ? ROLES.KADEP : ROLES.KAPRODI;
+    return departmentApprovalController.rejectSubmission(params.id, body, user.id, userRole);
   }, {
     params: letterIdParamSchema,
     body: rejectBodySchema,
     detail: {
       summary: 'Reject submission',
-      description: 'Kaprodi menolak pengajuan surat',
+      description: 'Kaprodi/Kadep menolak pengajuan surat',
       tags: ['Department Approval']
     }
   })

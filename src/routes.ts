@@ -18,6 +18,7 @@ import { legalisasiRoute } from './modules/legalisasi/legalisasi.route';
 import { signatureRoutes } from './modules/signature/signature.route';
 import { tembusanRoute } from './modules/tembusan/tembusan.route';
 import { usersRoute } from './modules/tembusan/users.route';
+import { masterDataRoutes } from './modules/master-data/master-data.route';
 
 // Import existing routes
 import dashRoutes from './routes/dash';
@@ -86,6 +87,9 @@ export function createApiRoutes() {
 
     // Module I: USERS (User list for tembusan selection)
     .use(usersRoute)
+
+    // Module J: MASTER DATA (Program Studi & Departemen)
+    .group('/api', (api) => api.use(masterDataRoutes))
 
     // =========================================================================
     // DASHBOARD ROUTES
