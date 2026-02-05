@@ -21,7 +21,7 @@ export const submissionFormDataSchema = t.Object({
   jenisSurat: t.Union([t.Literal('SURAT_TUGAS'), t.Literal('SURAT_KEPUTUSAN')], {
     error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
   }),
-  keperluan: t.String({ minLength: 10, error: 'Keperluan minimal 10 karakter' }),
+  keperluan: t.String({ minLength: 1, error: 'Keperluan wajib diisi' }),
   judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
   tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }), // ISO datetime: 2026-02-15T09:00:00Z
   durasiAcara: t.Optional(t.String()),
@@ -139,7 +139,7 @@ export const createSubmissionWithFilesSchema = t.Object({
   jenisSurat: t.Union([t.Literal('SURAT_TUGAS'), t.Literal('SURAT_KEPUTUSAN')], {
     error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
   }),
-  keperluan: t.String({ minLength: 10, error: 'Keperluan minimal 10 karakter' }),
+  keperluan: t.String({ minLength: 1, error: 'Keperluan wajib diisi' }),
   judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
   tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }),
   durasiAcara: t.Optional(t.String()),
