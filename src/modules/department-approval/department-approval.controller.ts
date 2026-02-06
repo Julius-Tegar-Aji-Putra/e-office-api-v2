@@ -257,6 +257,19 @@ class DepartmentApprovalController {
       return null;
     }
   }
+
+  /**
+   * GET /department-approval/check-nomor-surat
+   * Check if nomor surat is already used
+   */
+  async checkNomorSurat(nomorSurat: string, letterId?: string) {
+    try {
+      const result = await departmentApprovalService.checkNomorSurat({ nomorSurat, letterId });
+      return successResponse('Berhasil mengecek nomor surat', result);
+    } catch (error: unknown) {
+      return errorResponse(getErrorMessage(error));
+    }
+  }
 }
 
 export const departmentApprovalController = new DepartmentApprovalController();

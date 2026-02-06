@@ -53,6 +53,11 @@ export interface SignInput {
   signerNip?: string;
 }
 
+export interface CheckNomorSuratInput {
+  nomorSurat: string;
+  letterId?: string; // Optional: untuk exclude surat yang sedang diedit
+}
+
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
@@ -423,7 +428,7 @@ class DepartmentApprovalService {
       } catch (err) {
         console.error('Failed to upload signature:', err);
         if (err instanceof AppError) throw err;
-        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+        throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_ERROR);
       }
     } else if (input.signatureUrl) {
       // Using saved signature URL
@@ -558,6 +563,47 @@ class DepartmentApprovalService {
     }
 
     return { message: 'Lampiran pengaju berhasil dihapus', attachmentId };
+  }
+
+  /**
+   * Check if nomor surat is already used
+   * Used for real-time validation in frontend
+   */
+  async checkNomorSurat(input: CheckNomorSuratInput) {
+    const { nomorSurat, letterId } = input;
+
+    // Check if nomorSurat exists in letterDocument
+    const whereClause: Prisma.LetterDocumentWhereInput = {
+      nomorSurat: nomorSurat.trim(),
+      type: 'SURAT_PENGANTAR', // Only check for surat pengantar
+    };
+
+    // If letterId provided, exclude current letter being edited
+    if (letterId) {
+      whereClause.letterInstanceId = {
+        not: letterId
+      };
+    }
+
+    const existing = await prisma.letterDocument.findFirst({
+      where: whereClause,
+      select: {
+        id: true,
+        nomorSurat: true,
+        letterInstanceId: true
+      }
+    });
+
+    return {
+      isAvailable: !existing,
+      nomorSurat: nomorSurat.trim(),
+      message: existing 
+        ? 'Nomor Surat Sudah Digunakan' 
+        : 'Nomor surat tersedia',
+      existingLetter: existing ? {
+        id: existing.letterInstanceId
+      } : null
+    };
   }
 }
 

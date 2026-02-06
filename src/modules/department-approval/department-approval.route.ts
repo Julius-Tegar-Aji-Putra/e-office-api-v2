@@ -232,4 +232,25 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
       description: 'Admin Prodi menghapus lampiran yang di-upload oleh pengaju',
       tags: ['Department Approval']
     }
+  })
+
+  // ==========================================================================
+  // Validation Endpoints
+  // ==========================================================================
+
+  .get('/check-nomor-surat', async ({ query }) => {
+    return departmentApprovalController.checkNomorSurat(
+      query.nomorSurat,
+      query.letterId
+    );
+  }, {
+    query: t.Object({
+      nomorSurat: t.String({ description: 'Nomor surat yang akan dicek' }),
+      letterId: t.Optional(t.String({ description: 'Letter ID (untuk exclude saat edit)' }))
+    }),
+    detail: {
+      summary: 'Check nomor surat availability',
+      description: 'Mengecek apakah nomor surat sudah digunakan atau masih tersedia',
+      tags: ['Department Approval']
+    }
   });
