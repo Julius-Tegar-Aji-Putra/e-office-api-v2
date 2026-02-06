@@ -521,6 +521,30 @@ function getTipeSurat(letterTypeCode?: string): string {
   return letterTypeCode;
 }
 
+/**
+ * Get unique display statuses from mapped items (dinamis)
+ */
+function getUniqueDisplayStatuses(items: DashboardItem[]): string[] {
+  const statuses = new Set<string>();
+  items.forEach(item => {
+    statuses.add(item.displayStatus);
+  });
+  return Array.from(statuses).sort((a, b) => {
+    // Sort by priority
+    const priority: Record<string, number> = {
+      'MENUNGGU ANDA': 1,
+      'MENUNGGU DIVERIFIKASI': 2,
+      'MENUNGGU DITANDATANGANI': 3,
+      'DIPROSES': 4,
+      'SELESAI': 5,
+      'DIKEMBALIKAN': 6,
+      'DIKEMBALIKAN KE PENGAJU': 7,
+      'DITOLAK': 8,
+    };
+    return (priority[a] || 999) - (priority[b] || 999);
+  });
+}
+
 // ============================================================================
 // DASHBOARD QUERY BUILDERS
 // ============================================================================
@@ -588,6 +612,9 @@ async function getDashboardPengaju(
     actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
   }));
 
+  // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
+  const allAvailableStatuses = getUniqueDisplayStatuses(mappedItems);
+
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
     mappedItems = mappedItems.filter(item => 
@@ -621,7 +648,7 @@ async function getDashboardPengaju(
     items: paginatedItems,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     statistics: { total: allItems.length, pending, completed, waiting: 0 },
-    filters: { status: AVAILABLE_DISPLAY_STATUSES },
+    filters: { status: allAvailableStatuses },
   };
 }
 
@@ -787,6 +814,9 @@ async function getDashboardDepartemen(
     actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
   }));
 
+  // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
+  const allAvailableStatuses = getUniqueDisplayStatuses(mappedItems);
+
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
     mappedItems = mappedItems.filter(item => 
@@ -817,7 +847,7 @@ async function getDashboardDepartemen(
       completed: allItems.filter((i) => i.status === LetterStatus.COMPLETED).length,
       waiting,
     },
-    filters: { status: AVAILABLE_DISPLAY_STATUSES },
+    filters: { status: allAvailableStatuses },
   };
 }
 
@@ -1124,6 +1154,32 @@ async function getDashboardFakultas(
     return item.displayStatus.includes('MENUNGGU');
   }).length;
 
+  // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
+  const mapItemsBeforeFilter: DashboardItem[] = allItems.map((item) => {
+    const pengantarDoc = item.documents.find(d => d.type === 'SURAT_PENGANTAR');
+    const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
+    const doc = type === 'masuk' ? pengantarDoc : (hasilDoc || pengantarDoc);
+
+    let displayStatus = getDisplayStatusForRole(item.status, user.role, item.currentActiveRole);
+    if (type === 'masuk' && hasilDoc) {
+      displayStatus = 'SELESAI';
+    }
+
+    return {
+      id: item.id,
+      namaPengaju: item.createdBy?.name || '-',
+      judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      tipeSurat: getTipeSurat(item.letterType?.code),
+      jenisSurat: item.category || item.letterType?.category || '-',
+      tanggalSurat: item.createdAt,
+      status: item.status,
+      displayStatus,
+      actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
+    };
+  });
+
+  const allAvailableStatuses = getUniqueDisplayStatuses(mapItemsBeforeFilter);
+
   return {
     columns: getColumnsForRole(user.role, type),
     items: paginatedItems,
@@ -1138,7 +1194,7 @@ async function getDashboardFakultas(
       { key: 'masuk', label: 'Surat Masuk', count: masukCount },
       { key: 'keluar', label: 'Surat Keluar', count: keluarCount },
     ],
-    filters: { status: AVAILABLE_DISPLAY_STATUSES },
+    filters: { status: allAvailableStatuses },
   };
 }
 
@@ -1240,6 +1296,9 @@ async function getDashboardUPA(
     };
   });
 
+  // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
+  const allAvailableStatuses = getUniqueDisplayStatuses(mappedItems);
+
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
     mappedItems = mappedItems.filter(item => 
@@ -1271,7 +1330,7 @@ async function getDashboardUPA(
       { key: 'stempel', label: 'Stempel', count: stempel },
       { key: 'finalisasi', label: 'Finalisasi', count: finalisasi },
     ],
-    filters: { status: AVAILABLE_DISPLAY_STATUSES },
+    filters: { status: allAvailableStatuses },
   };
 }
 
