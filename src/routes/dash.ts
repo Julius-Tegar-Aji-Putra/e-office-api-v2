@@ -189,6 +189,9 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
     if (status === LetterStatus.SURAT_PENGANTAR_REVIEW && currentActiveRole === ROLES.KAPRODI) {
       return 'MENUNGGU DITANDATANGANI';
     }
+    if (status === LetterStatus.SURAT_DIBUAT) {
+      return 'SURAT DIBUAT'; // PERBAIKAN: Status penutup Surat Masuk
+    }
     if (status === LetterStatus.COMPLETED) return 'SELESAI';
     if (status === LetterStatus.REJECTED) return 'DITOLAK';
     if (status === LetterStatus.CANCELLED) return 'DIKEMBALIKAN KE PENGAJU';
@@ -199,6 +202,9 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   if (role === ROLES.ADMIN_PRODI) {
     if (status === LetterStatus.SURAT_PENGANTAR_DRAFT) {
       return 'MENUNGGU ANDA';
+    }
+    if (status === LetterStatus.SURAT_DIBUAT) {
+      return 'SURAT DIBUAT'; // PERBAIKAN: Status penutup Surat Masuk
     }
     if (status === LetterStatus.COMPLETED) return 'SELESAI';
     if (status === LetterStatus.CANCELLED) return 'DIKEMBALIKAN KE PENGAJU';
@@ -214,6 +220,9 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
     // KADEP signing surat pengantar
     if (status === LetterStatus.SURAT_PENGANTAR_REVIEW && currentActiveRole === ROLES.KADEP) {
       return 'MENUNGGU DITANDATANGANI';
+    }
+    if (status === LetterStatus.SURAT_DIBUAT) {
+      return 'SURAT DIBUAT'; // PERBAIKAN: Status penutup Surat Masuk
     }
     if (status === LetterStatus.COMPLETED) return 'SELESAI';
     if (status === LetterStatus.CANCELLED) return 'DIKEMBALIKAN KE PENGAJU';
@@ -250,6 +259,7 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
     if (
       (status === LetterStatus.FAKULTAS_DISPOSITION || 
        status === LetterStatus.FAKULTAS_VERIFICATION ||
+       status === LetterStatus.SURAT_DIBUAT ||
        status === LetterStatus.FAKULTAS_DRAFTING) &&
       currentActiveRole === role
     ) {
@@ -262,7 +272,10 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
 
   // AKTOR 8: STAF AKADEMIK/SUMBER DAYA
   if ([ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(role as any)) {
-    if (status === LetterStatus.FAKULTAS_DRAFTING && currentActiveRole === role) {
+    if (
+      (status === LetterStatus.SURAT_DIBUAT || status === LetterStatus.FAKULTAS_DRAFTING) && 
+      currentActiveRole === role
+    ) {
       return 'MENUNGGU ANDA';
     }
     if (status === LetterStatus.COMPLETED) return 'SELESAI';
@@ -696,6 +709,7 @@ async function getDashboardDepartemen(
           LetterStatus.SURAT_PENGANTAR_SIGNED,
           LetterStatus.FAKULTAS_RECEIVED,
           LetterStatus.FAKULTAS_DISPOSITION,
+          LetterStatus.SURAT_DIBUAT, // PERBAIKAN: Tambahkan status SURAT_DIBUAT
           LetterStatus.FAKULTAS_DRAFTING,
           LetterStatus.FAKULTAS_VERIFICATION,
           LetterStatus.FAKULTAS_SIGNING,
@@ -717,6 +731,7 @@ async function getDashboardDepartemen(
           LetterStatus.SURAT_PENGANTAR_SIGNED,
           LetterStatus.FAKULTAS_RECEIVED,
           LetterStatus.FAKULTAS_DISPOSITION,
+          LetterStatus.SURAT_DIBUAT, // PERBAIKAN: Tambahkan status SURAT_DIBUAT
           LetterStatus.FAKULTAS_DRAFTING,
           LetterStatus.FAKULTAS_VERIFICATION,
           LetterStatus.FAKULTAS_SIGNING,
@@ -737,6 +752,7 @@ async function getDashboardDepartemen(
           LetterStatus.SURAT_PENGANTAR_SIGNED,
           LetterStatus.FAKULTAS_RECEIVED,
           LetterStatus.FAKULTAS_DISPOSITION,
+          LetterStatus.SURAT_DIBUAT, // PERBAIKAN: Tambahkan status SURAT_DIBUAT
           LetterStatus.FAKULTAS_DRAFTING,
           LetterStatus.FAKULTAS_VERIFICATION,
           LetterStatus.FAKULTAS_SIGNING,
@@ -923,6 +939,7 @@ async function getDashboardFakultas(
           status: {
             in: [
               LetterStatus.FAKULTAS_DISPOSITION,
+              LetterStatus.SURAT_DIBUAT, // PERBAIKAN: Include SURAT_DIBUAT untuk staff
               LetterStatus.FAKULTAS_VERIFICATION,
               LetterStatus.FAKULTAS_SIGNING,
               LetterStatus.FAKULTAS_DRAFTING,
@@ -969,6 +986,7 @@ async function getDashboardFakultas(
         {
           status: {
             in: [
+              LetterStatus.SURAT_DIBUAT, // PERBAIKAN: Include SURAT_DIBUAT (siap untuk drafting)
               LetterStatus.FAKULTAS_DRAFTING,
               LetterStatus.FAKULTAS_VERIFICATION,
               LetterStatus.FAKULTAS_SIGNING,

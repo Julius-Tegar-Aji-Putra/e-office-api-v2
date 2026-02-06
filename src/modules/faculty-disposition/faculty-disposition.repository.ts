@@ -394,6 +394,11 @@ class FacultyDispositionRepository {
 
   /**
    * Final disposition to staff for drafting
+   * 
+   * PERBAIKAN LOGIC LEAK:
+   * - Status berubah ke SURAT_DIBUAT (bukan FAKULTAS_DRAFTING)
+   * - Log disposisi ini adalah PENUTUP Surat Masuk
+   * - Surat Keluar akan dimulai fresh saat staff membuat draft
    */
   async dispositionToStaff(
     letterId: string,
@@ -403,15 +408,17 @@ class FacultyDispositionRepository {
     notes?: string
   ) {
     return prisma.$transaction(async (tx) => {
+      // Update status ke SURAT_DIBUAT (penutup Surat Masuk)
       const letter = await tx.letterInstance.update({
         where: { id: letterId },
         data: {
-          status: LetterStatus.FAKULTAS_DRAFTING,
+          status: LetterStatus.SURAT_DIBUAT,
           currentActiveRole: staffRole,
           updatedAt: new Date()
         }
       });
 
+      // Log disposisi sebagai PENUTUP timeline Surat Masuk
       await tx.letterLog.create({
         data: {
           letterInstanceId: letterId,
@@ -419,7 +426,7 @@ class FacultyDispositionRepository {
           actorRole,
           action: LogAction.DISPOSITION,
           fromStatus: LetterStatus.FAKULTAS_DISPOSITION,
-          toStatus: LetterStatus.FAKULTAS_DRAFTING,
+          toStatus: LetterStatus.SURAT_DIBUAT,
           targetRole: staffRole,
           notes: notes || `Disposisi ke ${staffRole} untuk drafting`
         }

@@ -148,14 +148,16 @@ export interface UpdateDraftInput {
 
 class HasilRepository {
   /**
-   * Get letters for staff drafting (status: FAKULTAS_DRAFTING)
+   * Get letters for staff drafting (status: SURAT_DIBUAT or FAKULTAS_DRAFTING)
+   * 
+   * PERBAIKAN: Include status SURAT_DIBUAT (belum draft) dan FAKULTAS_DRAFTING (sedang draft)
    */
   async getLettersForDrafting(staffRole: string, params: HasilListParams) {
     const { page = 1, limit = 10, search } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.LetterInstanceWhereInput = {
-      status: LetterStatus.FAKULTAS_DRAFTING,
+      status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
       currentActiveRole: staffRole,
       ...(search && {
         OR: [
@@ -268,11 +270,24 @@ class HasilRepository {
 
   /**
    * Create new SK/ST document
+   * 
+   * PERBAIKAN LOGIC LEAK:
+   * - Ubah status dari SURAT_DIBUAT ke FAKULTAS_DRAFTING
+   * - Log ini adalah AWAL timeline Surat Keluar (fresh start)
    */
   async createDraft(input: CreateDraftInput, actorId: string, actorRole: string) {
     const { letterInstanceId, documentType, content, tembusan, perihal, signatories } = input;
 
     return prisma.$transaction(async (tx) => {
+      // Update status surat: SURAT_DIBUAT -> FAKULTAS_DRAFTING (AWAL Surat Keluar)
+      await tx.letterInstance.update({
+        where: { id: letterInstanceId },
+        data: {
+          status: LetterStatus.FAKULTAS_DRAFTING,
+          updatedAt: new Date()
+        }
+      });
+
       // Create document
       const document = await tx.letterDocument.create({
         data: {
@@ -302,13 +317,16 @@ class HasilRepository {
         });
       }
 
-      // Log
+      // Log DRAFT_CREATE: Transisi SURAT_DIBUAT -> FAKULTAS_DRAFTING
+      // Log ini akan menjadi CLOSING di Surat Masuk DAN OPENING di Surat Keluar
       await tx.letterLog.create({
         data: {
           letterInstanceId,
           actorId,
           actorRole,
           action: LogAction.DRAFT_CREATE,
+          fromStatus: LetterStatus.SURAT_DIBUAT,
+          toStatus: LetterStatus.FAKULTAS_DRAFTING,
           notes: `Draft ${DOCUMENT_TYPE_LABELS[documentType]} dibuat`
         }
       });

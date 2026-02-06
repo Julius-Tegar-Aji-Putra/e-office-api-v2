@@ -959,12 +959,13 @@ export class SubmissionService {
     );
     
     // Staf-specific actions for Surat Hasil
-    // Staf can draft surat hasil when status is FAKULTAS_DRAFTING and assigned to them
-    // Note: When pejabat dispositions to staf, status becomes FAKULTAS_DRAFTING directly
+    // Staf can draft surat hasil when status is SURAT_DIBUAT or FAKULTAS_DRAFTING and assigned to them
+    // PERBAIKAN: Include SURAT_DIBUAT (setelah disposisi ke staff)
+    // Note: When pejabat dispositions to staf, status becomes SURAT_DIBUAT first
     // Only show "Draft Surat" if no SK/ST draft exists yet
     // Supervisor juga bisa draft jika menerima revisi dari Manajer TU
     const canDraftSuratHasil = (isStaf || isSupervisor) && 
-      status === 'FAKULTAS_DRAFTING' && 
+      (status === 'SURAT_DIBUAT' || status === 'FAKULTAS_DRAFTING') && 
       currentActiveRole === viewerRole &&
       !hasSkstDraft;
     

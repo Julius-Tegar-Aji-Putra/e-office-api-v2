@@ -202,6 +202,7 @@ class HasilService {
 
   /**
    * Create new SK/ST draft
+   * PERBAIKAN: Accept status SURAT_DIBUAT (baru didisposisikan) atau FAKULTAS_DRAFTING (sedang draft)
    */
   async createDraft(input: CreateDraftServiceInput, userId: string, userRole: string) {
     const letter = await hasilRepository.getLetterById(input.letterId);
@@ -210,7 +211,7 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    if (letter.status !== LetterStatus.FAKULTAS_DRAFTING) {
+    if (letter.status !== LetterStatus.SURAT_DIBUAT && letter.status !== LetterStatus.FAKULTAS_DRAFTING) {
       throw new AppError('Surat tidak dalam status drafting', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -295,6 +296,7 @@ class HasilService {
 
   /**
    * Submit draft for verification
+   * PERBAIKAN: Accept status SURAT_DIBUAT atau FAKULTAS_DRAFTING
    */
   async submitForVerification(
     letterId: string,
@@ -308,7 +310,7 @@ class HasilService {
       throw new AppError('Surat tidak ditemukan', HTTP_STATUS.NOT_FOUND);
     }
 
-    if (letter.status !== LetterStatus.FAKULTAS_DRAFTING) {
+    if (letter.status !== LetterStatus.SURAT_DIBUAT && letter.status !== LetterStatus.FAKULTAS_DRAFTING) {
       throw new AppError('Surat tidak dalam status drafting', HTTP_STATUS.BAD_REQUEST);
     }
 
