@@ -527,10 +527,24 @@ function getActionsForItem(role: string, status: LetterStatus, currentActiveRole
   return actions;
 }
 
-function getTipeSurat(letterTypeCode?: string): string {
+function getTipeSurat(letterTypeCode?: string, documentType?: string): string {
+  // If document type is available, use it directly (most reliable)
+  if (documentType) {
+    if (documentType === 'SURAT_KEPUTUSAN') return 'Surat Keputusan';
+    if (documentType === 'SURAT_TUGAS' || documentType === 'SURAT_TUGAS_TABEL') return 'Surat Tugas';
+    if (documentType === 'SURAT_PENGANTAR') return 'Surat Pengantar';
+  }
+  
   if (!letterTypeCode) return '-';
-  if (letterTypeCode.includes('SK')) return 'Surat Keputusan';
-  if (letterTypeCode.includes('ST')) return 'Surat Tugas';
+  
+  // For STAFF_DIRECT codes, we can't reliably determine from letterType.code alone
+  // because all STAFF_DIRECT_* codes contain 'ST' (from STAFF)
+  // Fall back to checking for explicit SK/ST patterns (non-STAFF_DIRECT)
+  if (!letterTypeCode.startsWith('STAFF_DIRECT_')) {
+    if (letterTypeCode.includes('SK')) return 'Surat Keputusan';
+    if (letterTypeCode.includes('ST')) return 'Surat Tugas';
+  }
+  
   return letterTypeCode;
 }
 
@@ -618,7 +632,7 @@ async function getDashboardPengaju(
   let mappedItems: DashboardItem[] = allItems.map((item) => ({
     id: item.id,
     judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-    tipeSurat: getTipeSurat(item.letterType?.code),
+    tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
     tanggalSurat: item.createdAt,
     status: item.status,
     displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
@@ -823,7 +837,7 @@ async function getDashboardDepartemen(
     id: item.id,
     namaPengaju: item.createdBy?.name || '-',
     judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-    tipeSurat: getTipeSurat(item.letterType?.code),
+    tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
     tanggalSurat: item.createdAt,
     status: item.status,
     displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
@@ -1183,7 +1197,7 @@ async function getDashboardFakultas(
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code),
+      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
@@ -1227,7 +1241,7 @@ async function getDashboardFakultas(
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code),
+      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
@@ -1339,13 +1353,13 @@ async function getDashboardUPA(
 
   // Map items with displayStatus
   let mappedItems: DashboardItem[] = allItems.map((item) => {
-    const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS');
+    const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
 
     return {
       id: item.id,
       judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code),
+      tipeSurat: getTipeSurat(item.letterType?.code, hasilDoc?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
