@@ -34,7 +34,7 @@ function normalizeTembusanInput(tembusan?: TembusanInput): TembusanRecipient[] |
   return (tembusan as string[]).map(t => ({
     userId: '',
     name: t,
-    description: t
+    description: ''
   }));
 }
 
