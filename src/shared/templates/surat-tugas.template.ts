@@ -81,6 +81,20 @@ const findStempelRecipientRole = (signatures: SignatureBlock[]): string | null =
   return stempelRecipientRole;
 };
 
+/**
+ * Convert internal role code to display label
+ */
+const getRoleDisplayLabel = (role: string): string => {
+  const ROLE_LABELS: Record<string, string> = {
+    'DEKAN': 'Dekan',
+    'WADEK_1': 'Wakil Dekan I',
+    'WADEK_2': 'Wakil Dekan II',
+    'KADEP': 'Ketua Departemen',
+    'KAPRODI': 'Ketua Program Studi',
+  };
+  return ROLE_LABELS[role] || role;
+};
+
 const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string, shouldHaveStempel = false): string => {
   const signatureImage = signature.signatureUrl 
     ? `<img src="${signature.signatureUrl}" alt="Tanda Tangan" style="max-width: 120px; max-height: 60px; object-fit: contain;" />`
@@ -96,7 +110,7 @@ const renderSignatureBlock = (signature: SignatureBlock, stempelUrl?: string, sh
   return `
     <div class="signature-block" style="text-align: center; min-width: 200px; position: relative;">
       ${signature.prefix ? `<p style="margin: 0 0 5px 0; font-style: italic; color: #000000 !important;">${signature.prefix}</p>` : ''}
-      <p style="margin: 0 0 5px 0; color: #000000 !important;">${signature.signerRole}</p>
+      <p style="margin: 0 0 5px 0; color: #000000 !important;">${getRoleDisplayLabel(signature.signerRole)}</p>
       ${signatureImage}
       ${stempelOverlay}
       <p style="margin: 5px 0 0 0; color: #000000 !important; font-weight: bold; text-decoration: underline;">${signature.signerName}</p>

@@ -195,15 +195,15 @@ class LegalisasiPdfService {
         })}`
       : undefined;
 
-    // Extract tembusan from document data
-    const tembusanData = document.tembusan as Array<string | { name: string; description?: string }> | null;
+    // Extract tembusan from document data, preserving userId for template filtering
+    const tembusanData = document.tembusan as Array<string | { userId?: string; name: string; description?: string }> | null;
     let tembusan: TembusanRecipientST[] | undefined;
     if (tembusanData && Array.isArray(tembusanData)) {
       tembusan = tembusanData.map(t => {
         if (typeof t === 'string') {
-          return { name: t };
+          return { userId: '', name: t };
         }
-        return { name: t.name, description: t.description };
+        return { userId: t.userId || '', name: t.name, description: t.description };
       });
     }
 
@@ -297,8 +297,17 @@ class LegalisasiPdfService {
     const menimbang = (contentData.menimbang as string[]) || ['-'];
     const mengingat = (contentData.mengingat as string[]) || ['-'];
 
-    // Extract tembusan from content
-    const tembusan = (contentData.tembusan as TembusanRecipient[]) || undefined;
+    // Extract tembusan from document data (not content JSON), preserving userId for template filtering
+    const tembusanRaw = document.tembusan as Array<string | { userId?: string; name: string; description?: string }> | null;
+    let tembusan: TembusanRecipient[] | undefined;
+    if (tembusanRaw && Array.isArray(tembusanRaw)) {
+      tembusan = tembusanRaw.map(t => {
+        if (typeof t === 'string') {
+          return { userId: '', name: t };
+        }
+        return { userId: t.userId || '', name: t.name, description: t.description };
+      });
+    }
 
     // Format tanggal ditetapkan
     const tanggalDitetapkan = document.tanggalSurat
