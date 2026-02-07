@@ -946,6 +946,10 @@ async function getDashboardFakultas(
             ],
           },
           currentActiveRole: user.role,
+          // FIX: Hanya tampilkan surat masuk (BUKAN staff-created)
+          letterType: {
+            code: { not: { startsWith: 'STAFF_DIRECT_' } }
+          }
         },
         // Surat yang pernah ditangani oleh role ini (via LetterLog)
         {
@@ -958,6 +962,10 @@ async function getDashboardFakultas(
           status: {
             notIn: [LetterStatus.SUBMITTED, LetterStatus.KAPRODI_REVIEW], // Exclude surat yang masih di tingkat prodi
           },
+          // FIX: Hanya tampilkan surat masuk (BUKAN staff-created)
+          letterType: {
+            code: { not: { startsWith: 'STAFF_DIRECT_' } }
+          }
         },
       ];
     }
@@ -997,6 +1005,23 @@ async function getDashboardFakultas(
             ],
           },
           currentActiveRole: user.role,
+          // FIX: Hanya tampilkan surat yang:
+          // 1. Dibuat langsung oleh staff (STAFF_DIRECT_*), ATAU
+          // 2. Sudah memiliki dokumen SK/ST (berarti sudah di-draft)
+          OR: [
+            {
+              letterType: {
+                code: { startsWith: 'STAFF_DIRECT_' }
+              }
+            },
+            {
+              documents: {
+                some: {
+                  type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] }
+                }
+              }
+            }
+          ]
         },
         // Surat keluar yang pernah ditangani oleh role ini
         {
@@ -1017,6 +1042,21 @@ async function getDashboardFakultas(
               LetterStatus.COMPLETED,
             ],
           },
+          // FIX: Same filter untuk historical letters
+          OR: [
+            {
+              letterType: {
+                code: { startsWith: 'STAFF_DIRECT_' }
+              }
+            },
+            {
+              documents: {
+                some: {
+                  type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] }
+                }
+              }
+            }
+          ]
         },
       ];
     }
