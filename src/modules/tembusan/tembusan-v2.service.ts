@@ -129,15 +129,19 @@ export async function checkTembusanAccess(
     return { hasAccess: false, reason: 'Surat belum selesai diproses' };
   }
 
-  // Check if user is the submitter (always has access)
-  if (letter.createdById === userId) {
-    return { hasAccess: true, isSubmitter: true };
-  }
-
   // Check if user is in tembusan list
+  // Note: createdById no longer grants automatic tembusan access.
+  // Submitter access is controlled by the "Pengaju Surat" checkbox (__PENGAJU__ marker).
+  // Submitters can still track their letters via the separate submission tracking page.
   for (const doc of letter.documents) {
     const tembusanList = parseTembusanData(doc.tembusan);
-    const isRecipient = tembusanList.some(t => t.userId === userId);
+    const isRecipient = tembusanList.some(t => {
+      // Resolve __PENGAJU__ marker to actual submitter (createdById)
+      if (t.userId === '__PENGAJU__') {
+        return letter.createdById === userId;
+      }
+      return t.userId === userId;
+    });
     
     if (isRecipient) {
       return { hasAccess: true, isExplicitRecipient: true };
@@ -198,26 +202,9 @@ class TembusanServiceV2 {
         return { success: false, error: 'User not found', code: 404 };
       }
 
-      // Find completed letters where user is either:
-      // 1. The submitter (createdById)
-      // 2. In the tembusan list (stored in document.tembusan)
-      
-      // First, get letters where user is the submitter
-      const submittedLetterIds = await prisma.letterInstance.findMany({
-        where: {
-          createdById: userId,
-          status: LetterStatus.COMPLETED,
-          documents: {
-            some: {
-              readyToDistribute: true,
-              type: { in: ['SURAT_TUGAS', 'SURAT_TUGAS_TABEL', 'SURAT_KEPUTUSAN'] }
-            }
-          }
-        },
-        select: { id: true }
-      });
-
-      // Get all completed letters with documents that might have user in tembusan
+      // Find completed letters where user is in the tembusan list
+      // Note: createdById no longer grants automatic tembusan inbox access.
+      // The "Pengaju Surat" checkbox controls this via __PENGAJU__ marker.
       const completedDocuments = await prisma.letterDocument.findMany({
         where: {
           readyToDistribute: true,
@@ -229,26 +216,28 @@ class TembusanServiceV2 {
         select: {
           id: true,
           letterInstanceId: true,
-          tembusan: true
+          tembusan: true,
+          letterInstance: {
+            select: { createdById: true }
+          }
         }
       });
 
       // Filter documents where user is in tembusan
-      const tembusanLetterIds = completedDocuments
+      // Resolve __PENGAJU__ marker to actual submitter (createdById)
+      const allLetterIds = completedDocuments
         .filter(doc => {
           const tembusanList = parseTembusanData(doc.tembusan);
-          return tembusanList.some(t => 
-            t.userId === userId || 
-            (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()))
-          );
+          return tembusanList.some(t => {
+            // Resolve __PENGAJU__ marker to the letter's submitter
+            if (t.userId === '__PENGAJU__') {
+              return doc.letterInstance.createdById === userId;
+            }
+            return t.userId === userId || 
+              (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()));
+          });
         })
         .map(doc => doc.letterInstanceId);
-
-      // Combine letter IDs
-      const allLetterIds = [...new Set([
-        ...submittedLetterIds.map(l => l.id),
-        ...tembusanLetterIds
-      ])];
 
       if (allLetterIds.length === 0) {
         return {
@@ -540,21 +529,9 @@ class TembusanServiceV2 {
         return { success: false, error: 'User not found', code: 404 };
       }
 
-      // Get all letters accessible by user
-      const submittedLetterIds = await prisma.letterInstance.findMany({
-        where: {
-          createdById: userId,
-          status: LetterStatus.COMPLETED,
-          documents: {
-            some: {
-              readyToDistribute: true,
-              type: { in: ['SURAT_TUGAS', 'SURAT_TUGAS_TABEL', 'SURAT_KEPUTUSAN'] }
-            }
-          }
-        },
-        select: { id: true }
-      });
-
+      // Get all letters where user is in tembusan list
+      // Note: createdById no longer grants automatic tembusan access.
+      // The "Pengaju Surat" checkbox controls this via __PENGAJU__ marker.
       const completedDocuments = await prisma.letterDocument.findMany({
         where: {
           readyToDistribute: true,
@@ -565,24 +542,26 @@ class TembusanServiceV2 {
         },
         select: {
           letterInstanceId: true,
-          tembusan: true
+          tembusan: true,
+          letterInstance: {
+            select: { createdById: true }
+          }
         }
       });
 
-      const tembusanLetterIds = completedDocuments
+      // Resolve __PENGAJU__ marker to actual submitter (createdById)
+      const allLetterIds = completedDocuments
         .filter(doc => {
           const tembusanList = parseTembusanData(doc.tembusan);
-          return tembusanList.some(t => 
-            t.userId === userId || 
-            (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()))
-          );
+          return tembusanList.some(t => {
+            if (t.userId === '__PENGAJU__') {
+              return doc.letterInstance.createdById === userId;
+            }
+            return t.userId === userId || 
+              (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()));
+          });
         })
         .map(doc => doc.letterInstanceId);
-
-      const allLetterIds = [...new Set([
-        ...submittedLetterIds.map(l => l.id),
-        ...tembusanLetterIds
-      ])];
 
       if (allLetterIds.length === 0) {
         return { success: true, data: { count: 0 } };
