@@ -241,6 +241,7 @@ export class SubmissionService {
         id: submission.createdBy.id,
         name: submission.createdBy.name,
         email: submission.createdBy.email,
+        role: submission.createdBy.pegawai?.jabatan || null,
       },
       documents: await Promise.all(
         submission.documents.map(async (doc: any) => {
