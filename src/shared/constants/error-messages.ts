@@ -7,10 +7,10 @@ export const ERROR_MESSAGES = {
   // Authentication & Authorization
   AUTH: {
     INVALID_TOKEN: 'Token tidak valid atau sudah kadaluarsa',
-    EXPIRED_TOKEN: 'Sesi telah berakhir, silakan login kembali',
+    EXPIRED_TOKEN: 'Sesi telah berakhir, silakan masuk kembali',
     UNAUTHORIZED: 'Anda tidak memiliki akses',
     FORBIDDEN: 'Akses ditolak untuk aksi ini',
-    LOGIN_REQUIRED: 'Silakan login terlebih dahulu',
+    LOGIN_REQUIRED: 'Silakan masuk terlebih dahulu',
     INVALID_CREDENTIALS: 'Email atau password salah',
   },
 
