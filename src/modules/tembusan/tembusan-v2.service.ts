@@ -11,6 +11,7 @@
 import { prisma } from '../../db';
 import { LetterStatus, LogAction } from '../../generated/prisma/client';
 import type { TembusanConfig, TembusanAccessResult } from './tembusan.types';
+import { minioService, MinioService } from '../../shared/services/minio.service';
 
 // VIEW action constant
 const LOG_ACTION_VIEW = 'VIEW' as unknown as LogAction;
@@ -67,6 +68,7 @@ interface TembusanDetail extends TembusanInboxItem {
   submissionValues: Record<string, unknown>;
   contentHtml?: string | null;
   qrCodeUrl?: string | null;
+  attachmentUrls?: unknown[] | null;
 }
 
 // ============================================================================
@@ -176,6 +178,10 @@ export async function checkTembusanAccess(
 // ============================================================================
 
 class TembusanServiceV2 {
+  constructor(
+    private minio: MinioService = minioService
+  ) {}
+
   /**
    * Get inbox - daftar surat yang diterima sebagai tembusan
    * 
@@ -420,6 +426,36 @@ class TembusanServiceV2 {
         },
       });
 
+      // Convert attachmentUrls storage paths to signed URLs
+      let signedAttachmentUrls: Array<{ url: string; name: string }> | null = null;
+      if (document.attachmentUrls && Array.isArray(document.attachmentUrls)) {
+        signedAttachmentUrls = await Promise.all(
+          document.attachmentUrls.map(async (item: any) => {
+            // Handle old string format
+            if (typeof item === 'string') {
+              const urlPath = item.split('/').pop() || 'Lampiran';
+              const cleanName = urlPath.replace(/^\d+-/, ''); // Remove timestamp prefix
+              const signedUrl = item.startsWith('http') 
+                ? item 
+                : await this.minio.getFileUrl(item).catch(() => item);
+              return { url: signedUrl, name: decodeURIComponent(cleanName) };
+            }
+            // Handle new object format { url, name }
+            const attachment = item as { url: string; name: string };
+            if (attachment.url && !attachment.url.startsWith('http')) {
+              try {
+                const signedUrl = await this.minio.getFileUrl(attachment.url);
+                return { url: signedUrl, name: attachment.name };
+              } catch (error) {
+                console.error(`Failed to get signed URL for attachment:`, error);
+                return attachment;
+              }
+            }
+            return attachment;
+          })
+        );
+      }
+
       const detail: TembusanDetail = {
         id: document.letterInstanceId,
         documentId: document.id,
@@ -449,6 +485,7 @@ class TembusanServiceV2 {
         submissionValues: document.letterInstance.submissionValues as Record<string, unknown>,
         contentHtml: typeof document.content === 'string' ? document.content : null,
         qrCodeUrl: document.qrCodeUrl,
+        attachmentUrls: signedAttachmentUrls as unknown[] | null,
       };
 
       return { success: true, data: detail };
