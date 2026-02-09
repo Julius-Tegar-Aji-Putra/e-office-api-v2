@@ -65,10 +65,32 @@ interface TembusanDetail extends TembusanInboxItem {
     name: string;
     code: string;
   };
+  // Document type for frontend template selection
+  documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL' | 'SURAT_PENGANTAR';
+  // Form data JSON for frontend template rendering
+  content: Record<string, unknown> | null;
   submissionValues: Record<string, unknown>;
   contentHtml?: string | null;
   qrCodeUrl?: string | null;
   attachmentUrls?: unknown[] | null;
+  // Full signature data for frontend rendering
+  signaturesFull: Array<{
+    signerRole: string;
+    signerName: string;
+    signerNip?: string | null;
+    signatureUrl?: string | null;
+    prefix?: string | null;
+    signedAt: string | null;
+    order: number;
+  }>;
+  // Tembusan recipient list for template rendering
+  tembusanList: Array<{
+    userId?: string;
+    name: string;
+    description?: string;
+  }>;
+  // Stempel/seal info
+  sealImageUrl?: string | null;
 }
 
 // ============================================================================
@@ -81,7 +103,7 @@ interface TembusanDetail extends TembusanInboxItem {
  */
 function parseTembusanData(tembusan: unknown): TembusanConfig[] {
   if (!tembusan) return [];
-  
+
   if (Array.isArray(tembusan)) {
     // Check if it's old format (string[]) or new format (TembusanConfig[])
     if (tembusan.length > 0) {
@@ -99,7 +121,7 @@ function parseTembusanData(tembusan: unknown): TembusanConfig[] {
       }
     }
   }
-  
+
   return [];
 }
 
@@ -144,7 +166,7 @@ export async function checkTembusanAccess(
       }
       return t.userId === userId;
     });
-    
+
     if (isRecipient) {
       return { hasAccess: true, isExplicitRecipient: true };
     }
@@ -160,10 +182,10 @@ export async function checkTembusanAccess(
     for (const doc of letter.documents) {
       const tembusanList = parseTembusanData(doc.tembusan);
       // Check if any tembusan name matches user name (legacy support)
-      const isNameMatch = tembusanList.some(t => 
+      const isNameMatch = tembusanList.some(t =>
         !t.userId && t.name.toLowerCase().includes(user.name.toLowerCase())
       );
-      
+
       if (isNameMatch) {
         return { hasAccess: true, isExplicitRecipient: true };
       }
@@ -180,7 +202,7 @@ export async function checkTembusanAccess(
 class TembusanServiceV2 {
   constructor(
     private minio: MinioService = minioService
-  ) {}
+  ) { }
 
   /**
    * Get inbox - daftar surat yang diterima sebagai tembusan
@@ -239,7 +261,7 @@ class TembusanServiceV2 {
             if (t.userId === '__PENGAJU__') {
               return doc.letterInstance.createdById === userId;
             }
-            return t.userId === userId || 
+            return t.userId === userId ||
               (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()));
           });
         })
@@ -273,12 +295,12 @@ class TembusanServiceV2 {
         where.OR = [
           { nomorSurat: { contains: search, mode: 'insensitive' } },
           { perihal: { contains: search, mode: 'insensitive' } },
-          { 
-            letterInstance: { 
-              createdBy: { 
-                name: { contains: search, mode: 'insensitive' } 
-              } 
-            } 
+          {
+            letterInstance: {
+              createdBy: {
+                name: { contains: search, mode: 'insensitive' }
+              }
+            }
           },
         ];
       }
@@ -435,8 +457,8 @@ class TembusanServiceV2 {
             if (typeof item === 'string') {
               const urlPath = item.split('/').pop() || 'Lampiran';
               const cleanName = urlPath.replace(/^\d+-/, ''); // Remove timestamp prefix
-              const signedUrl = item.startsWith('http') 
-                ? item 
+              const signedUrl = item.startsWith('http')
+                ? item
                 : await this.minio.getFileUrl(item).catch(() => item);
               return { url: signedUrl, name: decodeURIComponent(cleanName) };
             }
@@ -456,6 +478,73 @@ class TembusanServiceV2 {
         );
       }
 
+      // Convert signatureUrl to base64 data URLs (avoids CORS issues in frontend html2canvas)
+      const signaturesFull = await Promise.all(
+        document.signatures.map(async (sig) => {
+          let resolvedSignatureUrl: string | null = null;
+
+          if (sig.signatureUrl) {
+            // Already a data URL — pass through
+            if (sig.signatureUrl.startsWith('data:')) {
+              resolvedSignatureUrl = sig.signatureUrl;
+            } else {
+              // Storage path or http URL — download and convert to base64
+              try {
+                const storagePath = sig.signatureUrl.startsWith('http')
+                  ? sig.signatureUrl  // fallback: use as-is if already http
+                  : sig.signatureUrl;
+
+                if (!storagePath.startsWith('http')) {
+                  const buffer = await this.minio.downloadFile(storagePath);
+                  const ext = storagePath.split('.').pop()?.toLowerCase();
+                  const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+                  resolvedSignatureUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+                } else {
+                  // If it's an HTTP URL (e.g. MinIO signed URL), fetch it server-side to convert to base64
+                  // This avoids CORS issues on the frontend (html2canvas)
+                  const response = await fetch(storagePath);
+                  if (!response.ok) throw new Error(`Failed to fetch signature image: ${response.statusText}`);
+
+                  const arrayBuffer = await response.arrayBuffer();
+                  const buffer = Buffer.from(arrayBuffer);
+
+                  // Detect mime type from extensions or headers
+                  const contentType = response.headers.get('content-type') || 'image/png';
+                  resolvedSignatureUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+                }
+              } catch (error) {
+                console.error(`Failed to resolve signatureUrl for ${sig.signerName}:`, error);
+                // Last resort: try signed URL
+                try {
+                  resolvedSignatureUrl = await this.minio.getFileUrl(sig.signatureUrl);
+                } catch {
+                  resolvedSignatureUrl = null;
+                }
+              }
+            }
+          }
+
+          return {
+            signerRole: sig.signerRole,
+            signerName: sig.signerName,
+            signerNip: sig.signerNip || null,
+            signatureUrl: resolvedSignatureUrl,
+            prefix: sig.prefix || null,
+            signedAt: sig.signedAt?.toISOString() || null,
+            order: sig.order,
+          };
+        })
+      );
+
+      // Parse tembusan data from document
+      const tembusanList = parseTembusanData(document.tembusan);
+
+      // Parse content as JSON (form data for frontend template rendering)
+      let contentData: Record<string, unknown> | null = null;
+      if (document.content && typeof document.content === 'object') {
+        contentData = document.content as Record<string, unknown>;
+      }
+
       const detail: TembusanDetail = {
         id: document.letterInstanceId,
         documentId: document.id,
@@ -463,6 +552,7 @@ class TembusanServiceV2 {
         perihal: document.perihal,
         tanggalSurat: document.tanggalSurat?.toISOString() || null,
         jenisDocument: document.type === 'SURAT_KEPUTUSAN' ? 'Surat Keputusan' : 'Surat Tugas',
+        documentType: document.type as TembusanDetail['documentType'],
         fileUrl: document.fileUrl,
         pemohon: {
           id: document.letterInstance.createdBy.id,
@@ -482,10 +572,18 @@ class TembusanServiceV2 {
           name: document.letterInstance.letterType.name,
           code: document.letterInstance.letterType.code,
         },
+        content: contentData,
         submissionValues: document.letterInstance.submissionValues as Record<string, unknown>,
         contentHtml: typeof document.content === 'string' ? document.content : null,
         qrCodeUrl: document.qrCodeUrl,
         attachmentUrls: signedAttachmentUrls as unknown[] | null,
+        signaturesFull,
+        tembusanList: tembusanList.map(t => ({
+          userId: t.userId || undefined,
+          name: t.name,
+          description: t.description || undefined,
+        })),
+        sealImageUrl: document.sealImageUrl,
       };
 
       return { success: true, data: detail };
@@ -594,7 +692,7 @@ class TembusanServiceV2 {
             if (t.userId === '__PENGAJU__') {
               return doc.letterInstance.createdById === userId;
             }
-            return t.userId === userId || 
+            return t.userId === userId ||
               (!t.userId && t.name.toLowerCase().includes(user.name.toLowerCase()));
           });
         })
@@ -639,7 +737,7 @@ class TembusanServiceV2 {
     try {
       const document = await prisma.letterDocument.findUnique({
         where: { id: documentId },
-        select: { 
+        select: {
           letterInstanceId: true,
           fileUrl: true
         },
@@ -650,7 +748,7 @@ class TembusanServiceV2 {
       }
 
       const accessResult = await checkTembusanAccess(document.letterInstanceId, userId);
-      
+
       return {
         success: true,
         data: {
