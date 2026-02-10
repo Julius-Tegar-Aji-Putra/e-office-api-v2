@@ -239,6 +239,22 @@ class SignatureService {
   }
 
   /**
+   * Get signature storage path (not presigned URL) for persisting in document signatures.
+   * IMPORTANT: Use this instead of getSignatureUrl when storing the reference in DB,
+   * because presigned URLs expire and cause double-encoding when re-signed later.
+   */
+  async getSignatureStoragePath(signatureId: string, userId: string): Promise<string> {
+    const signature = await signatureRepository.getSignatureByIdAndUser(signatureId, userId);
+
+    if (!signature) {
+      throw new AppError('Tanda tangan tidak ditemukan', HTTP_STATUS.NOT_FOUND);
+    }
+
+    // Return raw storage path, e.g. "signatures/2026/02/xxx.png"
+    return signature.fileUrl;
+  }
+
+  /**
    * Copy signature to new template (used when saveAsTemplate = true during signing)
    */
   async copyToTemplate(

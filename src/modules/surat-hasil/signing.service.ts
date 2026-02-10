@@ -234,7 +234,8 @@ class SigningService {
         if (!input.savedSignatureId) {
           throw new AppError('savedSignatureId diperlukan untuk method SAVED', HTTP_STATUS.BAD_REQUEST);
         }
-        signatureImageUrl = await signatureService.getSignatureUrl(input.savedSignatureId, userId);
+        // Store the storage path (not presigned URL) to avoid double-encoding when re-resolved later
+        signatureImageUrl = await signatureService.getSignatureStoragePath(input.savedSignatureId, userId);
         break;
 
       case 'UPLOAD':

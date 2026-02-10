@@ -514,9 +514,11 @@ class TembusanServiceV2 {
                 }
               } catch (error) {
                 console.error(`Failed to resolve signatureUrl for ${sig.signerName}:`, error);
-                // Last resort: try signed URL
+                // Last resort: try signed URL only for storage paths (not expired http URLs)
                 try {
-                  resolvedSignatureUrl = await this.minio.getFileUrl(sig.signatureUrl);
+                  if (!sig.signatureUrl.startsWith('http')) {
+                    resolvedSignatureUrl = await this.minio.getFileUrl(sig.signatureUrl);
+                  }
                 } catch {
                   resolvedSignatureUrl = null;
                 }
