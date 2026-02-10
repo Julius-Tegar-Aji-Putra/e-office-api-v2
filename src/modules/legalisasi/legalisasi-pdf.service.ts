@@ -746,16 +746,6 @@ class LegalisasiPdfService {
         width: QR_CODE_CONFIG.width,
         height: QR_CODE_CONFIG.height,
       });
-
-      // Tambahkan text kecil di bawah QR
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      page.drawText('Scan untuk verifikasi', {
-        x: qrX - 5,
-        y: qrY - 10,
-        size: 6,
-        font,
-        color: rgb(0.4, 0.4, 0.4),
-      });
     }
 
     return pdfDoc.save();

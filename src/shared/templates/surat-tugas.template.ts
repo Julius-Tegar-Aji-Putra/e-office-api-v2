@@ -168,8 +168,7 @@ const renderQRCode = (qrCodeDataUrl?: string): string => {
   
   return `
     <div class="qr-code-container" style="position: fixed; bottom: 20px; right: 20px; text-align: center; background: white; padding: 5px;">
-      <img src="${qrCodeDataUrl}" alt="QR Code Verifikasi" style="width: 80px; height: 80px;" />
-      <p style="margin: 2px 0 0 0; font-size: 6pt; color: #666666 !important;">Scan untuk verifikasi</p>
+      <img src="${qrCodeDataUrl}" alt="QR Code Verifikasi" style="width: 100px; height: 100px;" />
     </div>
   `;
 };
