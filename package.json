@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "NODE_ENV=production bun run ./src/index.ts",
-    "postinstall": "bunx puppeteer browsers install chrome",
-    "test:puppeteer": "bun test-puppeteer.ts",
+
     "lint": "bun x @biomejs/biome check src",
     "lint:fix": "bun lint --write"
   },
@@ -36,7 +35,7 @@
     "minio": "^8.0.6",
     "nanoid": "^5.1.6",
     "pdf-lib": "^1.17.1",
-    "puppeteer": "^24.36.1",
+
     "qrcode": "^1.5.4",
     "react-hook-form": "^7.71.1",
     "sharp": "^0.34.5",

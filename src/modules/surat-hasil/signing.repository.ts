@@ -10,7 +10,7 @@ import {
   LetterStatus,
   Prisma,
 } from '../../generated/prisma/client';
-import { pdfFinalizationService } from './pdf-finalization.service';
+
 
 // ============================================================================
 // Helper Functions
@@ -176,19 +176,6 @@ class SigningRepository {
             updatedAt: new Date(),
           },
         });
-
-        // Try to finalize PDF with embedded signatures (async, non-blocking)
-        pdfFinalizationService.finalizeDocumentPdf(signature.document.id)
-          .then(result => {
-            if (result.success) {
-              console.log(`PDF finalized for document ${signature.document.id}`);
-            } else {
-              console.warn(`PDF finalization note: ${result.error}`);
-            }
-          })
-          .catch(err => {
-            console.error(`PDF finalization error for document ${signature.document.id}:`, err);
-          });
       } else if (nextPendingSigner) {
         // Move to next signer
         const nextSignerRole = normalizeSignerRole(nextPendingSigner.signerRole);

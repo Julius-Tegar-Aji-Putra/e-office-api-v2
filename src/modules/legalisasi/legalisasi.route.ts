@@ -12,7 +12,6 @@ import {
   documentIdParamSchema,
   assignNumberSchema,
   applyStempelSchema,
-  finalizeDocumentSchema
 } from './legalisasi.validation';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
@@ -213,15 +212,24 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
       const roles = await getUserRoles(user.id);
       const activeRole = roles.includes('UPA') ? 'UPA' : roles[0];
 
-      if (!body.fileUrl) {
-        return { success: false, error: 'Field fileUrl wajib diisi' };
+      // Handle multipart form data with PDF file
+      const pdfFile = (body as any)?.pdfFile;
+      const notes = (body as any)?.notes;
+      const fileUrl = (body as any)?.fileUrl;
+
+      let pdfBuffer: Buffer | undefined;
+      if (pdfFile) {
+        // pdfFile is a File/Blob from multipart upload
+        const arrayBuffer = await pdfFile.arrayBuffer();
+        pdfBuffer = Buffer.from(arrayBuffer);
       }
 
       return legalisasiService.finalizeDocument(
         {
           documentId: params.documentId,
-          fileUrl: body.fileUrl,
-          notes: body.notes
+          fileUrl: fileUrl || '',
+          notes: notes || 'Surat telah selesai diproses',
+          pdfBuffer
         },
         user.id,
         activeRole
@@ -229,11 +237,10 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
     },
     {
       params: documentIdParamSchema,
-      body: finalizeDocumentSchema,
       detail: {
         tags: ['Legalisasi'],
         summary: 'Finalize document',
-        description: 'Finalize document by uploading final PDF. Status becomes COMPLETED and letter is ready for distribution.'
+        description: 'Finalize document by uploading final PDF from frontend. Status becomes COMPLETED and letter is ready for distribution.'
       }
     }
   )
