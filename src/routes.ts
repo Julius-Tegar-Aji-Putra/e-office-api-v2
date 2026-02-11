@@ -19,6 +19,9 @@ import { signatureRoutes } from './modules/signature/signature.route';
 import { tembusanRoute } from './modules/tembusan/tembusan.route';
 import { usersRoute } from './modules/tembusan/users.route';
 import { masterDataRoutes } from './modules/master-data/master-data.route';
+import { adminManagementRoutes } from './modules/admin-management/admin-management.route';
+import { departmentSettingsRoutes } from './modules/department-settings/department-settings.route';
+import { dashboardStatsRoutes } from './modules/dashboard-stats/dashboard-stats.route';
 
 // Import existing routes
 import dashRoutes from './routes/dash';
@@ -90,6 +93,15 @@ export function createApiRoutes() {
 
     // Module J: MASTER DATA (Program Studi & Departemen)
     .group('/api', (api) => api.use(masterDataRoutes))
+
+    // Module K: ADMIN MANAGEMENT (Super Admin - User CRUD)
+    .group('/api', (api) => api.use(adminManagementRoutes))
+
+    // Module L: DEPARTMENT SETTINGS (Super Admin - Dept & Prodi CRUD)
+    .group('/api', (api) => api.use(departmentSettingsRoutes))
+
+    // Module M: DASHBOARD STATS (Super Admin - Statistics)
+    .group('/api', (api) => api.use(dashboardStatsRoutes))
 
     // =========================================================================
     // DASHBOARD ROUTES
