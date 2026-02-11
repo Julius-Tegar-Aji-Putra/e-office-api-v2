@@ -395,6 +395,19 @@ export class SubmissionService {
       throw new Error(ERROR_MESSAGES.SUBMISSION.INVALID_TYPE);
     }
 
+    // Validasi NIM/NIP: Salah satu harus diisi
+    if (!dto.formData.nim && !dto.formData.nip) {
+      throw new Error('NIM atau NIP harus diisi');
+    }
+
+    // Validasi NIP jika diisi (untuk dosen)
+    if (dto.formData.nip) {
+      // Validasi format NIP: harus tepat 18 digit angka
+      if (!/^\d{18}$/.test(dto.formData.nip)) {
+        throw new Error('NIP harus berupa 18 digit angka');
+      }
+    }
+
     // Get user's program studi to determine initial routing
     const user = await prisma.user.findUnique({
       where: { id: userId },

@@ -6,6 +6,22 @@
 import { t } from 'elysia';
 
 // ============================================================================
+// Custom Validator Functions
+// ============================================================================
+
+/**
+ * Validasi NIP: harus tepat 18 karakter dan berupa angka
+ */
+function isValidNIP(value: string): boolean {
+  return /^\d{18}$/.test(value);
+}
+
+/**
+ * Custom error messages untuk validasi
+ */
+const NIP_VALIDATION_ERROR = 'NIP harus berupa 18 digit angka';
+
+// ============================================================================
 // Form Data Schema
 // ============================================================================
 
@@ -13,7 +29,12 @@ export const submissionFormDataSchema = t.Object({
   // Data Diri
   nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
   nim: t.Optional(t.String()),
-  nip: t.Optional(t.String()),
+  nip: t.Optional(
+    t.String({
+      pattern: '^\\d{18}$',
+      error: NIP_VALIDATION_ERROR,
+    })
+  ),
   departemen: t.String({ minLength: 1, error: 'Departemen wajib diisi' }),
   programStudi: t.String({ minLength: 1, error: 'Program Studi wajib diisi' }),
 
@@ -131,7 +152,12 @@ export const createSubmissionWithFilesSchema = t.Object({
   // Data Diri
   nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
   nim: t.Optional(t.String()),
-  nip: t.Optional(t.String()),
+  nip: t.Optional(
+    t.String({
+      pattern: '^\\d{18}$',
+      error: NIP_VALIDATION_ERROR,
+    })
+  ),
   departemen: t.String({ minLength: 1, error: 'Departemen wajib diisi' }),
   programStudi: t.String({ minLength: 1, error: 'Program Studi wajib diisi' }),
   
