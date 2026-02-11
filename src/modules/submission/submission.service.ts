@@ -395,9 +395,37 @@ export class SubmissionService {
       throw new Error(ERROR_MESSAGES.SUBMISSION.INVALID_TYPE);
     }
 
+    // Validasi Nama
+    if (!dto.formData.nama || dto.formData.nama.trim() === '') {
+      throw new Error('Nama harus diisi');
+    }
+    if (dto.formData.nama.length > 100) {
+      throw new Error('Nama maksimal 100 karakter');
+    }
+    // Tidak boleh mengandung angka
+    if (/\d/.test(dto.formData.nama)) {
+      throw new Error('Nama tidak boleh mengandung angka');
+    }
+    // Hanya huruf, spasi, dan tanda baca , . - ' yang diperbolehkan
+    if (!/^[a-zA-Z\s,.'-]+$/.test(dto.formData.nama)) {
+      throw new Error("Nama hanya boleh berisi huruf dan tanda baca (, . - ')");
+    }
+    // Tidak boleh spasi ganda
+    if (/\s{2,}/.test(dto.formData.nama)) {
+      throw new Error('Nama tidak boleh memiliki spasi ganda');
+    }
+
     // Validasi NIM/NIP: Salah satu harus diisi
     if (!dto.formData.nim && !dto.formData.nip) {
       throw new Error('NIM atau NIP harus diisi');
+    }
+
+    // Validasi NIM jika diisi (untuk mahasiswa)
+    if (dto.formData.nim) {
+      // Validasi format NIM: harus tepat 14 digit angka
+      if (!/^\d{14}$/.test(dto.formData.nim)) {
+        throw new Error('NIM harus berupa 14 digit angka');
+      }
     }
 
     // Validasi NIP jika diisi (untuk dosen)
@@ -405,6 +433,57 @@ export class SubmissionService {
       // Validasi format NIP: harus tepat 18 digit angka
       if (!/^\d{18}$/.test(dto.formData.nip)) {
         throw new Error('NIP harus berupa 18 digit angka');
+      }
+    }
+
+    // Validasi Keperluan
+    if (!dto.formData.keperluan || dto.formData.keperluan.trim() === '') {
+      throw new Error('Keperluan harus diisi');
+    }
+    if (dto.formData.keperluan.trim().length < 5) {
+      throw new Error('Keperluan minimal 5 karakter');
+    }
+    if (dto.formData.keperluan.length > 150) {
+      throw new Error('Keperluan maksimal 150 karakter');
+    }
+    // Tidak boleh hanya berisi angka
+    if (/^\d+$/.test(dto.formData.keperluan.trim())) {
+      throw new Error('Keperluan tidak boleh hanya berisi angka');
+    }
+
+    // Validasi Judul Acara (optional, tapi jika diisi harus valid)
+    if (dto.formData.judulAcara && dto.formData.judulAcara.trim() !== '') {
+      if (dto.formData.judulAcara.trim().length < 5) {
+        throw new Error('Judul acara minimal 5 karakter');
+      }
+      if (dto.formData.judulAcara.length > 150) {
+        throw new Error('Judul acara maksimal 150 karakter');
+      }
+      // Tidak boleh hanya berisi angka
+      if (/^\d+$/.test(dto.formData.judulAcara.trim())) {
+        throw new Error('Judul acara tidak boleh hanya berisi angka');
+      }
+      // Tidak boleh ada enter/newline
+      if (/[\r\n]/.test(dto.formData.judulAcara)) {
+        throw new Error('Judul acara tidak boleh mengandung enter/baris baru');
+      }
+    }
+
+    // Validasi Lokasi Acara (optional, tapi jika diisi harus valid)
+    if (dto.formData.lokasiAcara && dto.formData.lokasiAcara.trim() !== '') {
+      if (dto.formData.lokasiAcara.trim().length < 5) {
+        throw new Error('Lokasi acara minimal 5 karakter');
+      }
+      if (dto.formData.lokasiAcara.length > 150) {
+        throw new Error('Lokasi acara maksimal 150 karakter');
+      }
+      // Tidak boleh hanya berisi angka
+      if (/^\d+$/.test(dto.formData.lokasiAcara.trim())) {
+        throw new Error('Lokasi acara tidak boleh hanya berisi angka');
+      }
+      // Tidak boleh ada enter/newline
+      if (/[\r\n]/.test(dto.formData.lokasiAcara)) {
+        throw new Error('Lokasi acara tidak boleh mengandung enter/baris baru');
       }
     }
 

@@ -17,9 +17,18 @@ function isValidNIP(value: string): boolean {
 }
 
 /**
+ * Validasi NIM: harus tepat 14 karakter dan berupa angka
+ */
+function isValidNIM(value: string): boolean {
+  return /^\d{14}$/.test(value);
+}
+
+/**
  * Custom error messages untuk validasi
  */
 const NIP_VALIDATION_ERROR = 'NIP harus berupa 18 digit angka';
+const NIM_VALIDATION_ERROR = 'NIM harus berupa 14 digit angka';
+const NAMA_VALIDATION_ERROR = 'Nama hanya boleh berisi huruf, spasi, dan tanda baca (, . - \') dengan panjang 1-100 karakter tanpa spasi ganda';
 
 // ============================================================================
 // Form Data Schema
@@ -27,8 +36,19 @@ const NIP_VALIDATION_ERROR = 'NIP harus berupa 18 digit angka';
 
 export const submissionFormDataSchema = t.Object({
   // Data Diri
-  nama: t.String({ minLength: 2, error: 'Nama minimal 2 karakter' }),
-  nim: t.Optional(t.String()),
+  // Nama: 1-100 karakter, hanya huruf dan tanda baca , . - ', tidak boleh spasi ganda
+  nama: t.String({ 
+    minLength: 1, 
+    maxLength: 100,
+    pattern: "^[a-zA-Z,.'-]+( [a-zA-Z,.'-]+)*$",
+    error: NAMA_VALIDATION_ERROR 
+  }),
+  nim: t.Optional(
+    t.String({
+      pattern: '^\\d{14}$',
+      error: NIM_VALIDATION_ERROR,
+    })
+  ),
   nip: t.Optional(
     t.String({
       pattern: '^\\d{18}$',
@@ -42,11 +62,26 @@ export const submissionFormDataSchema = t.Object({
   jenisSurat: t.Union([t.Literal('SURAT_TUGAS'), t.Literal('SURAT_KEPUTUSAN')], {
     error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
   }),
-  keperluan: t.String({ minLength: 1, error: 'Keperluan wajib diisi' }),
-  judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
+  // Keperluan: min 5, max 150 karakter, tidak boleh hanya angka
+  keperluan: t.String({ 
+    minLength: 5, 
+    maxLength: 150,
+    error: 'Keperluan harus 5-150 karakter dan tidak boleh hanya berisi angka' 
+  }),
+  // Judul Acara: optional, tapi jika diisi harus 5-150 karakter, tidak boleh hanya angka, tidak boleh ada enter
+  judulAcara: t.Optional(t.String({ 
+    minLength: 5, 
+    maxLength: 150,
+    error: 'Judul acara harus 5-150 karakter, tidak boleh hanya berisi angka, dan tidak boleh mengandung enter' 
+  })),
   tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }), // ISO datetime: 2026-02-15T09:00:00Z
   durasiAcara: t.Optional(t.String()),
-  lokasiAcara: t.String({ minLength: 3, error: 'Lokasi acara minimal 3 karakter' }),
+  // Lokasi Acara: optional, tapi jika diisi harus 5-150 karakter, tidak boleh hanya angka, tidak boleh ada enter
+  lokasiAcara: t.Optional(t.String({ 
+    minLength: 5, 
+    maxLength: 150,
+    error: 'Lokasi acara harus 5-150 karakter, tidak boleh hanya berisi angka, dan tidak boleh mengandung enter' 
+  })),
 
   // Konfigurasi TTD Surat Pengantar (sampai Kaprodi atau sampai Kadep)
   butuhTtdKadep: t.Boolean({ default: false }),
@@ -166,10 +201,20 @@ export const createSubmissionWithFilesSchema = t.Object({
     error: 'Jenis surat harus SURAT_TUGAS atau SURAT_KEPUTUSAN',
   }),
   keperluan: t.String({ minLength: 1, error: 'Keperluan wajib diisi' }),
-  judulAcara: t.String({ minLength: 5, error: 'Judul acara minimal 5 karakter' }),
+  // Judul Acara: optional, tapi jika diisi harus 5-150 karakter, tidak boleh hanya angka, tidak boleh ada enter
+  judulAcara: t.Optional(t.String({ 
+    minLength: 5, 
+    maxLength: 150,
+    error: 'Judul acara harus 5-150 karakter, tidak boleh hanya berisi angka, dan tidak boleh mengandung enter' 
+  })),
   tanggalAcara: t.String({ error: 'Tanggal acara wajib diisi (format: ISO datetime)' }),
   durasiAcara: t.Optional(t.String()),
-  lokasiAcara: t.String({ minLength: 3, error: 'Lokasi acara minimal 3 karakter' }),
+  // Lokasi Acara: optional, tapi jika diisi harus 5-150 karakter, tidak boleh hanya angka, tidak boleh ada enter
+  lokasiAcara: t.Optional(t.String({ 
+    minLength: 5, 
+    maxLength: 150,
+    error: 'Lokasi acara harus 5-150 karakter, tidak boleh hanya berisi angka, dan tidak boleh mengandung enter' 
+  })),
   
   // TTD Config
   butuhTtdKadep: t.Optional(t.Union([t.Boolean(), t.String()])),

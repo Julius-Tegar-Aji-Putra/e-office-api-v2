@@ -13,6 +13,117 @@ import { signatureRepository } from '../signature/signature.repository';
 import { prisma } from '../../db';
 
 // ============================================================================
+// VALIDATION HELPERS FOR SURAT_TUGAS_TABEL CONTENT
+// ============================================================================
+
+/**
+ * Validasi konten SURAT_TUGAS_TABEL
+ * - judulSurat: Required, Min 10, Max 255, tidak boleh hanya simbol
+ * - keperluan: Required, Min 5, Max 150, tidak boleh hanya angka
+ * - tanggalMulai: Required
+ * - tanggalSelesai: Required, tidak boleh sebelum tanggalMulai
+ */
+function validateSuratTugasTabelContent(content: Record<string, unknown>): void {
+  // Validate judulSurat
+  const judulSurat = content.judulSurat;
+  if (typeof judulSurat !== 'string' || !judulSurat.trim()) {
+    throw new AppError('Judul Surat harus diisi!', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (judulSurat.trim().length < 10) {
+    throw new AppError('Judul Surat minimal 10 karakter!', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (judulSurat.trim().length > 255) {
+    throw new AppError('Judul Surat maksimal 255 karakter!', HTTP_STATUS.BAD_REQUEST);
+  }
+  // Check if only symbols (must contain at least one alphanumeric character)
+  const hasAlphanumeric = /[a-zA-Z0-9]/.test(judulSurat);
+  if (!hasAlphanumeric) {
+    throw new AppError('Judul Surat tidak boleh hanya berisi simbol!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Validate keperluan
+  const keperluan = content.keperluan;
+  if (typeof keperluan !== 'string' || !keperluan.trim()) {
+    throw new AppError('Keperluan harus diisi!', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (keperluan.trim().length < 5) {
+    throw new AppError('Keperluan minimal 5 karakter!', HTTP_STATUS.BAD_REQUEST);
+  }
+  if (keperluan.trim().length > 150) {
+    throw new AppError('Keperluan maksimal 150 karakter!', HTTP_STATUS.BAD_REQUEST);
+  }
+  // Check if only numbers
+  const isOnlyNumbers = /^\d+$/.test(keperluan.trim());
+  if (isOnlyNumbers) {
+    throw new AppError('Keperluan tidak boleh hanya berisi angka!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Validate tanggalMulai
+  const tanggalMulai = content.tanggalMulai;
+  if (!tanggalMulai) {
+    throw new AppError('Tanggal Mulai harus diisi!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Validate tanggalSelesai
+  const tanggalSelesai = content.tanggalSelesai;
+  if (!tanggalSelesai) {
+    throw new AppError('Tanggal Selesai harus diisi!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Compare dates: tanggalSelesai must not be before tanggalMulai
+  const startDate = new Date(tanggalMulai as string);
+  const endDate = new Date(tanggalSelesai as string);
+  if (endDate < startDate) {
+    throw new AppError('Tanggal Selesai tidak boleh sebelum Tanggal Mulai!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Validate dataMahasiswa (pelaksana)
+  const dataMahasiswa = content.dataMahasiswa as Array<Record<string, string>> | undefined;
+  if (!dataMahasiswa || !Array.isArray(dataMahasiswa) || dataMahasiswa.length === 0) {
+    throw new AppError('Minimal 1 data pelaksana harus diisi!', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  // Validate each pelaksana
+  for (let i = 0; i < dataMahasiswa.length; i++) {
+    const pelaksana = dataMahasiswa[i];
+    const rowNum = i + 1;
+
+    // Validate nama - min 2, max 100, no numbers
+    const nama = pelaksana.nama || '';
+    if (!nama.trim()) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Nama harus diisi!`, HTTP_STATUS.BAD_REQUEST);
+    }
+    if (nama.trim().length < 2) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Nama minimal 2 karakter!`, HTTP_STATUS.BAD_REQUEST);
+    }
+    if (nama.length > 100) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Nama maksimal 100 karakter!`, HTTP_STATUS.BAD_REQUEST);
+    }
+    if (/\d/.test(nama)) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Nama tidak boleh mengandung angka!`, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate NIM - must be 14 digits
+    const nim = pelaksana.nim || '';
+    if (!nim.trim()) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: NIM harus diisi!`, HTTP_STATUS.BAD_REQUEST);
+    }
+    if (!/^\d{14}$/.test(nim.trim())) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: NIM harus 14 digit angka!`, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate prodi - min 5 chars
+    const prodi = pelaksana.prodi || '';
+    if (!prodi.trim()) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Prodi harus diisi!`, HTTP_STATUS.BAD_REQUEST);
+    }
+    if (prodi.trim().length < 5) {
+      throw new AppError(`Data Pelaksana baris ${rowNum}: Prodi minimal 5 karakter!`, HTTP_STATUS.BAD_REQUEST);
+    }
+  }
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -232,6 +343,11 @@ class HasilService {
       throw new AppError('Draft sudah ada, gunakan endpoint update', HTTP_STATUS.BAD_REQUEST);
     }
 
+    // Validate SURAT_TUGAS_TABEL content
+    if (input.documentType === 'SURAT_TUGAS_TABEL') {
+      validateSuratTugasTabelContent(input.content);
+    }
+
     // Validate signatories
     if (!input.signatories || input.signatories.length === 0) {
       throw new AppError('Minimal satu penandatangan harus dipilih', HTTP_STATUS.BAD_REQUEST);
@@ -280,6 +396,11 @@ class HasilService {
 
     if (letter.currentActiveRole !== userRole) {
       throw new AppError('Bukan giliran Anda untuk mengubah draft', HTTP_STATUS.FORBIDDEN);
+    }
+
+    // Validate SURAT_TUGAS_TABEL content on update
+    if (document.type === DocumentType.SURAT_TUGAS_TABEL && input.content) {
+      validateSuratTugasTabelContent(input.content);
     }
 
     const updateInput: UpdateDraftInput = {
@@ -735,6 +856,11 @@ class HasilService {
     }
 
     // Note: targetSupervisor untuk UMUM dipilih saat submit for verification, bukan saat create
+
+    // Validate SURAT_TUGAS_TABEL content
+    if (input.documentType === 'SURAT_TUGAS_TABEL') {
+      validateSuratTugasTabelContent(input.content);
+    }
 
     // Validate signatories
     if (!input.signatories || input.signatories.length === 0) {
