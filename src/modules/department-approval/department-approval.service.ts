@@ -11,6 +11,7 @@ import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
 import { MinioService } from '../../shared/services/minio.service';
 import { signatureRepository } from '../signature/signature.repository';
+import { signatureService } from '../signature/signature.service';
 import { prisma } from '../../db';
 
 // ============================================================================
@@ -376,8 +377,7 @@ class DepartmentApprovalService {
     const finalSignerName = input.signerName || user?.name || 'Penandatangan';
     const finalSignerNip = input.signerNip || user?.pegawai?.nip || '';
 
-    let finalSignatureUrl = input.signatureUrl || '';
-    let storagePath: string | undefined;
+    let finalSignatureUrl = '';
 
     // If signatureData is provided (base64), upload it to MinIO
     if (input.signatureData && input.signatureData.trim() !== '') {
@@ -405,10 +405,8 @@ class DepartmentApprovalService {
           `signatures/${userId}`
         );
         
-        storagePath = uploadResult.path;
-        
-        // Get signed URL for the uploaded file
-        finalSignatureUrl = await minio.getFileUrl(uploadResult.path);
+        // PERBAIKAN: Store storage path, NOT presigned URL (presigned URLs expire!)
+        finalSignatureUrl = uploadResult.path;
 
         // Save to user's saved signatures if requested
         if (input.saveSignature) {
@@ -431,8 +429,17 @@ class DepartmentApprovalService {
         throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_ERROR);
       }
     } else if (input.signatureUrl) {
-      // Using saved signature URL
-      finalSignatureUrl = input.signatureUrl;
+      // PERBAIKAN: If signatureUrl is a presigned URL (from saved signature),
+      // extract the storage path so it persists permanently
+      const minio = new MinioService();
+      const extractedPath = minio.extractStoragePath(input.signatureUrl);
+      if (extractedPath) {
+        finalSignatureUrl = extractedPath;
+      } else {
+        // Fallback: use as-is (shouldn't happen in normal flow)
+        console.warn('[signPengantar] Could not extract storage path from signatureUrl, using as-is');
+        finalSignatureUrl = input.signatureUrl;
+      }
     }
 
     return departmentApprovalRepository.signPengantar(

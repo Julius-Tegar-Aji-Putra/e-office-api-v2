@@ -625,7 +625,7 @@ class HasilService {
     const finalSignerName = signerName || user?.name || 'Penandatangan';
     const finalSignerNip = signerNip || user?.pegawai?.nip || '';
 
-    let finalSignatureUrl = signatureUrl || '';
+    let finalSignatureUrl = '';
 
     // If signatureData is provided (base64), upload it
     if (signatureData) {
@@ -653,8 +653,8 @@ class HasilService {
           `signatures/${userId}`
         );
         
-        // Get signed URL for the uploaded file
-        finalSignatureUrl = await minio.getFileUrl(uploadResult.path);
+        // PERBAIKAN: Store storage path, NOT presigned URL (presigned URLs expire!)
+        finalSignatureUrl = uploadResult.path;
 
         // Save to user's saved signatures if requested
         if (saveSignature) {
@@ -670,6 +670,17 @@ class HasilService {
         console.error('Failed to upload signature:', err);
         if (err instanceof AppError) throw err;
         throw new AppError('Gagal menyimpan tanda tangan', HTTP_STATUS.INTERNAL_ERROR);
+      }
+    } else if (signatureUrl) {
+      // PERBAIKAN: If signatureUrl is a presigned URL (from saved signature),
+      // extract the storage path so it persists permanently
+      const minio = new MinioService();
+      const extractedPath = minio.extractStoragePath(signatureUrl);
+      if (extractedPath) {
+        finalSignatureUrl = extractedPath;
+      } else {
+        console.warn('[signDocument] Could not extract storage path from signatureUrl, using as-is');
+        finalSignatureUrl = signatureUrl;
       }
     }
 

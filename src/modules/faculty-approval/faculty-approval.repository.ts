@@ -26,10 +26,12 @@ export interface VerifyInput {
 
 export interface SignInput {
   letterId: string;
-  signatureUrl: string;
-  signerName: string;
+  signatureData?: string;  // base64 from canvas/upload
+  signatureUrl?: string;   // URL from saved signature
+  signerName?: string;
   signerNip?: string;
   notes?: string;
+  saveSignature?: boolean;
 }
 
 export interface ReturnInput {

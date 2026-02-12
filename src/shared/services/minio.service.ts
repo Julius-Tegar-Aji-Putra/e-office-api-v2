@@ -205,6 +205,44 @@ export class MinioService {
   }
 
   /**
+   * Extract storage path from a presigned URL or full URL.
+   * Useful for recovering storage paths from URLs that were incorrectly stored.
+   * E.g. "http://localhost:9000/e-office-storage/signatures/userId/2026/02/file.jpeg?X-Amz-..." 
+   *   -> "signatures/userId/2026/02/file.jpeg"
+   * If the input is already a storage path (not starting with http), returns it as-is.
+   */
+  extractStoragePath(urlOrPath: string): string | null {
+    // Already a storage path
+    if (!urlOrPath.startsWith('http')) {
+      return urlOrPath;
+    }
+
+    try {
+      const parsed = new URL(urlOrPath);
+      let pathname = decodeURIComponent(parsed.pathname);
+      
+      // Remove leading slash
+      if (pathname.startsWith('/')) {
+        pathname = pathname.substring(1);
+      }
+      
+      // Remove bucket name prefix if present
+      if (pathname.startsWith(`${this.bucket}/`)) {
+        pathname = pathname.substring(this.bucket.length + 1);
+      }
+      
+      // Validate we got something meaningful
+      if (pathname && pathname.length > 0 && pathname !== this.bucket) {
+        return pathname;
+      }
+      
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Get file as readable stream (for proxying through backend)
    * @param storagePath - Full storage path in bucket
    * @returns Readable stream of file data

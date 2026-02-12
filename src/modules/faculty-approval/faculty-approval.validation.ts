@@ -43,10 +43,15 @@ export const verifyBodySchema = t.Object({
 });
 
 export const signBodySchema = t.Object({
-  signatureUrl: t.String({ minLength: 1, error: 'URL tanda tangan wajib diisi' }),
-  signerName: t.String({ minLength: 1, error: 'Nama penandatangan wajib diisi' }),
+  // Base64 image data (from canvas drawing or file upload)
+  signatureData: t.Optional(t.String({ minLength: 1 })),
+  // URL to signature image (from saved signatures)
+  signatureUrl: t.Optional(t.String({ minLength: 1 })),
+  signerName: t.Optional(t.String()),
   signerNip: t.Optional(t.String()),
-  notes: t.Optional(t.String())
+  notes: t.Optional(t.String()),
+  // Save signature to user's saved signatures
+  saveSignature: t.Optional(t.Boolean({ default: false }))
 });
 
 export const returnBodySchema = t.Object({

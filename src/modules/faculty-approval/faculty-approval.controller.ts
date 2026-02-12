@@ -72,10 +72,12 @@ class FacultyApprovalController {
   async signDocument(
     letterId: string,
     body: {
-      signatureUrl: string;
-      signerName: string;
+      signatureData?: string;
+      signatureUrl?: string;
+      signerName?: string;
       signerNip?: string;
       notes?: string;
+      saveSignature?: boolean;
     },
     userId: string,
     userRole: string
@@ -84,10 +86,12 @@ class FacultyApprovalController {
       const result = await facultyApprovalService.signDocument(
         {
           letterId,
+          signatureData: body.signatureData,
           signatureUrl: body.signatureUrl,
           signerName: body.signerName,
           signerNip: body.signerNip,
-          notes: body.notes
+          notes: body.notes,
+          saveSignature: body.saveSignature
         },
         userId,
         userRole
