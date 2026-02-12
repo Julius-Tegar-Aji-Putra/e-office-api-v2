@@ -15,6 +15,8 @@
  *   --apply    Actually apply the fixes
  */
 
+/// <reference types="node" />
+
 import { PrismaClient } from '../src/generated/prisma/client';
 
 const prisma = new PrismaClient();
@@ -200,8 +202,12 @@ async function main() {
   await prisma.$disconnect();
 }
 
-main().catch(async (err) => {
-  console.error('Script failed:', err);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error('Script failed:', err);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
