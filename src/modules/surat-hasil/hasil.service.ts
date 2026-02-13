@@ -29,8 +29,8 @@ function validateSuratTugasTabelContent(content: Record<string, unknown>): void 
   if (typeof judulSurat !== 'string' || !judulSurat.trim()) {
     throw new AppError('Judul Surat harus diisi!', HTTP_STATUS.BAD_REQUEST);
   }
-  if (judulSurat.trim().length < 10) {
-    throw new AppError('Judul Surat minimal 10 karakter!', HTTP_STATUS.BAD_REQUEST);
+  if (judulSurat.trim().length < 5) {
+    throw new AppError('Judul Surat minimal 5 karakter!', HTTP_STATUS.BAD_REQUEST);
   }
   if (judulSurat.trim().length > 255) {
     throw new AppError('Judul Surat maksimal 255 karakter!', HTTP_STATUS.BAD_REQUEST);
