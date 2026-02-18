@@ -33,7 +33,7 @@ export class SubmissionService {
   constructor(
     private repository: SubmissionRepository = submissionRepository,
     private minio: MinioService = minioService
-  ) {}
+  ) { }
 
   // ============================================================================
   // Letter Types
@@ -57,11 +57,11 @@ export class SubmissionService {
       defaultTargetSigner: type.defaultTargetSigner,
       activeTemplate: type.templates[0]
         ? {
-            id: type.templates[0].id,
-            versionName: type.templates[0].versionName,
-            schemaDefinition: type.templates[0].schemaDefinition,
-            formFields: type.templates[0].formFields,
-          }
+          id: type.templates[0].id,
+          versionName: type.templates[0].versionName,
+          schemaDefinition: type.templates[0].schemaDefinition,
+          formFields: type.templates[0].formFields,
+        }
         : null,
     }));
   }
@@ -85,11 +85,11 @@ export class SubmissionService {
       defaultTargetSigner: type.defaultTargetSigner,
       activeTemplate: type.templates[0]
         ? {
-            id: type.templates[0].id,
-            versionName: type.templates[0].versionName,
-            schemaDefinition: type.templates[0].schemaDefinition,
-            formFields: type.templates[0].formFields,
-          }
+          id: type.templates[0].id,
+          versionName: type.templates[0].versionName,
+          schemaDefinition: type.templates[0].schemaDefinition,
+          formFields: type.templates[0].formFields,
+        }
         : null,
     };
   }
@@ -153,7 +153,7 @@ export class SubmissionService {
     if (!submission) return null;
 
     const formData = submission.submissionValues as unknown as SubmissionFormData;
-    
+
     // Fetch programStudi details to get hasKaprodi flag
     let hasKaprodi = false;
     if (formData.programStudi) {
@@ -183,7 +183,7 @@ export class SubmissionService {
         console.error('Failed to resolve programStudi:', error);
       }
     }
-    
+
     const sigConfig = submission.signatureConfig as unknown as SignatureConfigDTO | null;
 
     // Get rejection reason from logs if any
@@ -195,7 +195,7 @@ export class SubmissionService {
     const attachmentsWithUrls: AttachmentSummary[] = await Promise.all(
       submission.attachments.map(async (att: any) => {
         let fileUrl = att.fileUrl;
-        
+
         if (att.storagePath) {
           try {
             fileUrl = await this.minio.getFileUrl(att.storagePath);
@@ -203,7 +203,7 @@ export class SubmissionService {
             console.error(`Failed to get signed URL for ${att.storagePath}:`, error);
           }
         }
-        
+
         return {
           id: att.id,
           fileName: att.fileName,
@@ -265,8 +265,8 @@ export class SubmissionService {
                 if (typeof item === 'string') {
                   const urlPath = item.split('/').pop() || 'Lampiran';
                   const cleanName = urlPath.replace(/^\d+-/, ''); // Remove timestamp prefix
-                  const signedUrl = item.startsWith('http') 
-                    ? item 
+                  const signedUrl = item.startsWith('http')
+                    ? item
                     : await this.minio.getFileUrl(item).catch(() => item);
                   return { url: signedUrl, name: decodeURIComponent(cleanName) };
                 }
@@ -358,23 +358,25 @@ export class SubmissionService {
         })
       ),
       attachments: attachmentsWithUrls,
-      logs: submission.logs.map((log: any) => ({
-        id: log.id,
-        action: log.action,
-        actorName: log.actor.name,
-        actorRole: log.actorRole,
-        fromStatus: log.fromStatus,
-        toStatus: log.toStatus,
-        notes: log.notes,
-        createdAt: log.createdAt,
-      })),
+      logs: submission.logs
+        .filter((log: any) => log.action !== 'VIEW') // Hide VIEW logs from timeline
+        .map((log: any) => ({
+          id: log.id,
+          action: log.action,
+          actorName: log.actor.name,
+          actorRole: log.actorRole,
+          fromStatus: log.fromStatus,
+          toStatus: log.toStatus,
+          notes: log.notes,
+          createdAt: log.createdAt,
+        })),
       submittedAt: submission.submittedAt,
       completedAt: submission.completedAt,
       permissions: this.computePermissions(
-        submission.status, 
-        viewerRole, 
+        submission.status,
+        viewerRole,
         submission.currentActiveRole,
-        submission.createdById, 
+        submission.createdById,
         rejectionLog?.notes,
         submission.documents
       ),
@@ -505,14 +507,14 @@ export class SubmissionService {
     });
 
     const prodi = user?.mahasiswa?.programStudi || user?.pegawai?.programStudi;
-    
+
     if (!prodi) {
       throw new Error('Program Studi tidak ditemukan untuk pengguna ini');
     }
 
     // Determine initial active role based on prodi configuration
     const initialActiveRole = prodi.hasKaprodi ? ROLES.KAPRODI : ROLES.KADEP;
-    const routingMessage = prodi.hasKaprodi 
+    const routingMessage = prodi.hasKaprodi
       ? 'Pengajuan berhasil dibuat dan diteruskan ke Ketua Program Studi untuk diverifikasi'
       : 'Pengajuan berhasil dibuat dan diteruskan ke Kepala Departemen untuk diverifikasi';
 
@@ -895,8 +897,8 @@ export class SubmissionService {
     currentActiveRole: string | null,
     createdById: string,
     rejectionReason?: string | null,
-    documents?: Array<{ 
-      type: string; 
+    documents?: Array<{
+      type: string;
       content?: unknown;
       signatures?: Array<{
         signerRole: string;
@@ -918,7 +920,7 @@ export class SubmissionService {
     const isSupervisor = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(viewerRole as any);
     const isStaf = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(viewerRole as any);
     const isUPA = viewerRole === ROLES.UPA;
-    
+
     // ====================================================================
     // VERIFICATION MODE DETECTION
     // True jika user sedang dalam mode verifikasi (fokus ke form data, bukan dokumen output)
@@ -926,11 +928,11 @@ export class SubmissionService {
     // Kaprodi melakukan verifikasi FORM saat status SUBMITTED atau KAPRODI_REVIEW
     // Ini adalah mode dimana Kaprodi memeriksa data pengajuan, BUKAN dokumen
     const isKaprodiVerifyingForm = isKaprodi && ['SUBMITTED', 'KAPRODI_REVIEW'].includes(status);
-    
+
     // isVerificationMode: Mode di mana user sedang memeriksa FORM pengajuan (bukan dokumen)
     // Hanya berlaku untuk tahap verifikasi awal, BUKAN saat signing
     const isVerificationMode = isKaprodiVerifyingForm;
-    
+
     // ====================================================================
     // PRE-DRAFT MODE DETECTION  
     // True jika dokumen surat pengantar belum ada/belum digenerate
@@ -940,7 +942,7 @@ export class SubmissionService {
     const hasSuratPengantarContent = !!suratPengantarDoc?.content;
     const hasSuratPengantarFile = !!(suratPengantarDoc as any)?.fileUrl;
     const isSuratPengantarDocReady = hasSuratPengantarContent || hasSuratPengantarFile;
-    
+
     // Pre-draft mode: SEMUA ROLE jika dokumen belum ready dan status sudah melewati verifikasi
     // - Status SUBMITTED/KAPRODI_REVIEW: selalu pre-draft (belum ada proses drafting)
     // - Status SURAT_PENGANTAR_DRAFT: pre-draft jika dokumen belum ada content
@@ -963,7 +965,7 @@ export class SubmissionService {
       'UPA_FINALIZING',
       'COMPLETED',
     ].includes(status);
-    
+
     // ====================================================================
     // RULE BARU: Dokumen TAMPILKAN jika sudah DRAFTED (file/content ada)
     // Visibility dokumen TIDAK bergantung pada status tanda tangan
@@ -978,8 +980,8 @@ export class SubmissionService {
     // CATATAN: Saat SURAT_PENGANTAR_REVIEW (menunggu TTD), dokumen TETAP DITAMPILKAN
     // karena dokumen sudah di-draft oleh Admin Prodi
     // PERBAIKAN: Mahasiswa/Dosen selalu bisa melihat surat pengantar jika dokumen sudah ada
-    const showSuratPengantar = hasPengantarStatus && 
-      isSuratPengantarDocReady && 
+    const showSuratPengantar = hasPengantarStatus &&
+      isSuratPengantarDocReady &&
       (isSubmitter || !isVerificationMode);
 
     // Surat Hasil exists when status >= FAKULTAS_DRAFTING
@@ -992,26 +994,26 @@ export class SubmissionService {
       'UPA_FINALIZING',
       'COMPLETED',
     ].includes(status);
-    
+
     // Check if SK/ST document actually exists (has content or file)
-    const suratHasilDoc = documents?.find(d => 
+    const suratHasilDoc = documents?.find(d =>
       d.type === 'SURAT_TUGAS' || d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS_TABEL'
     );
     const hasSuratHasilContent = !!(suratHasilDoc?.content);
     const hasSuratHasilFile = !!(suratHasilDoc as any)?.fileUrl;
     const isSuratHasilDocReady = hasSuratHasilContent || hasSuratHasilFile;
-    
+
     // PERBAIKAN: showSuratHasil = status >= FAKULTAS_DRAFTING DAN dokumen sudah ada
     // Untuk mahasiswa/dosen: tampilkan jika dokumen sudah ada
     const hasHasil = hasFakultasStatus && (isSubmitter ? isSuratHasilDocReady : true);
 
     // Kaprodi/Kadep can approve/reject when status is SUBMITTED and currentActiveRole matches
-    const canApprove = status === 'SUBMITTED' && currentActiveRole !== null && 
-      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
-       (isKadep && currentActiveRole === 'KADEP'));
-    const canReject = status === 'SUBMITTED' && currentActiveRole !== null && 
-      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
-       (isKadep && currentActiveRole === 'KADEP'));
+    const canApprove = status === 'SUBMITTED' && currentActiveRole !== null &&
+      ((isKaprodi && currentActiveRole === 'KAPRODI') ||
+        (isKadep && currentActiveRole === 'KADEP'));
+    const canReject = status === 'SUBMITTED' && currentActiveRole !== null &&
+      ((isKaprodi && currentActiveRole === 'KAPRODI') ||
+        (isKadep && currentActiveRole === 'KADEP'));
 
     // Admin Prodi can draft when status is SURAT_PENGANTAR_DRAFT
     const canDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';
@@ -1019,75 +1021,75 @@ export class SubmissionService {
 
     // Kaprodi/Kadep can sign when status is SURAT_PENGANTAR_REVIEW and it's their turn
     // Must check viewerRole matches the current active role to prevent showing button after signing
-    const canSign = status === 'SURAT_PENGANTAR_REVIEW' && 
+    const canSign = status === 'SURAT_PENGANTAR_REVIEW' &&
       currentActiveRole !== null &&
-      ((isKaprodi && currentActiveRole === 'KAPRODI') || 
-       (isKadep && currentActiveRole === 'KADEP'));
+      ((isKaprodi && currentActiveRole === 'KAPRODI') ||
+        (isKadep && currentActiveRole === 'KADEP'));
 
     // Faculty actions
     // Admin Fakultas can receive when surat pengantar is fully signed
     const canReceive = isAdminFakultas && status === 'SURAT_PENGANTAR_SIGNED' && currentActiveRole === 'ADMIN_FAKULTAS';
     // Admin Fakultas can forward after receiving (FAKULTAS_RECEIVED)
     const canForward = isAdminFakultas && status === 'FAKULTAS_RECEIVED' && currentActiveRole === 'ADMIN_FAKULTAS';
-    
+
     // Pejabat can dispose when letter is assigned to them (FAKULTAS_DISPOSITION)
     // Note: Staf cannot dispose - they are at the bottom of hierarchy
-    const canDispose = (isPejabat || isManajerTU || isSupervisor) && 
-      status === 'FAKULTAS_DISPOSITION' && 
+    const canDispose = (isPejabat || isManajerTU || isSupervisor) &&
+      status === 'FAKULTAS_DISPOSITION' &&
       currentActiveRole === viewerRole;
-    
+
     // Pejabat/Supervisor/Staf can complete (finish processing at their level)
-    const canComplete = (isPejabat || isManajerTU || isSupervisor || isStaf) && 
-      status === 'FAKULTAS_DISPOSITION' && 
+    const canComplete = (isPejabat || isManajerTU || isSupervisor || isStaf) &&
+      status === 'FAKULTAS_DISPOSITION' &&
       currentActiveRole === viewerRole;
-    
+
     // Pejabat/Supervisor/Staf can return to previous handler
-    const canReturn = (isPejabat || isManajerTU || isSupervisor || isStaf) && 
-      status === 'FAKULTAS_DISPOSITION' && 
+    const canReturn = (isPejabat || isManajerTU || isSupervisor || isStaf) &&
+      status === 'FAKULTAS_DISPOSITION' &&
       currentActiveRole === viewerRole;
-    
+
     // Check if SK/ST draft exists (including table version)
-    const hasSkstDraft = documents?.some(d => 
+    const hasSkstDraft = documents?.some(d =>
       d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
-    
+
     // Staf-specific actions for Surat Hasil
     // Staf can draft surat hasil when status is SURAT_DIBUAT or FAKULTAS_DRAFTING and assigned to them
     // PERBAIKAN: Include SURAT_DIBUAT (setelah disposisi ke staff)
     // Note: When pejabat dispositions to staf, status becomes SURAT_DIBUAT first
     // Only show "Draft Surat" if no SK/ST draft exists yet
     // Supervisor juga bisa draft jika menerima revisi dari Manajer TU
-    const canDraftSuratHasil = (isStaf || isSupervisor) && 
-      (status === 'SURAT_DIBUAT' || status === 'FAKULTAS_DRAFTING') && 
+    const canDraftSuratHasil = (isStaf || isSupervisor) &&
+      (status === 'SURAT_DIBUAT' || status === 'FAKULTAS_DRAFTING') &&
       currentActiveRole === viewerRole &&
       !hasSkstDraft;
-    
+
     // Staf/Supervisor can edit draft when status is FAKULTAS_DRAFTING and assigned to them
-    const canEditDraft = (isStaf || isSupervisor) && 
-      status === 'FAKULTAS_DRAFTING' && 
+    const canEditDraft = (isStaf || isSupervisor) &&
+      status === 'FAKULTAS_DRAFTING' &&
       currentActiveRole === viewerRole &&
       hasSkstDraft;
-    
+
     // Staf/Supervisor can submit for verification after drafting (only if draft exists)
-    const canSubmitVerification = (isStaf || isSupervisor) && 
-      status === 'FAKULTAS_DRAFTING' && 
+    const canSubmitVerification = (isStaf || isSupervisor) &&
+      status === 'FAKULTAS_DRAFTING' &&
       currentActiveRole === viewerRole &&
       hasSkstDraft;
-    
+
     // Supervisor/Manajer TU/Pejabat can return for revision
     // - Saat VERIFICATION: Supervisor/Manajer TU/Pejabat bisa return ke role sebelumnya
     // - Saat DRAFTING (supervisor): bisa return ke staff
     // - Saat SIGNING: Pejabat (penandatangan) bisa return ke role sebelumnya
-    const canReturnForRevision = 
+    const canReturnForRevision =
       ((isSupervisor || isManajerTU) && status === 'FAKULTAS_VERIFICATION' && currentActiveRole === viewerRole) ||
       (isSupervisor && status === 'FAKULTAS_DRAFTING' && currentActiveRole === viewerRole && hasSkstDraft) ||
       (isPejabat && (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && currentActiveRole === viewerRole);
-    
+
     // =====================================================================
     // SURAT HASIL: LOGIC TOMBOL VERIFIKASI vs TANDA TANGAN
     // Per dokumen: Target signature HANYA menentukan jenis tombol!
     // =====================================================================
-    
+
     // Normalize role untuk perbandingan
     const normalizeRole = (role: string): string => {
       const ROLE_MAP: Record<string, string> = {
@@ -1113,20 +1115,20 @@ export class SubmissionService {
     // LOGIC SESUAI DOKUMEN:
     // - IF (Role saat ini ADA di daftar penandatangan) → canSignSuratHasil=true
     // - ELSE → canVerifySuratHasil=true
-    
+
     // Pejabat verify surat hasil (HANYA jika BUKAN penandatangan)
     // Berlaku untuk: Supervisor, Manajer TU, Wadek, Dekan yang BUKAN di daftar TTD
-    const canVerifySuratHasil = (isSupervisor || isManajerTU || isPejabat) && 
-      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && 
+    const canVerifySuratHasil = (isSupervisor || isManajerTU || isPejabat) &&
+      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') &&
       currentActiveRole === viewerRole &&
       !isViewerASigner;
-    
+
     // Pejabat sign surat hasil (HANYA jika ADA di daftar penandatangan)
-    const canSignSuratHasil = isPejabat && 
-      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') && 
+    const canSignSuratHasil = isPejabat &&
+      (status === 'FAKULTAS_VERIFICATION' || status === 'FAKULTAS_SIGNING') &&
       currentActiveRole === viewerRole &&
       isViewerASigner;
-    
+
     const canVerify = isSupervisor && status === 'FAKULTAS_VERIFICATION';
     const canFinish = isStaf && status === 'FAKULTAS_DRAFTING';
 
@@ -1135,8 +1137,8 @@ export class SubmissionService {
     const canStamp = isUPA && status === 'UPA_STAMPING';
 
     // Supervisor can edit draft during verification (Manajer TU cannot edit)
-    const canEditDraftInVerification = isSupervisor && 
-      status === 'FAKULTAS_VERIFICATION' && 
+    const canEditDraftInVerification = isSupervisor &&
+      status === 'FAKULTAS_VERIFICATION' &&
       currentActiveRole === viewerRole &&
       hasSkstDraft;
 
@@ -1200,8 +1202,8 @@ export class SubmissionService {
       // Get the letter to check status and category
       const letter = await prisma.letterInstance.findUnique({
         where: { id: letterId },
-        select: { 
-          status: true, 
+        select: {
+          status: true,
           category: true,
           letterType: { select: { category: true } }
         }
@@ -1214,17 +1216,17 @@ export class SubmissionService {
       // For surat hasil status, use hierarchy-based return targets (FLEKSIBEL)
       const suratHasilStatuses = [
         'FAKULTAS_DRAFTING',
-        'FAKULTAS_VERIFICATION', 
+        'FAKULTAS_VERIFICATION',
         'FAKULTAS_SIGNING'
       ];
 
       if (suratHasilStatuses.includes(letter.status)) {
         // Use getReturnTargets dari roles.ts untuk surat hasil
         const category = (letter.category || letter.letterType.category) as LetterCategory;
-        
+
         // Normalize current role
         const normalizedRole = currentRole.toUpperCase().replace(/\s+/g, '_');
-        
+
         return getReturnTargets(normalizedRole, category);
       }
 

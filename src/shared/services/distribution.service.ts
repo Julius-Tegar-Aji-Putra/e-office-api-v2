@@ -74,22 +74,25 @@ class DistributionService {
       // Log distribusi untuk setiap penerima
       for (const recipient of recipients) {
         try {
-          // Log aktivitas tembusan
-          await prisma.letterLog.create({
-            data: {
-              letterInstanceId,
-              actorId: distributedBy.userId,
-              actorRole: distributedBy.role,
-              action: LogAction.FINALIZE,
-              notes: `Tembusan dikirim ke ${recipient.name}${recipient.unit ? ` (${recipient.unit})` : ''}`,
-              metadata: {
-                recipientType: recipient.type,
-                recipientId: recipient.userId,
-                recipientRole: recipient.role,
-                recipientName: recipient.name,
+          // Log aktivitas tembusan HANYA jika penerima adalah user system (memiliki userId)
+          // Manual text recipients (tanpa userId) tidak perlu dicatat di history
+          if (recipient.userId) {
+            await prisma.letterLog.create({
+              data: {
+                letterInstanceId,
+                actorId: distributedBy.userId,
+                actorRole: distributedBy.role,
+                action: LogAction.FINALIZE,
+                notes: `Tembusan dikirim ke ${recipient.name}${recipient.unit ? ` (${recipient.unit})` : ''}`,
+                metadata: {
+                  recipientType: recipient.type,
+                  recipientId: recipient.userId,
+                  recipientRole: recipient.role,
+                  recipientName: recipient.name,
+                },
               },
-            },
-          });
+            });
+          }
 
           distributed++;
           details.push({
