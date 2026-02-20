@@ -15,16 +15,16 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('3079'),
   BASE_URL: z.string().default('http://localhost:3079'),
-  
+
   // Database
   DATABASE_URL: z.string(),
-  
+
   // JWT & Security
-  JWT_SECRET: z.string(),
+  JWT_SECRET: z.string().default('not_used_dummy_secret'),
   DEFAULT_PASSWORD: z.string().default('pagidatangsorehilang'),
   AVATAR_DEFAULT: z.string().default('https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png'),
   SSO_URL: z.string().optional(),
-  
+
   // MinIO / Storage
   MINIO_ENDPOINT: z.string().default('localhost'),
   MINIO_PORT: z.string().default('9000'),

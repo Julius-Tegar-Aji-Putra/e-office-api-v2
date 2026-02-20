@@ -181,11 +181,11 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
   .post('/:id/sign', async ({ params, body, user }) => {
     // Get all user's roles
     const roles = await getUserRoles(user.id);
-    
+
     // PERBAIKAN: Get the letter first to check currentActiveRole
     // Then determine which role the user should use based on their roles AND the letter's state
     const letter = await departmentApprovalController.getLetterForSigning(params.id);
-    
+
     // Determine the correct signer role based on the letter's currentActiveRole
     // The user must have the role that matches currentActiveRole
     let signerRole: string;
@@ -199,7 +199,7 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
     } else {
       signerRole = roles.includes(ROLES.KAPRODI) ? ROLES.KAPRODI : ROLES.KADEP;
     }
-    
+
     return departmentApprovalController.signPengantar(params.id, body, user.id, signerRole);
   }, {
     params: letterIdParamSchema,
@@ -217,9 +217,9 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
 
   .delete('/:id/attachments/:attachmentId', async ({ params, user }) => {
     return departmentApprovalController.removePengajuAttachment(
-      params.id, 
-      params.attachmentId, 
-      user.id, 
+      params.id,
+      params.attachmentId,
+      user.id,
       ROLES.ADMIN_PRODI
     );
   }, {
@@ -238,9 +238,10 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
   // Validation Endpoints
   // ==========================================================================
 
-  .get('/check-nomor-surat', async ({ query }) => {
+  .get('/check-nomor-surat', async ({ query, user }) => {
     return departmentApprovalController.checkNomorSurat(
       query.nomorSurat,
+      user.id,
       query.letterId
     );
   }, {
@@ -250,7 +251,7 @@ export const departmentApprovalRoutes = new Elysia({ prefix: '/department-approv
     }),
     detail: {
       summary: 'Check nomor surat availability',
-      description: 'Mengecek apakah nomor surat sudah digunakan atau masih tersedia',
+      description: 'Mengecek apakah nomor surat sudah digunakan oleh Prodi yang sama atau masih tersedia',
       tags: ['Department Approval']
     }
   });

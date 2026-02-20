@@ -56,6 +56,7 @@ export interface SignInput {
 
 export interface CheckNomorSuratInput {
   nomorSurat: string;
+  userId: string;
   letterId?: string; // Optional: untuk exclude surat yang sedang diedit
 }
 
@@ -210,7 +211,7 @@ class DepartmentApprovalService {
     });
 
     const prodi = createdByUser?.mahasiswa?.programStudi || createdByUser?.pegawai?.programStudi;
-    
+
     if (!prodi) {
       throw new AppError('Program Studi tidak ditemukan untuk pengguna ini', HTTP_STATUS.BAD_REQUEST);
     }
@@ -264,8 +265,8 @@ class DepartmentApprovalService {
       letterInstanceId: letterId,
       content: {
         // Empty template - will be filled by Admin Prodi
-        perihal: letter.submissionValues && typeof letter.submissionValues === 'object' 
-          ? (letter.submissionValues as any).keperluan || '' 
+        perihal: letter.submissionValues && typeof letter.submissionValues === 'object'
+          ? (letter.submissionValues as any).keperluan || ''
           : '',
         body: '',
         lampiran: '-'
@@ -364,7 +365,7 @@ class DepartmentApprovalService {
 
     // Validate that at least one signature format is provided
     if ((!input.signatureData || input.signatureData.trim() === '') &&
-        (!input.signatureUrl || input.signatureUrl.trim() === '')) {
+      (!input.signatureUrl || input.signatureUrl.trim() === '')) {
       throw new AppError('Tanda tangan (base64 atau URL) wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -383,20 +384,20 @@ class DepartmentApprovalService {
     if (input.signatureData && input.signatureData.trim() !== '') {
       try {
         const minio = new MinioService();
-        
+
         // Parse base64 data
         const matches = input.signatureData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
         if (!matches) {
           throw new AppError('Format tanda tangan tidak valid', HTTP_STATUS.BAD_REQUEST);
         }
-        
+
         const mimeType = matches[1];
         const base64Data = matches[2];
         const buffer = Buffer.from(base64Data, 'base64');
-        
+
         // Create file name for upload
         const fileName = `signature-${userRole}-${Date.now()}.${mimeType}`;
-        
+
         // Upload to MinIO
         const uploadResult = await minio.uploadFile(
           buffer,
@@ -404,7 +405,7 @@ class DepartmentApprovalService {
           `image/${mimeType}`,
           `signatures/${userId}`
         );
-        
+
         // PERBAIKAN: Store storage path, NOT presigned URL (presigned URLs expire!)
         finalSignatureUrl = uploadResult.path;
 
@@ -543,7 +544,7 @@ class DepartmentApprovalService {
 
     // Get attachment details
     const attachment = await prisma.letterAttachment.findFirst({
-      where: { 
+      where: {
         id: attachmentId,
         letterInstanceId: letterId
       }
@@ -577,12 +578,40 @@ class DepartmentApprovalService {
    * Used for real-time validation in frontend
    */
   async checkNomorSurat(input: CheckNomorSuratInput) {
-    const { nomorSurat, letterId } = input;
+    const { nomorSurat, userId, letterId } = input;
+
+    // Ambil data prodi/departemen user untuk memastikan cek nomor surat hanya 
+    // dalam lingkup prodi/departemen yang sama
+    const userPegawai = await prisma.pegawai.findUnique({
+      where: { userId },
+      select: { programStudiId: true, departemenId: true }
+    });
+
+    if (!userPegawai) {
+      throw new AppError('Data pegawai tidak ditemukan untuk user ini', HTTP_STATUS.NOT_FOUND);
+    }
 
     // Check if nomorSurat exists in letterDocument
     const whereClause: Prisma.LetterDocumentWhereInput = {
       nomorSurat: nomorSurat.trim(),
       type: 'SURAT_PENGANTAR', // Only check for surat pengantar
+      // Ensure the letter was created by someone in the same Prodi/Departemen
+      letterInstance: {
+        createdBy: {
+          OR: [
+            {
+              mahasiswa: userPegawai.programStudiId
+                ? { programStudiId: userPegawai.programStudiId }
+                : { departemenId: userPegawai.departemenId }
+            },
+            {
+              pegawai: userPegawai.programStudiId
+                ? { programStudiId: userPegawai.programStudiId }
+                : { departemenId: userPegawai.departemenId }
+            }
+          ]
+        }
+      }
     };
 
     // If letterId provided, exclude current letter being edited
@@ -604,8 +633,8 @@ class DepartmentApprovalService {
     return {
       isAvailable: !existing,
       nomorSurat: nomorSurat.trim(),
-      message: existing 
-        ? 'Nomor Surat Sudah Digunakan' 
+      message: existing
+        ? 'Nomor Surat Sudah Digunakan'
         : 'Nomor surat tersedia',
       existingLetter: existing ? {
         id: existing.letterInstanceId

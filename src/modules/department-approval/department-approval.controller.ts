@@ -169,9 +169,9 @@ class DepartmentApprovalController {
       };
       const document = await departmentApprovalService.saveDraft(input, userId, userRole);
       // Return with documentId explicitly for frontend attachment upload
-      return successResponse('Draft berhasil disimpan', { 
-        ...document, 
-        documentId: document.id 
+      return successResponse('Draft berhasil disimpan', {
+        ...document,
+        documentId: document.id
       });
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));
@@ -235,9 +235,9 @@ class DepartmentApprovalController {
   ) {
     try {
       const result = await departmentApprovalService.removePengajuAttachment(
-        letterId, 
-        attachmentId, 
-        userId, 
+        letterId,
+        attachmentId,
+        userId,
         userRole
       );
       return successResponse('Lampiran pengaju berhasil dihapus', result);
@@ -262,9 +262,9 @@ class DepartmentApprovalController {
    * GET /department-approval/check-nomor-surat
    * Check if nomor surat is already used
    */
-  async checkNomorSurat(nomorSurat: string, letterId?: string) {
+  async checkNomorSurat(nomorSurat: string, userId: string, letterId?: string) {
     try {
-      const result = await departmentApprovalService.checkNomorSurat({ nomorSurat, letterId });
+      const result = await departmentApprovalService.checkNomorSurat({ nomorSurat, userId, letterId });
       return successResponse('Berhasil mengecek nomor surat', result);
     } catch (error: unknown) {
       return errorResponse(getErrorMessage(error));

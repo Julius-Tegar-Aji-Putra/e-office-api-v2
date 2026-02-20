@@ -292,7 +292,7 @@ model LetterDocument {
   type               DocumentType
   content            Json?
   tembusan           Json?
-  nomorSurat         String?             @unique
+  nomorSurat         String?             // This field is no longer globally unique
   tanggalSurat       DateTime?
   perihal            String?
   isSigned           Boolean             @default(false)
