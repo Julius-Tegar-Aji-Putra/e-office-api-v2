@@ -26,7 +26,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   // ==========================================================================
   // Letter Types (Public untuk form pengajuan)
   // ==========================================================================
-  
+
   .get('/letter-types', async () => {
     return submissionController.getLetterTypes();
   }, {
@@ -89,7 +89,14 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   })
 
   .post('/', async ({ body, user }) => {
-    return submissionController.createSubmission(user.id, body);
+    return submissionController.createSubmission(user.id, {
+      ...body,
+      formData: {
+        ...body.formData,
+        judulAcara: body.formData.judulAcara ?? '',
+        lokasiAcara: body.formData.lokasiAcara ?? '',
+      },
+    });
   }, {
     body: createSubmissionSchema,
     detail: {
@@ -102,10 +109,10 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
   // Route untuk create submission dengan file upload
   .post('/with-files', async ({ body, user }) => {
     // Extract files from multipart form-data (field name is 'attachments')
-    const files = body.attachments 
+    const files = body.attachments
       ? (Array.isArray(body.attachments) ? body.attachments : [body.attachments]).filter((f: unknown): f is File => f instanceof File)
       : null;
-    
+
     return submissionController.createSubmissionWithFiles(
       user.id,
       {
@@ -117,10 +124,10 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
         programStudi: body.programStudi,
         jenisSurat: body.jenisSurat,
         keperluan: body.keperluan,
-        judulAcara: body.judulAcara,
+        judulAcara: body.judulAcara ?? '',
         tanggalAcara: body.tanggalAcara,
         durasiAcara: body.durasiAcara,
-        lokasiAcara: body.lokasiAcara,
+        lokasiAcara: body.lokasiAcara ?? '',
         butuhTtdKadep: body.butuhTtdKadep,
         targetSigner: body.targetSigner,
         requestKadepSign: body.requestKadepSign,
@@ -174,7 +181,7 @@ export const submissionRoutes = new Elysia({ prefix: '/submission' })
         statusCode: 400,
       };
     }
-    
+
     return submissionController.addAttachment(
       params.id,
       user.id,

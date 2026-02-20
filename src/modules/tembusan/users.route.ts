@@ -25,11 +25,11 @@ const publicUsersRoute = new Elysia({ prefix: '/api/users' })
   .get('/pejabat', async () => {
     try {
       console.log('📡 [/api/users/pejabat] Request received');
-      
+
       // Get pejabat data directly from user + pegawai tables based on roles
       // Roles that can sign documents: DEKAN, WADEK_1, WADEK_2, KAPRODI, KADEP
       const pejabatRoles = [ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.KAPRODI, ROLES.KADEP];
-      
+
       const users = await prisma.user.findMany({
         where: {
           userRoles: {
@@ -96,7 +96,7 @@ const publicUsersRoute = new Elysia({ prefix: '/api/users' })
       const pejabatList = users.flatMap(user => {
         // A user can have multiple roles, map each pejabat role
         return user.userRoles
-          .filter(ur => pejabatRoles.includes(ur.role.name))
+          .filter(ur => (pejabatRoles as readonly string[]).includes(ur.role.name))
           .map(ur => ({
             role: ur.role.name,
             name: user.name,
@@ -146,7 +146,7 @@ const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
       const isStaff = roles.some(r => (STAF_ROLES as readonly string[]).includes(r));
       const isSupervisor = roles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
       const isManajerTU = roles.includes(ROLES.MANAJER_TU);
-      
+
       if (!isStaff && !isSupervisor && !isManajerTU) {
         return {
           success: false,
@@ -273,9 +273,9 @@ const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
       // Sort combined results by name
       users.sort((a, b) => a.name.localeCompare(b.name));
 
-      const total = type === 'mahasiswa' ? totalMahasiswa : 
-                   type === 'pegawai' ? totalPegawai : 
-                   totalMahasiswa + totalPegawai;
+      const total = type === 'mahasiswa' ? totalMahasiswa :
+        type === 'pegawai' ? totalPegawai :
+          totalMahasiswa + totalPegawai;
 
       return {
         success: true,
@@ -318,7 +318,7 @@ const protectedUsersRoute = new Elysia({ prefix: '/api/users' })
       const isStaff = roles.some(r => (STAF_ROLES as readonly string[]).includes(r));
       const isSupervisor = roles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
       const isManajerTU = roles.includes(ROLES.MANAJER_TU);
-      
+
       if (!isStaff && !isSupervisor && !isManajerTU) {
         return {
           success: false,

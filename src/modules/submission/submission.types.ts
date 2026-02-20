@@ -244,6 +244,7 @@ export interface SubmissionPermissions {
   // Verification actions (Pejabat)
   canVerifySuratHasil?: boolean; // Pejabat verifikasi surat hasil
   canSignSuratHasil?: boolean; // Pejabat yang menjadi target TTD
+  canReturnForRevision?: boolean; // Can return draft for revision
 }
 
 // ============================================================================

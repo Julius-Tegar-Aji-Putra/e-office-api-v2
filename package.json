@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
+    "build": "bun x tsc -p tsconfig.json && bun x prisma generate",
     "start": "NODE_ENV=production bun run ./src/index.ts",
 
     "lint": "bun x @biomejs/biome check src",

@@ -23,7 +23,7 @@ export const masterDataRoutes = new Elysia({ prefix: '/master-data' })
       };
     } catch (error) {
       console.error('Error fetching prodi list:', error);
-      throw new AppError('Failed to fetch program studi list', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      throw new AppError('Failed to fetch program studi list', HTTP_STATUS.INTERNAL_ERROR);
     }
   })
 
@@ -45,7 +45,7 @@ export const masterDataRoutes = new Elysia({ prefix: '/master-data' })
     } catch (error) {
       if (error instanceof AppError) throw error;
       console.error('Error fetching prodi details:', error);
-      throw new AppError('Failed to fetch program studi details', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      throw new AppError('Failed to fetch program studi details', HTTP_STATUS.INTERNAL_ERROR);
     }
   }, {
     params: t.Object({
@@ -67,7 +67,7 @@ export const masterDataRoutes = new Elysia({ prefix: '/master-data' })
       };
     } catch (error) {
       console.error('Error fetching departemen list:', error);
-      throw new AppError('Failed to fetch departemen list', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      throw new AppError('Failed to fetch departemen list', HTTP_STATUS.INTERNAL_ERROR);
     }
   })
 
@@ -89,7 +89,7 @@ export const masterDataRoutes = new Elysia({ prefix: '/master-data' })
     } catch (error) {
       if (error instanceof AppError) throw error;
       console.error('Error fetching departemen details:', error);
-      throw new AppError('Failed to fetch departemen details', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      throw new AppError('Failed to fetch departemen details', HTTP_STATUS.INTERNAL_ERROR);
     }
   }, {
     params: t.Object({

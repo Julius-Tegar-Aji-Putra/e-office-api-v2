@@ -82,7 +82,7 @@ interface DashboardResult {
 // KAMUS DEFINISI STATUS SURAT UNTUK TIAP AKTOR
 // ============================================================================
 
-type DisplayStatusType = 
+type DisplayStatusType =
   | 'DIPROSES'
   | 'SELESAI'
   | 'DITOLAK'
@@ -90,7 +90,8 @@ type DisplayStatusType =
   | 'DIKEMBALIKAN'
   | 'MENUNGGU ANDA'
   | 'MENUNGGU DIVERIFIKASI'
-  | 'MENUNGGU DITANDATANGANI';
+  | 'MENUNGGU DITANDATANGANI'
+  | 'SURAT DIBUAT';
 
 // ============================================================================
 // PRIORITY SORTING FOR DASHBOARD
@@ -109,32 +110,32 @@ type DisplayStatusType =
  */
 function getDisplayStatusPriority(displayStatus: string): number {
   const upperStatus = displayStatus.toUpperCase();
-  
+
   // Menunggu (prioritas tertinggi)
   if (upperStatus.includes('MENUNGGU')) {
     return 1;
   }
-  
+
   // Diproses
   if (upperStatus === 'DIPROSES') {
     return 2;
   }
-  
+
   // Selesai
   if (upperStatus === 'SELESAI') {
     return 3;
   }
-  
+
   // Dikembalikan
   if (upperStatus.includes('DIKEMBALIKAN')) {
     return 4;
   }
-  
+
   // Ditolak
   if (upperStatus === 'DITOLAK') {
     return 5;
   }
-  
+
   // Default (unknown status)
   return 99;
 }
@@ -146,12 +147,12 @@ function sortByDisplayStatusPriority<T extends { displayStatus: string; tanggalS
   return items.sort((a, b) => {
     const priorityA = getDisplayStatusPriority(a.displayStatus);
     const priorityB = getDisplayStatusPriority(b.displayStatus);
-    
+
     // Urutkan berdasarkan prioritas dulu
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
     }
-    
+
     // Jika prioritas sama, urutkan berdasarkan tanggal (terbaru di atas)
     return new Date(b.tanggalSurat).getTime() - new Date(a.tanggalSurat).getTime();
   });
@@ -242,9 +243,9 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   // AKTOR 6: PEJABAT (DEKAN, WADEK I, WADEK II, Manajer TU)
   if ([ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.MANAJER_TU].includes(role as any)) {
     if (
-      (status === LetterStatus.FAKULTAS_DISPOSITION || 
-       status === LetterStatus.FAKULTAS_VERIFICATION || 
-       status === LetterStatus.FAKULTAS_SIGNING) &&
+      (status === LetterStatus.FAKULTAS_DISPOSITION ||
+        status === LetterStatus.FAKULTAS_VERIFICATION ||
+        status === LetterStatus.FAKULTAS_SIGNING) &&
       currentActiveRole === role
     ) {
       return 'MENUNGGU ANDA';
@@ -257,10 +258,10 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   // AKTOR 7: SUPERVISOR (SUPERVISOR_AKADEMIK, SUPERVISOR_SUMBER_DAYA)
   if ([ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(role as any)) {
     if (
-      (status === LetterStatus.FAKULTAS_DISPOSITION || 
-       status === LetterStatus.FAKULTAS_VERIFICATION ||
-       status === LetterStatus.SURAT_DIBUAT ||
-       status === LetterStatus.FAKULTAS_DRAFTING) &&
+      (status === LetterStatus.FAKULTAS_DISPOSITION ||
+        status === LetterStatus.FAKULTAS_VERIFICATION ||
+        status === LetterStatus.SURAT_DIBUAT ||
+        status === LetterStatus.FAKULTAS_DRAFTING) &&
       currentActiveRole === role
     ) {
       return 'MENUNGGU ANDA';
@@ -273,7 +274,7 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   // AKTOR 8: STAF AKADEMIK/SUMBER DAYA
   if ([ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(role as any)) {
     if (
-      (status === LetterStatus.SURAT_DIBUAT || status === LetterStatus.FAKULTAS_DRAFTING) && 
+      (status === LetterStatus.SURAT_DIBUAT || status === LetterStatus.FAKULTAS_DRAFTING) &&
       currentActiveRole === role
     ) {
       return 'MENUNGGU ANDA';
@@ -285,8 +286,8 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
   // AKTOR 9: UPA
   if (role === ROLES.UPA) {
     if (
-      status === LetterStatus.UPA_NUMBERING || 
-      status === LetterStatus.UPA_STAMPING || 
+      status === LetterStatus.UPA_NUMBERING ||
+      status === LetterStatus.UPA_STAMPING ||
       status === LetterStatus.UPA_FINALIZING
     ) {
       return 'MENUNGGU ANDA';
@@ -534,9 +535,9 @@ function getTipeSurat(letterTypeCode?: string, documentType?: string): string {
     if (documentType === 'SURAT_TUGAS' || documentType === 'SURAT_TUGAS_TABEL') return 'Surat Tugas';
     if (documentType === 'SURAT_PENGANTAR') return 'Surat Pengantar';
   }
-  
+
   if (!letterTypeCode) return '-';
-  
+
   // For STAFF_DIRECT codes, we can't reliably determine from letterType.code alone
   // because all STAFF_DIRECT_* codes contain 'ST' (from STAFF)
   // Fall back to checking for explicit SK/ST patterns (non-STAFF_DIRECT)
@@ -544,7 +545,7 @@ function getTipeSurat(letterTypeCode?: string, documentType?: string): string {
     if (letterTypeCode.includes('SK')) return 'Surat Keputusan';
     if (letterTypeCode.includes('ST')) return 'Surat Tugas';
   }
-  
+
   return letterTypeCode;
 }
 
@@ -644,7 +645,7 @@ async function getDashboardPengaju(
 
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
-    mappedItems = mappedItems.filter(item => 
+    mappedItems = mappedItems.filter(item =>
       item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
     );
   }
@@ -791,7 +792,7 @@ async function getDashboardDepartemen(
         { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
       ]
     };
-    
+
     // Combine with existing filters using AND
     if (where.AND) {
       where.AND.push(searchCondition);
@@ -849,7 +850,7 @@ async function getDashboardDepartemen(
 
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
-    mappedItems = mappedItems.filter(item => 
+    mappedItems = mappedItems.filter(item =>
       item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
     );
   }
@@ -1152,7 +1153,7 @@ async function getDashboardFakultas(
           },
         },
         createdBy: { select: { id: true, name: true } },
-        logs: { 
+        logs: {
           select: { actorRole: true },
           where: { actorRole: user.role },
           take: 1, // Hanya perlu tahu apakah ada
@@ -1208,7 +1209,7 @@ async function getDashboardFakultas(
 
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
-    mappedItems = mappedItems.filter(item => 
+    mappedItems = mappedItems.filter(item =>
       item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
     );
   }
@@ -1373,7 +1374,7 @@ async function getDashboardUPA(
 
   // Apply displayStatus filter if provided
   if (filters.displayStatus) {
-    mappedItems = mappedItems.filter(item => 
+    mappedItems = mappedItems.filter(item =>
       item.displayStatus.toUpperCase() === filters.displayStatus!.toUpperCase()
     );
   }
@@ -1425,26 +1426,26 @@ export default new Elysia()
     const userDetails = await db.user.findUnique({
       where: { id: user.id },
       include: {
-        mahasiswa: { 
-          select: { 
-            departemenId: true, 
+        mahasiswa: {
+          select: {
+            departemenId: true,
             programStudiId: true,
             programStudi: {
               select: {
                 departemenId: true,
               },
             },
-          } 
+          }
         },
-        pegawai: { 
-          select: { 
+        pegawai: {
+          select: {
             programStudiId: true,
             programStudi: {
               select: {
                 departemenId: true,
               },
             },
-          } 
+          }
         },
       },
     });
@@ -1594,7 +1595,7 @@ export default new Elysia()
       action: log.action,
       notes: log.notes,
       letterTitle: log.letterInstance?.documents[0]?.perihal ||
-                   (log.letterInstance?.submissionValues as any)?.judulAcara || '-',
+        (log.letterInstance?.submissionValues as any)?.judulAcara || '-',
       documentType: log.letterInstance?.letterType?.name,
       actorName: log.actor?.name,
       timestamp: log.createdAt,

@@ -6,17 +6,18 @@
 import { prisma } from '../../db';
 import { legalisasiRepository } from './legalisasi.repository';
 import { LetterStatus, LegalisasiStatus, DocumentType } from '../../generated/prisma/client';
-import { 
-  validateNomorFormat, 
+import {
+  validateNomorFormat,
   generateNomorSuggestion,
   getActionType,
   getDisplayStatus
 } from './legalisasi.types';
 import { distributionService } from '../../shared/services/distribution.service';
+import { minioService, MinioService } from '../../shared/services/minio.service';
 import { legalisasiPdfService } from './legalisasi-pdf.service';
-import type { 
-  UpaQueueFilter, 
-  UpaDashboardItem, 
+import type {
+  UpaQueueFilter,
+  UpaDashboardItem,
   LegalisasiDetail,
   QRCodeResult,
   VerificationResult,
@@ -47,7 +48,12 @@ export interface PdfResult {
 // ============================================================================
 
 class LegalisasiService {
-  
+  private minio: MinioService;
+
+  constructor() {
+    this.minio = minioService;
+  }
+
   /**
    * Get UPA queue with transformed data
    */
@@ -59,10 +65,10 @@ class LegalisasiService {
     try {
       // Check if user has UPA role
       if (userRole !== 'UPA' && userRole !== 'ADMIN' && userRole !== 'SUPERADMIN') {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Access denied. Only UPA staff can access this queue',
-          code: 403 
+          code: 403
         };
       }
 
@@ -85,7 +91,7 @@ class LegalisasiService {
           status: letter.status,
           legalisasiStatus: document?.legalisasiStatus || LegalisasiStatus.PENDING,
           displayStatus: getDisplayStatus(
-            letter.status, 
+            letter.status,
             document?.legalisasiStatus || LegalisasiStatus.PENDING
           ),
           needsAction: letter.status !== LetterStatus.COMPLETED,
@@ -143,13 +149,13 @@ class LegalisasiService {
       }
 
       const letter = await legalisasiRepository.getLetterById(letterId);
-      
+
       if (!letter) {
         return { success: false, error: 'Letter not found', code: 404 };
       }
 
       // Get main document (ST/SK)
-      const document = letter.documents.find(d => 
+      const document = letter.documents.find(d =>
         d.type === DocumentType.SURAT_TUGAS || d.type === DocumentType.SURAT_KEPUTUSAN
       );
 
@@ -261,7 +267,7 @@ class LegalisasiService {
 
       // Check if exists
       const existingDoc = await legalisasiRepository.getDocumentByNomorSurat(nomorSurat);
-      
+
       if (existingDoc) {
         return {
           success: true,
@@ -327,9 +333,9 @@ class LegalisasiService {
    * Supports optional position data for PDF overlay
    */
   async assignNomorSurat(
-    input: { 
-      documentId: string; 
-      nomorSurat: string; 
+    input: {
+      documentId: string;
+      nomorSurat: string;
       tanggalSurat: Date;
       position?: {
         x: number;
@@ -353,10 +359,10 @@ class LegalisasiService {
       }
 
       if (document.letterInstance.status !== LetterStatus.UPA_NUMBERING) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: `Cannot assign number. Current status: ${document.letterInstance.status}`,
-          code: 400 
+          code: 400
         };
       }
 
@@ -368,22 +374,22 @@ class LegalisasiService {
 
       // Check for duplicates
       const isDuplicate = await legalisasiRepository.checkNomorSuratExists(
-        input.nomorSurat, 
+        input.nomorSurat,
         input.documentId
       );
       if (isDuplicate) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Nomor surat sudah digunakan. Silakan gunakan nomor lain.',
-          code: 409 
+          code: 409
         };
       }
 
       // Hanya update DB - frontend preview auto-update via template rendering
       // PDF final akan di-generate oleh frontend saat finalisasi
       const result = await legalisasiRepository.assignNomorSurat(
-        input, 
-        userId, 
+        input,
+        userId,
         userRole
       );
 
@@ -420,18 +426,18 @@ class LegalisasiService {
       }
 
       if (document.letterInstance.status !== LetterStatus.UPA_STAMPING) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: `Cannot apply stamp. Current status: ${document.letterInstance.status}`,
-          code: 400 
+          code: 400
         };
       }
 
       // Hanya update DB - frontend preview auto-update via template rendering
       // PDF final akan di-generate oleh frontend saat finalisasi
       const result = await legalisasiRepository.applyStempel(
-        { 
-          documentId: input.documentId, 
+        {
+          documentId: input.documentId,
           sealImageUrl: 'local:stempel.png', // Use local stempel from public folder
         },
         userId,
@@ -468,10 +474,10 @@ class LegalisasiService {
       }
 
       if (document.letterInstance.status !== LetterStatus.UPA_FINALIZING) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: `Cannot generate QR. Current status: ${document.letterInstance.status}`,
-          code: 400 
+          code: 400
         };
       }
 
@@ -521,7 +527,7 @@ class LegalisasiService {
         data: {
           qrCodeBase64: qrResult.qrCodeBase64,
           qrCodeDataUrl: qrResult.qrCodeDataUrl,
-          shortToken: qrResult.shortToken,
+          encryptedToken: qrResult.shortToken,
           verificationUrl: qrResult.verificationUrl
         }
       };
@@ -555,10 +561,10 @@ class LegalisasiService {
       }
 
       if (document.letterInstance.status !== LetterStatus.UPA_FINALIZING) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: `Cannot finalize. Current status: ${document.letterInstance.status}`,
-          code: 400 
+          code: 400
         };
       }
 
@@ -604,7 +610,7 @@ class LegalisasiService {
       try {
         const tembusanData = document.tembusan;
         const recipients = distributionService.parseTembusanData(tembusanData);
-        
+
         if (recipients.length > 0) {
           // Resolve recipients (convert role-based to user IDs if needed)
           const mahasiswa = document.letterInstance.createdBy.mahasiswa;
@@ -775,16 +781,16 @@ class LegalisasiService {
     return {
       canPenomoran: letterStatus === LetterStatus.UPA_NUMBERING,
       canStempel: letterStatus === LetterStatus.UPA_STAMPING,
-      canGenerateQR: letterStatus === LetterStatus.UPA_FINALIZING && 
-                     legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
-      canFinalize: letterStatus === LetterStatus.UPA_FINALIZING && 
-                   legalisasiStatus === LegalisasiStatus.QR_GENERATED,
+      canGenerateQR: letterStatus === LetterStatus.UPA_FINALIZING &&
+        legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
+      canFinalize: letterStatus === LetterStatus.UPA_FINALIZING &&
+        legalisasiStatus === LegalisasiStatus.QR_GENERATED,
       showPenomoranForm: letterStatus === LetterStatus.UPA_NUMBERING,
       showStempelButton: letterStatus === LetterStatus.UPA_STAMPING,
-      showQRButton: letterStatus === LetterStatus.UPA_FINALIZING && 
-                    legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
-      showFinalizeButton: letterStatus === LetterStatus.UPA_FINALIZING && 
-                          legalisasiStatus === LegalisasiStatus.QR_GENERATED
+      showQRButton: letterStatus === LetterStatus.UPA_FINALIZING &&
+        legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
+      showFinalizeButton: letterStatus === LetterStatus.UPA_FINALIZING &&
+        legalisasiStatus === LegalisasiStatus.QR_GENERATED
     };
   }
 
@@ -799,7 +805,7 @@ class LegalisasiService {
     try {
       // Get document with related data
       const document = await legalisasiRepository.getDocumentById(documentId);
-      
+
       if (!document) {
         return { success: false, error: 'Document not found', code: 404 };
       }
@@ -819,7 +825,7 @@ class LegalisasiService {
 
       // If fileUrl is a storage path (not http), download from MinIO
       let pdfBuffer: Buffer;
-      
+
       if (fileUrl.startsWith('http')) {
         // It's a signed URL - fetch via HTTP
         const response = await fetch(fileUrl);
