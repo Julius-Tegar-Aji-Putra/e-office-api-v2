@@ -226,6 +226,7 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
       return 'SURAT DIBUAT'; // PERBAIKAN: Status penutup Surat Masuk
     }
     if (status === LetterStatus.COMPLETED) return 'SELESAI';
+    if (status === LetterStatus.REJECTED) return 'DITOLAK';
     if (status === LetterStatus.CANCELLED) return 'DIKEMBALIKAN KE PENGAJU';
     return 'DIPROSES';
   }
@@ -763,6 +764,7 @@ async function getDashboardDepartemen(
       where.status = {
         in: [
           LetterStatus.SUBMITTED, // Tambahkan ini untuk prodi tanpa Kaprodi
+          LetterStatus.SURAT_PENGANTAR_DRAFT, // PERBAIKAN: Surat tetap muncul setelah KADEP approve
           LetterStatus.SURAT_PENGANTAR_REVIEW,
           LetterStatus.SURAT_PENGANTAR_SIGNED,
           LetterStatus.FAKULTAS_RECEIVED,
@@ -775,6 +777,7 @@ async function getDashboardDepartemen(
           LetterStatus.UPA_STAMPING,
           LetterStatus.UPA_FINALIZING,
           LetterStatus.COMPLETED,
+          LetterStatus.REJECTED, // PERBAIKAN: Surat tetap muncul setelah KADEP reject
           LetterStatus.CANCELLED,
         ],
       };
