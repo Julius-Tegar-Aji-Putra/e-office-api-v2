@@ -176,7 +176,7 @@ export class MinioService {
     return cleanPath;
   }
 
-  /**
+/**
    * Get signed URL for file download/view
    * @param storagePath - Full storage path in bucket
    * @param expirySeconds - URL expiry time (default: 1 hour)
@@ -191,12 +191,29 @@ export class MinioService {
       const cleanPath = this.sanitizePath(storagePath);
       console.log(`[MinIO] Calling presignedGetObject: bucket="${this.bucket}", cleanPath="${cleanPath}"`);
       
-      const url = await this.client.presignedGetObject(
+      // 1. MinIO membuat URL internal (localhost)
+      let url = await this.client.presignedGetObject(
         this.bucket,
         cleanPath,
         expirySeconds
       );
-      console.log(`[MinIO] presignedGetObject success, URL length: ${url.length}`);
+      
+      // 2. TIMPA (Rewrite) URL internal menjadi URL publik agar bisa diakses browser
+      if (env.MINIO_SERVER_URL) {
+        const internalUrl = new URL(url);
+        const externalUrl = new URL(env.MINIO_SERVER_URL);
+        
+        // Ganti protokol, host, dan port dengan versi publik
+        internalUrl.protocol = externalUrl.protocol;
+        internalUrl.host = externalUrl.host;
+        internalUrl.port = externalUrl.port || '';
+        
+        url = internalUrl.toString();
+        console.log(`[MinIO] URL rewritten for public access: ${url}`);
+      } else {
+        console.log(`[MinIO] presignedGetObject success, URL length: ${url.length}`);
+      }
+
       return url;
     } catch (error) {
       console.error('[MinIO] getFileUrl error:', error);
