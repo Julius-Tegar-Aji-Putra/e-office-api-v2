@@ -184,36 +184,25 @@ export class MinioService {
    */
   async getFileUrl(storagePath: string, expirySeconds: number = SIGNED_URL_EXPIRY): Promise<string> {
     await this.initialize();
-
-    console.log(`[MinIO] getFileUrl called with: bucket="${this.bucket}", path="${storagePath}"`);
-    
     try {
       const cleanPath = this.sanitizePath(storagePath);
-      console.log(`[MinIO] Calling presignedGetObject: bucket="${this.bucket}", cleanPath="${cleanPath}"`);
       
-      // 1. MinIO membuat URL internal (localhost)
+      // 1. MinIO membuat URL internal lengkap dengan token akses rahasianya
       let url = await this.client.presignedGetObject(
         this.bucket,
         cleanPath,
         expirySeconds
       );
       
-      // 2. TIMPA (Rewrite) URL internal menjadi URL publik agar bisa diakses browser
-      if (env.MINIO_SERVER_URL) {
-        const internalUrl = new URL(url);
-        const externalUrl = new URL(env.MINIO_SERVER_URL);
-        
-        // Ganti protokol, host, dan port dengan versi publik
-        internalUrl.protocol = externalUrl.protocol;
-        internalUrl.host = externalUrl.host;
-        internalUrl.port = externalUrl.port || '';
-        
-        url = internalUrl.toString();
-        console.log(`[MinIO] URL rewritten for public access: ${url}`);
-      } else {
-        console.log(`[MinIO] presignedGetObject success, URL length: ${url.length}`);
-      }
+      // 2. KITA SULAP URL-NYA AGAR LEWAT PROXY FRONTEND SECARA DINAMIS
+      // Mengambil HOST_IP dan FRONTEND_PORT langsung dari env.ts
+      const frontendOrigin = `http://${env.HOST_IP}:${env.FRONTEND_PORT}`; 
+      const parsedUrl = new URL(url);
+      
+      // Merakit URL akhir untuk dikirim ke frontend
+      url = `${frontendOrigin}/minio-proxy${parsedUrl.pathname}${parsedUrl.search}`;
 
+      console.log(`[MinIO] URL proxied via frontend: ${url}`);
       return url;
     } catch (error) {
       console.error('[MinIO] getFileUrl error:', error);
