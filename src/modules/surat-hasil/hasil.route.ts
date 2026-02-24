@@ -29,7 +29,7 @@ import { getUserRoles } from '../../lib/casbin';
 
 export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .use(authGuardPlugin)
-  
+
   // ==========================================================================
   // Create Staff Surat (tanpa submission)
   // ==========================================================================
@@ -46,7 +46,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
       tags: ['Surat Hasil']
     }
   })
-  
+
   // ==========================================================================
   // Queue Endpoints
   // ==========================================================================
@@ -155,7 +155,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .post('/:id/approve', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
     // Find supervisor or manajer TU role
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
     ) || roles[0];
     return hasilController.approveVerification(params.id, body, user.id, activeRole);
@@ -171,7 +171,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .put('/:id/supervisor-edit', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU'].includes(r)
     ) || roles[0];
     return hasilController.updateDraftAsSupervisor(params.id, body, user.id, activeRole);
@@ -188,7 +188,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
   .post('/:id/return', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
     // Allow: Supervisor, Manajer TU, dan Pejabat (Wadek/Dekan)
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       ['SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'MANAJER_TU', 'WADEK_1', 'WADEK_2', 'DEKAN'].includes(r)
     ) || roles[0];
     return hasilController.returnForRevision(params.id, body, user.id, activeRole);
@@ -209,7 +209,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .post('/:id/pejabat-verify', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       (PEJABAT_ROLES as readonly string[]).includes(r)
     ) || roles[0];
     return hasilController.pejabatVerifyDocument(params.id, body, user.id, activeRole);
@@ -229,7 +229,7 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .post('/:id/sign', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       (PEJABAT_ROLES as readonly string[]).includes(r)
     ) || roles[0];
     return hasilController.signDocument(params.id, body, user.id, activeRole);
@@ -260,13 +260,13 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .post('/document/:documentId/attachments', async ({ params, body, user }) => {
     const roles = await getUserRoles(user.id);
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
     ) || roles[0];
-    
+
     // body.files is already an array of File objects from t.Files()
     const files = body.files || [];
-    
+
     return hasilController.uploadAttachments(params.documentId, files, user.id, activeRole);
   }, {
     params: documentIdParamSchema,
@@ -287,19 +287,19 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
         fileName: params.fileName,
         user: user.id
       });
-      
+
       const roles = await getUserRoles(user.id);
-      const activeRole = roles.find(r => 
+      const activeRole = roles.find(r =>
         [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
       ) || roles[0];
-      
+
       const result = await hasilController.removeAttachmentByName(
-        params.documentId, 
-        params.fileName, 
-        user.id, 
+        params.documentId,
+        params.fileName,
+        user.id,
         activeRole
       );
-      
+
       console.log('[DELETE ATTACHMENT] Success:', result);
       return result;
     } catch (error) {
@@ -316,10 +316,10 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .delete('/document/:documentId/attachments/:index', async ({ params, user }) => {
     const roles = await getUserRoles(user.id);
-    const activeRole = roles.find(r => 
+    const activeRole = roles.find(r =>
       [...STAF_ROLES, 'SUPERVISOR_AKADEMIK', 'SUPERVISOR_SUMBER_DAYA', 'ADMIN_PRODI'].includes(r)
     ) || roles[0];
-    
+
     const index = parseInt(params.index, 10);
     return hasilController.removeAttachment(params.documentId, index, user.id, activeRole);
   }, {

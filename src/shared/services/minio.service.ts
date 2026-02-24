@@ -153,26 +153,27 @@ export class MinioService {
   }
 
   /**
-   * Sanitize storage path - remove bucket name prefix if accidentally included
+   * Sanitize storage path - remove bucket name prefix & proxy prefix
    */
   private sanitizePath(storagePath: string): string {
     let cleanPath = storagePath;
     
-    // Remove bucket name prefix if accidentally included (e.g., "e-office-storage/documents/...")
-    if (cleanPath.startsWith(`${this.bucket}/`)) {
-      cleanPath = cleanPath.substring(this.bucket.length + 1);
-      console.warn(`[MinIO] Removed bucket prefix from path: ${storagePath} -> ${cleanPath}`);
+    // Looping sakti: Hapus semua awalan yang bikin URL dobel
+    while (
+      cleanPath.startsWith('/') ||
+      cleanPath.startsWith('minio-proxy/') ||
+      cleanPath.startsWith(`${this.bucket}/`)
+    ) {
+      if (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      } else if (cleanPath.startsWith('minio-proxy/')) {
+        cleanPath = cleanPath.substring('minio-proxy/'.length);
+      } else if (cleanPath.startsWith(`${this.bucket}/`)) {
+        cleanPath = cleanPath.substring(this.bucket.length + 1);
+      }
     }
     
-    // Also handle double bucket prefix (e.g., "e-office-storage/e-office-storage/...")
-    while (cleanPath.startsWith(`${this.bucket}/`)) {
-      cleanPath = cleanPath.substring(this.bucket.length + 1);
-      console.warn(`[MinIO] Removed additional bucket prefix: ${cleanPath}`);
-    }
-    
-    // Debug log
     console.log(`[MinIO] sanitizePath: input="${storagePath}" output="${cleanPath}"`);
-    
     return cleanPath;
   }
 
@@ -210,35 +211,23 @@ export class MinioService {
     }
   }
 
-  /**
+    /**
    * Extract storage path from a presigned URL or full URL.
-   * Useful for recovering storage paths from URLs that were incorrectly stored.
-   * E.g. "http://localhost:9000/e-office-storage/signatures/userId/2026/02/file.jpeg?X-Amz-..." 
-   *   -> "signatures/userId/2026/02/file.jpeg"
-   * If the input is already a storage path (not starting with http), returns it as-is.
    */
-  extractStoragePath(urlOrPath: string): string | null {
-    // Already a storage path
+    extractStoragePath(urlOrPath: string): string | null {
+    // Already a storage path (bukan URL http)
     if (!urlOrPath.startsWith('http')) {
-      return urlOrPath;
+      return this.sanitizePath(urlOrPath);
     }
 
     try {
       const parsed = new URL(urlOrPath);
       let pathname = decodeURIComponent(parsed.pathname);
       
-      // Remove leading slash
-      if (pathname.startsWith('/')) {
-        pathname = pathname.substring(1);
-      }
+      // Gunakan fungsi sanitizePath agar proxy dan bucket langsung lenyap
+      pathname = this.sanitizePath(pathname);
       
-      // Remove bucket name prefix if present
-      if (pathname.startsWith(`${this.bucket}/`)) {
-        pathname = pathname.substring(this.bucket.length + 1);
-      }
-      
-      // Validate we got something meaningful
-      if (pathname && pathname.length > 0 && pathname !== this.bucket) {
+      if (pathname && pathname.length > 0) {
         return pathname;
       }
       

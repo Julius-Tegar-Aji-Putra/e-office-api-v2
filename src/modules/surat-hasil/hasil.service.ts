@@ -232,7 +232,7 @@ class HasilService {
   async getDraftingQueue(userId: string, userRoles: string[], params: HasilListParams) {
     // Find staff role
     const staffRole = userRoles.find(r => (STAF_ROLES as readonly string[]).includes(r));
-    
+
     if (!staffRole) {
       throw new AppError('Anda bukan staf', HTTP_STATUS.FORBIDDEN);
     }
@@ -261,13 +261,13 @@ class HasilService {
     const isStaff = userRoles.some(r => (STAF_ROLES as readonly string[]).includes(r));
     const isSupervisor = userRoles.some(r => (SUPERVISOR_ROLES as readonly string[]).includes(r));
     const isManajerTU = userRoles.includes(ROLES.MANAJER_TU);
-    const isPejabat = userRoles.some(r => 
+    const isPejabat = userRoles.some(r =>
       [ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2].includes(r as any)
     );
     const isCurrentRole = letter.currentActiveRole
       ? userRoles.includes(letter.currentActiveRole)
       : false;
-    
+
     // Allow access for: Staf, Supervisor, Manajer TU, Pejabat, or whoever is current active role
     // This is for VIEWING the document, not taking action
     const fakultasPhases: string[] = [
@@ -296,10 +296,10 @@ class HasilService {
 
     // Get category for return targets calculation
     const category = (letter.category || letter.letterType.category) as LetterCategory;
-    
+
     // Get current user's active role (for return targets)
     const currentUserRole = userRoles.find(r => r === letter.currentActiveRole) || userRoles[0];
-    
+
     // Calculate return targets (fleksibel - bisa ke role manapun di bawah posisi)
     const hasilReturnTargets = getReturnTargets(normalizeRole(currentUserRole), category);
 
@@ -333,10 +333,10 @@ class HasilService {
     // Check if the same document type already exists
     // Allow different document types (e.g., SP can exist alongside ST/SK)
     const existingDoc = letter.documents.find(
-      d => d.type === input.documentType || 
-           // ST and ST_TABEL are considered the same type
-           (input.documentType === 'SURAT_TUGAS' && d.type === 'SURAT_TUGAS_TABEL') ||
-           (input.documentType === 'SURAT_TUGAS_TABEL' && d.type === 'SURAT_TUGAS')
+      d => d.type === input.documentType ||
+        // ST and ST_TABEL are considered the same type
+        (input.documentType === 'SURAT_TUGAS' && d.type === 'SURAT_TUGAS_TABEL') ||
+        (input.documentType === 'SURAT_TUGAS_TABEL' && d.type === 'SURAT_TUGAS')
     );
 
     if (existingDoc) {
@@ -450,7 +450,7 @@ class HasilService {
 
     // Get category from letterInstance (set by Admin Fakultas) or letterType
     const category = letter.category as LetterCategory || letter.letterType.category as LetterCategory;
-    
+
     // For UMUM category, require targetSupervisor
     if (category === 'UMUM' && !targetSupervisor) {
       throw new AppError('Untuk kategori Umum, harus memilih supervisor tujuan', HTTP_STATUS.BAD_REQUEST);
@@ -546,7 +546,7 @@ class HasilService {
       const isSigner = skstDocument.signatures.some(
         sig => normalizeRole(sig.signerRole) === normalizedUserRole
       );
-      
+
       if (isSigner) {
         throw new AppError(
           'Anda adalah penandatangan. Gunakan fungsi tanda tangan, bukan verifikasi',
@@ -631,20 +631,20 @@ class HasilService {
     if (signatureData) {
       try {
         const minio = new MinioService();
-        
+
         // Parse base64 data
         const matches = signatureData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
         if (!matches) {
           throw new AppError('Format tanda tangan tidak valid', HTTP_STATUS.BAD_REQUEST);
         }
-        
+
         const mimeType = matches[1];
         const base64Data = matches[2];
         const buffer = Buffer.from(base64Data, 'base64');
-        
+
         // Create file name for upload
         const fileName = `signature-${Date.now()}.${mimeType}`;
-        
+
         // Upload to MinIO using uploadFile method
         const uploadResult = await minio.uploadFile(
           buffer,
@@ -652,7 +652,7 @@ class HasilService {
           `image/${mimeType}`,
           `signatures/${userId}`
         );
-        
+
         // PERBAIKAN: Store storage path, NOT presigned URL (presigned URLs expire!)
         finalSignatureUrl = uploadResult.path;
 
@@ -734,7 +734,7 @@ class HasilService {
     // Validate is supervisor or manajer TU
     const isSupervisor = (SUPERVISOR_ROLES as readonly string[]).includes(userRole);
     const isManajerTU = userRole === ROLES.MANAJER_TU;
-    
+
     if (!isSupervisor && !isManajerTU) {
       throw new AppError('Hanya Supervisor/Manajer TU yang dapat mengubah draft', HTTP_STATUS.FORBIDDEN);
     }
@@ -803,19 +803,19 @@ class HasilService {
     // Default ke UMUM jika kategori tidak tersedia
     const rawCategory = letter.category || letter.letterType?.category;
     const category = (rawCategory || 'UMUM') as LetterCategory;
-    
+
     console.log('[returnForRevision] Debug:', {
       normalizedUserRole,
       category,
       targetStaffParam,
       letterStatus: letter.status
     });
-    
+
     // Get valid return targets menggunakan fungsi dari roles.ts
     const validTargets = getReturnTargets(normalizedUserRole, category);
-    
+
     console.log('[returnForRevision] Valid targets:', validTargets);
-    
+
     if (validTargets.length === 0) {
       throw new AppError('Anda tidak dapat mengembalikan surat ini', HTTP_STATUS.FORBIDDEN);
     }
@@ -947,7 +947,7 @@ class HasilService {
       const timestamp = Date.now();
       const fileName = `${timestamp}-${file.name}`;
       const folder = `attachments/${documentId}`;
-      
+
       const uploadResult = await minioService.uploadFile(fileBuffer, fileName, file.type, folder);
       // Store metadata: { url: storage path, name: original filename }
       uploadedAttachments.push({
@@ -959,7 +959,7 @@ class HasilService {
     // Append to existing attachments (support both old string[] and new object[] format)
     const existingData = ((document as any).attachmentUrls as any) || [];
     let existingAttachments: Array<{ url: string; name: string }> = [];
-    
+
     // Migrate old format (string[]) to new format (object[])
     if (Array.isArray(existingData)) {
       existingAttachments = existingData.map(item => {
@@ -1028,7 +1028,7 @@ class HasilService {
     // Support both old format (string[]) and new format (object[])
     const attachmentData = ((document as any).attachmentUrls as any) || [];
     let existingAttachments: Array<{ url: string; name: string }> = [];
-    
+
     if (Array.isArray(attachmentData)) {
       existingAttachments = attachmentData.map(item => {
         if (typeof item === 'string') {
@@ -1066,7 +1066,7 @@ class HasilService {
     userRole: string
   ): Promise<{ attachmentUrls: Array<{ url: string; name: string }> }> {
     console.log('[SERVICE] removeAttachmentByName called:', { documentId, fileName, userId, userRole });
-    
+
     // Check permission - staff, supervisors, and admin prodi can remove
     const allowedRoles: readonly string[] = [...STAF_ROLES, ...SUPERVISOR_ROLES, ROLES.ADMIN_PRODI];
     if (!allowedRoles.includes(userRole)) {
@@ -1084,10 +1084,10 @@ class HasilService {
 
     const attachmentData = ((document as any).attachmentUrls as any) || [];
     console.log('[SERVICE] Existing attachment data:', attachmentData);
-    
+
     // Support both old format (string[]) and new format (object[])
     let existingAttachments: Array<{ url: string; name: string }> = [];
-    
+
     if (Array.isArray(attachmentData)) {
       existingAttachments = attachmentData.map(item => {
         if (typeof item === 'string') {
@@ -1100,12 +1100,12 @@ class HasilService {
         return item as { url: string; name: string };
       });
     }
-    
+
     // Find attachment by name
     const attachmentToRemove = existingAttachments.find(att => att.name === fileName);
-    
+
     console.log('[SERVICE] Attachment to remove:', attachmentToRemove);
-    
+
     if (!attachmentToRemove) {
       throw new AppError(`Lampiran tidak ditemukan: ${fileName}`, HTTP_STATUS.NOT_FOUND);
     }
@@ -1148,10 +1148,10 @@ class HasilService {
     }
 
     const attachmentData = ((document as any).attachmentUrls as any) || [];
-    
+
     // Support both old format (string[]) and new format (object[])
     let attachments: Array<{ url: string; name: string }> = [];
-    
+
     if (Array.isArray(attachmentData)) {
       attachments = attachmentData.map(item => {
         if (typeof item === 'string') {
@@ -1164,7 +1164,7 @@ class HasilService {
         return item as { url: string; name: string };
       });
     }
-    
+
     // Convert storage paths to signed URLs
     const minioService = new MinioService();
     const result = await Promise.all(
@@ -1223,12 +1223,12 @@ class HasilService {
       canCreateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && !hasDraft,
       canUpdateDraft: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,
       canSubmitVerification: (isStaff || isSupervisor) && isDrafting && isCurrentRole && hasDraft,
-      
+
       // Supervisor/Manajer TU actions saat VERIFICATION
       canApproveVerification: (isSupervisor || isManajerTU) && isVerification && isCurrentRole,
       canUpdateDraftAsSupervisor: (isSupervisor || isManajerTU) && isVerification && isCurrentRole && hasDraft,
-      canReturnForRevision: ((isSupervisor || isManajerTU) && isVerification && isCurrentRole) || 
-                            (isSupervisor && isDrafting && isCurrentRole && hasDraft)
+      canReturnForRevision: ((isSupervisor || isManajerTU) && isVerification && isCurrentRole) ||
+        (isSupervisor && isDrafting && isCurrentRole && hasDraft)
     };
   }
 }
