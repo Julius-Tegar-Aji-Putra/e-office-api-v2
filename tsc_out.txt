@@ -1,0 +1,2 @@
+﻿src/modules/surat-hasil/hasil.service.ts(221,108): error TS2345: Argument of type 'DocumentType' is not assignable to parameter of type '"SURAT_TUGAS" | "SURAT_KEPUTUSAN" | "SURAT_TUGAS_TABEL"'.
+  Type '"SURAT_PENGANTAR"' is not assignable to type '"SURAT_TUGAS" | "SURAT_KEPUTUSAN" | "SURAT_TUGAS_TABEL"'.

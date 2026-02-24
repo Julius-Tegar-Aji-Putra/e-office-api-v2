@@ -218,7 +218,7 @@ function normalizeRole(role: string): string {
  * Check if document type is a surat hasil type
  */
 const isSuratHasilType = (type: string): boolean => {
-  return (SURAT_HASIL_TYPES as readonly string[]).includes(type);
+  return ([DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN, DocumentType.SURAT_TUGAS_TABEL] as string[]).includes(type);
 };
 
 // ============================================================================
