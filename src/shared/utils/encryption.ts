@@ -117,22 +117,21 @@ export function decryptVerificationData(token: string): DecryptResult {
 /**
  * Generate verification URL for QR Code
  * Uses SHORT TOKEN for better scannability
- * ALWAYS use HOST_IP in development mode for network testing
  * @param shortToken - Short token (8-10 characters) from database
  * @returns Full verification URL that can be easily scanned from mobile devices
  */
 export function generateVerificationUrl(shortToken: string): string {
-  // DEVELOPMENT MODE: Selalu pakai HOST_IP untuk network access testing
-  if (env.NODE_ENV === 'development') {
-    const hostIp = env.HOST_IP || 'localhost';
-    const frontendPort = env.FRONTEND_PORT || '3000';
-    const dynamicBaseUrl = `http://${hostIp}:${frontendPort}`;
-    return `${dynamicBaseUrl}/verify?token=${shortToken}`;
+  // Gunakan VERIFICATION_BASE_URL jika ada (misalnya di-set ke domain public)
+  // Jika tidak ada, fallback ke HOST_IP dan FRONTEND_PORT sesuai konfigurasi env
+  if (env.VERIFICATION_BASE_URL) {
+    return `${env.VERIFICATION_BASE_URL}/verify?token=${shortToken}`;
   }
-  
-  // PRODUCTION MODE: Gunakan VERIFICATION_BASE_URL
-  const baseUrl = env.VERIFICATION_BASE_URL;
-  return `${baseUrl}/verify?token=${shortToken}`;
+
+  const hostIp = env.HOST_IP || 'localhost';
+  const frontendPort = env.FRONTEND_PORT || '3000';
+  const dynamicBaseUrl = `http://${hostIp}:${frontendPort}`;
+
+  return `${dynamicBaseUrl}/verify?token=${shortToken}`;
 }
 
 /**
