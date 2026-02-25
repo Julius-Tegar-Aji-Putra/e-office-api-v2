@@ -182,12 +182,16 @@ class LegalisasiRepository {
   }
 
   /**
-   * Check if nomor surat already exists
+   * Check if nomor surat already exists (Surat Keluar scope only).
+   * Deliberately excludes SURAT_PENGANTAR so that Surat Masuk and Surat Keluar
+   * maintain independent numbering pools.
    */
   async checkNomorSuratExists(nomorSurat: string, excludeDocId?: string): Promise<boolean> {
+    const SURAT_KELUAR_TYPES = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'] as const;
     const existing = await prisma.letterDocument.findFirst({
       where: {
         nomorSurat,
+        type: { in: SURAT_KELUAR_TYPES },
         ...(excludeDocId && { id: { not: excludeDocId } })
       }
     });
@@ -195,11 +199,17 @@ class LegalisasiRepository {
   }
 
   /**
-   * Get existing document by nomor surat
+   * Get existing document by nomor surat (Surat Keluar scope only).
+   * Deliberately excludes SURAT_PENGANTAR so that Surat Masuk and Surat Keluar
+   * maintain independent numbering pools.
    */
   async getDocumentByNomorSurat(nomorSurat: string) {
+    const SURAT_KELUAR_TYPES = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'] as const;
     return prisma.letterDocument.findFirst({
-      where: { nomorSurat },
+      where: {
+        nomorSurat,
+        type: { in: SURAT_KELUAR_TYPES }
+      },
       include: {
         letterInstance: {
           include: { letterType: true }
