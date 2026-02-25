@@ -276,7 +276,7 @@ class LegalisasiService {
             existingDocument: {
               perihal: existingDoc.perihal,
               tanggalSurat: existingDoc.tanggalSurat?.toISOString(),
-              letterType: existingDoc.letterInstance.letterType.name
+              letterType: (existingDoc as any).letterInstance?.letterType?.name
             }
           }
         };

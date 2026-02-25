@@ -4,12 +4,12 @@
  */
 
 import { prisma } from '../../db';
-import { 
-  Prisma, 
-  LetterStatus, 
-  LogAction, 
+import {
+  Prisma,
+  LetterStatus,
+  LogAction,
   DocumentType,
-  LegalisasiStatus 
+  LegalisasiStatus
 } from '../../generated/prisma/client';
 import type { UpaQueueFilter, UsedNumberRecord } from './legalisasi.types';
 
@@ -52,13 +52,13 @@ class LegalisasiRepository {
    * Get UPA processing queue
    */
   async getUPAQueue(params: UpaQueueFilter) {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
+    const {
+      page = 1,
+      limit = 10,
+      status,
       legalisasiStatus,
       kategori,
-      search 
+      search
     } = params;
     const skip = (page - 1) * limit;
 
@@ -102,14 +102,14 @@ class LegalisasiRepository {
             }
           },
           documents: {
-            where: { 
-              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] } 
+            where: {
+              type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_KEPUTUSAN] }
             },
-            include: { 
-              signatures: { 
+            include: {
+              signatures: {
                 orderBy: { order: 'asc' },
                 where: { status: 'SIGNED' }
-              } 
+              }
             }
           }
         },
@@ -141,8 +141,8 @@ class LegalisasiRepository {
           }
         },
         documents: {
-          include: { 
-            signatures: { orderBy: { order: 'asc' } } 
+          include: {
+            signatures: { orderBy: { order: 'asc' } }
           }
         },
         attachments: true,
@@ -173,7 +173,7 @@ class LegalisasiRepository {
             }
           }
         },
-        signatures: { 
+        signatures: {
           orderBy: { order: 'asc' },
           include: { signer: { select: { id: true, name: true, email: true } } }
         }
@@ -187,7 +187,7 @@ class LegalisasiRepository {
    * maintain independent numbering pools.
    */
   async checkNomorSuratExists(nomorSurat: string, excludeDocId?: string): Promise<boolean> {
-    const SURAT_KELUAR_TYPES = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'] as const;
+    const SURAT_KELUAR_TYPES: DocumentType[] = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'];
     const existing = await prisma.letterDocument.findFirst({
       where: {
         nomorSurat,
@@ -204,7 +204,7 @@ class LegalisasiRepository {
    * maintain independent numbering pools.
    */
   async getDocumentByNomorSurat(nomorSurat: string) {
-    const SURAT_KELUAR_TYPES = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'] as const;
+    const SURAT_KELUAR_TYPES: DocumentType[] = ['SURAT_TUGAS', 'SURAT_KEPUTUSAN', 'SURAT_TUGAS_TABEL'];
     return prisma.letterDocument.findFirst({
       where: {
         nomorSurat,
@@ -221,9 +221,9 @@ class LegalisasiRepository {
   /**
    * Get used nomor surat list with pagination
    */
-  async getUsedNumbers(params: { 
-    page?: number; 
-    limit?: number; 
+  async getUsedNumbers(params: {
+    page?: number;
+    limit?: number;
     year?: number;
     search?: string;
   }): Promise<{ data: UsedNumberRecord[]; total: number; page: number; limit: number; totalPages: number }> {
@@ -317,7 +317,7 @@ class LegalisasiRepository {
           ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
-        include: { 
+        include: {
           letterInstance: true,
           signatures: { orderBy: { order: 'asc' } }
         }
@@ -342,9 +342,9 @@ class LegalisasiRepository {
           fromStatus: LetterStatus.UPA_NUMBERING,
           toStatus: LetterStatus.UPA_STAMPING,
           notes: `Nomor surat: ${input.nomorSurat}`,
-          metadata: { 
-            nomorSurat: input.nomorSurat, 
-            tanggalSurat: input.tanggalSurat.toISOString() 
+          metadata: {
+            nomorSurat: input.nomorSurat,
+            tanggalSurat: input.tanggalSurat.toISOString()
           }
         }
       });
@@ -378,7 +378,7 @@ class LegalisasiRepository {
           ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
-        include: { 
+        include: {
           letterInstance: true,
           signatures: { orderBy: { order: 'asc' } }
         }
@@ -439,7 +439,7 @@ class LegalisasiRepository {
           ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()
         },
-        include: { 
+        include: {
           letterInstance: true,
           signatures: { orderBy: { order: 'asc' } }
         }
@@ -474,7 +474,7 @@ class LegalisasiRepository {
     return prisma.$transaction(async (tx) => {
       const document = await tx.letterDocument.findUnique({
         where: { id: input.documentId },
-        include: { 
+        include: {
           letterInstance: true,
           signatures: true
         }
@@ -591,7 +591,7 @@ class LegalisasiRepository {
 
     // Tembusan bisa berupa array of IDs atau array of objects
     const tembusanData = document.tembusan as unknown[];
-    
+
     // If it's array of IDs
     if (typeof tembusanData[0] === 'string') {
       return prisma.user.findMany({
