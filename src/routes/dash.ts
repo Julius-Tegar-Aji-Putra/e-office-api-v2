@@ -307,6 +307,7 @@ function getDisplayStatusForRole(status: LetterStatus, role: string, currentActi
 const COLUMNS = {
   // [Lingkup Departemen] Mahasiswa/Dosen
   MAHASISWA_DOSEN: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
     { key: 'tanggalSurat', label: 'Tanggal Surat', sortable: true },
@@ -316,6 +317,7 @@ const COLUMNS = {
 
   // [Lingkup Departemen] Ketua Prodi, Admin Prodi, Ketua Departemen
   DEPARTEMEN_STAFF: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'namaPengaju', label: 'Nama Pengaju', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
@@ -326,6 +328,7 @@ const COLUMNS = {
 
   // [Lingkup Fakultas] Admin Surat Fakultas - Surat Masuk
   ADMIN_FAKULTAS_MASUK: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'namaPengaju', label: 'Nama Pengaju', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
@@ -336,6 +339,7 @@ const COLUMNS = {
 
   // [Lingkup Fakultas] Admin Surat Fakultas - Surat Keluar
   ADMIN_FAKULTAS_KELUAR: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
     { key: 'jenisSurat', label: 'Jenis Surat', sortable: true },
@@ -346,9 +350,9 @@ const COLUMNS = {
 
   // [Lingkup Fakultas] Pejabat/Supervisor/Staf - Surat Masuk
   FAKULTAS_MASUK: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'namaPengaju', label: 'Nama Pengaju', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
-    { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
     { key: 'jenisSurat', label: 'Jenis Surat', sortable: true },
     { key: 'tanggalSurat', label: 'Tanggal Surat', sortable: true },
     { key: 'status', label: 'Status', sortable: true },
@@ -357,6 +361,7 @@ const COLUMNS = {
 
   // [Lingkup Fakultas] Pejabat/Supervisor/Staf - Surat Keluar
   FAKULTAS_KELUAR: [
+    { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
     { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
     { key: 'jenisSurat', label: 'Jenis Surat', sortable: true },
@@ -367,8 +372,8 @@ const COLUMNS = {
 
   // [Lingkup Fakultas] UPA
   UPA: [
-    { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
+    { key: 'judulSurat', label: 'Judul Surat', sortable: true },
     { key: 'tipeSurat', label: 'Tipe Surat', sortable: true },
     { key: 'jenisSurat', label: 'Jenis Surat', sortable: true },
     { key: 'tanggalSurat', label: 'Tanggal Surat', sortable: true },
@@ -605,12 +610,11 @@ async function getDashboardPengaju(
 
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
+    if (filters.dateFrom) {
+      where.createdAt.gte = new Date(`${filters.dateFrom}T00:00:00.000`);
+    }
     if (filters.dateTo) {
-      // Set to end of day (23:59:59.999) to include all data on that day
-      const endDate = new Date(filters.dateTo);
-      endDate.setHours(23, 59, 59, 999);
-      where.createdAt.lte = endDate;
+      where.createdAt.lte = new Date(`${filters.dateTo}T23:59:59.999`);
     }
   }
 
@@ -624,22 +628,32 @@ async function getDashboardPengaju(
           category: true,
         },
       },
-      documents: { take: 1 },
+      documents: {
+        select: {
+          type: true,
+          perihal: true,
+          nomorSurat: true,
+        },
+      },
       createdBy: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
 
   // Map items with displayStatus
-  let mappedItems: DashboardItem[] = allItems.map((item) => ({
-    id: item.id,
-    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-    tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
-    tanggalSurat: item.createdAt,
-    status: item.status,
-    displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-    actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
-  }));
+  let mappedItems: DashboardItem[] = allItems.map((item) => {
+    const hasilDoc = item.documents.find((d: any) => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
+    return {
+      id: item.id,
+      judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      nomorSurat: hasilDoc?.nomorSurat || '-',
+      tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
+      tanggalSurat: item.createdAt,
+      status: item.status,
+      displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
+      actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
+    };
+  });
 
   // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
   const allAvailableStatuses = getUniqueDisplayStatuses(mappedItems);
@@ -806,11 +820,11 @@ async function getDashboardDepartemen(
 
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
+    if (filters.dateFrom) {
+      where.createdAt.gte = new Date(`${filters.dateFrom}T00:00:00.000`);
+    }
     if (filters.dateTo) {
-      const endDate = new Date(filters.dateTo);
-      endDate.setHours(23, 59, 59, 999);
-      where.createdAt.lte = endDate;
+      where.createdAt.lte = new Date(`${filters.dateTo}T23:59:59.999`);
     }
   }
 
@@ -828,8 +842,8 @@ async function getDashboardDepartemen(
         select: {
           type: true,
           perihal: true,
+          nomorSurat: true,
         },
-        take: 1,
       },
       createdBy: { select: { id: true, name: true } },
     },
@@ -837,16 +851,20 @@ async function getDashboardDepartemen(
   });
 
   // Map items with displayStatus
-  let mappedItems: DashboardItem[] = allItems.map((item) => ({
-    id: item.id,
-    namaPengaju: item.createdBy?.name || '-',
-    judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
-    tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
-    tanggalSurat: item.createdAt,
-    status: item.status,
-    displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
-    actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
-  }));
+  let mappedItems: DashboardItem[] = allItems.map((item) => {
+    const hasilDoc = item.documents.find((d: any) => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
+    return {
+      id: item.id,
+      namaPengaju: item.createdBy?.name || '-',
+      judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      nomorSurat: hasilDoc?.nomorSurat || '-',
+      tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
+      tanggalSurat: item.createdAt,
+      status: item.status,
+      displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
+      actions: getActionsForItem(user.role, item.status, item.currentActiveRole),
+    };
+  });
 
   // Get unique statuses BEFORE applying displayStatus filter (untuk dropdown)
   const allAvailableStatuses = getUniqueDisplayStatuses(mappedItems);
@@ -1103,12 +1121,10 @@ async function getDashboardFakultas(
   if (filters.dateFrom || filters.dateTo) {
     where.AND = where.AND || [];
     if (filters.dateFrom) {
-      where.AND.push({ createdAt: { gte: new Date(filters.dateFrom) } });
+      where.AND.push({ createdAt: { gte: new Date(`${filters.dateFrom}T00:00:00.000`) } });
     }
     if (filters.dateTo) {
-      const endDate = new Date(filters.dateTo);
-      endDate.setHours(23, 59, 59, 999);
-      where.AND.push({ createdAt: { lte: endDate } });
+      where.AND.push({ createdAt: { lte: new Date(`${filters.dateTo}T23:59:59.999`) } });
     }
   }
 
@@ -1153,6 +1169,7 @@ async function getDashboardFakultas(
           select: {
             type: true,
             perihal: true,
+            nomorSurat: true,
           },
         },
         createdBy: { select: { id: true, name: true } },
@@ -1201,6 +1218,7 @@ async function getDashboardFakultas(
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
@@ -1245,6 +1263,7 @@ async function getDashboardFakultas(
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
@@ -1309,11 +1328,11 @@ async function getDashboardUPA(
 
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
+    if (filters.dateFrom) {
+      where.createdAt.gte = new Date(`${filters.dateFrom}T00:00:00.000`);
+    }
     if (filters.dateTo) {
-      const endDate = new Date(filters.dateTo);
-      endDate.setHours(23, 59, 59, 999);
-      where.createdAt.lte = endDate;
+      where.createdAt.lte = new Date(`${filters.dateTo}T23:59:59.999`);
     }
   }
 
