@@ -74,7 +74,7 @@ interface DashboardResult {
     completed: number;
     waiting: number;
   };
-  tabs?: { key: string; label: string; count: number }[];
+  tabs?: { key: string; label: string; count: number; waitingCount?: number }[];
   filters?: { status: string[] };
 }
 
@@ -1148,8 +1148,95 @@ async function getDashboardFakultas(
     return { status: { in: statusList } };
   };
 
+  // Build "menunggu anda" count query: hanya surat yang saat ini menunggu aksi dari role ini
+  // Logika sama dengan getDisplayStatusForRole() === 'MENUNGGU ANDA'
+  //
+  // PENTING untuk surat masuk: jika surat sudah memiliki dokumen hasil (SK/ST),
+  // getDashboardFakultas akan override displayStatus menjadi 'SELESAI' (bukan 'MENUNGGU ANDA').
+  // Oleh karena itu query masukWaiting HARUS mengecualikan surat yang sudah punya dokumen SK/ST.
+  const noHasilDocCondition = {
+    documents: {
+      none: {
+        type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any },
+      },
+    },
+  };
+
+  const buildMasukWaitingQuery = (): any => {
+    if (user.role === ROLES.ADMIN_FAKULTAS) {
+      return {
+        status: { in: [LetterStatus.SURAT_PENGANTAR_SIGNED, LetterStatus.FAKULTAS_RECEIVED] },
+        currentActiveRole: ROLES.ADMIN_FAKULTAS,
+        ...noHasilDocCondition,
+      };
+    }
+    if ([ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.MANAJER_TU].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.FAKULTAS_DISPOSITION, LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.FAKULTAS_SIGNING] },
+        currentActiveRole: user.role,
+        letterType: { code: { not: { startsWith: 'STAFF_DIRECT_' } } },
+        ...noHasilDocCondition,
+      };
+    }
+    if ([ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.FAKULTAS_DISPOSITION, LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
+        currentActiveRole: user.role,
+        letterType: { code: { not: { startsWith: 'STAFF_DIRECT_' } } },
+        ...noHasilDocCondition,
+      };
+    }
+    if ([ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
+        currentActiveRole: user.role,
+        letterType: { code: { not: { startsWith: 'STAFF_DIRECT_' } } },
+        ...noHasilDocCondition,
+      };
+    }
+    return null;
+  };
+
+  const buildKeluarWaitingQuery = (): any => {
+    if ([ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2, ROLES.MANAJER_TU].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.FAKULTAS_DISPOSITION, LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.FAKULTAS_SIGNING] },
+        currentActiveRole: user.role,
+        OR: [
+          { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
+          { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+        ],
+      };
+    }
+    if ([ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.FAKULTAS_DISPOSITION, LetterStatus.FAKULTAS_VERIFICATION, LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
+        currentActiveRole: user.role,
+        OR: [
+          { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
+          { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+        ],
+      };
+    }
+    if ([ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(user.role as any)) {
+      return {
+        status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
+        currentActiveRole: user.role,
+        OR: [
+          { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
+          { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+        ],
+      };
+    }
+    // Admin Fakultas: tidak ada surat keluar yang "menunggu anda" spesifik
+    return null;
+  };
+
+  const masukWaitingQuery = buildMasukWaitingQuery();
+  const keluarWaitingQuery = buildKeluarWaitingQuery();
+
   // Fetch ALL items first (without pagination) to apply displayStatus filter
-  const [allItems, masukCount, keluarCount] = await Promise.all([
+  const [allItems, masukCount, keluarCount, masukWaitingCount, keluarWaitingCount] = await Promise.all([
     db.letterInstance.findMany({
       where,
       select: {
@@ -1199,6 +1286,8 @@ async function getDashboardFakultas(
         LetterStatus.COMPLETED,
       ]),
     }),
+    masukWaitingQuery ? db.letterInstance.count({ where: masukWaitingQuery }) : Promise.resolve(0),
+    keluarWaitingQuery ? db.letterInstance.count({ where: keluarWaitingQuery }) : Promise.resolve(0),
   ]);
 
   // Map items with displayStatus
@@ -1286,8 +1375,8 @@ async function getDashboardFakultas(
       waiting,
     },
     tabs: [
-      { key: 'masuk', label: 'Surat Masuk', count: masukCount },
-      { key: 'keluar', label: 'Surat Keluar', count: keluarCount },
+      { key: 'masuk', label: 'Surat Masuk', count: masukCount, waitingCount: masukWaitingCount },
+      { key: 'keluar', label: 'Surat Keluar', count: keluarCount, waitingCount: keluarWaitingCount },
     ],
     filters: { status: allAvailableStatuses },
   };
