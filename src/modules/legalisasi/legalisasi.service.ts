@@ -411,7 +411,7 @@ class LegalisasiService {
    * Apply stempel to document
    */
   async applyStempel(
-    input: { documentId: string; sealImageUrl?: string },
+    input: { documentId: string; sealImageUrl?: string; sealTargetRole?: string },
     userId: string,
     userRole: string
   ): Promise<ServiceResult> {
@@ -439,6 +439,7 @@ class LegalisasiService {
         {
           documentId: input.documentId,
           sealImageUrl: 'local:stempel.png', // Use local stempel from public folder
+          sealTargetRole: input.sealTargetRole, // Role pejabat yang dipilih UPA
         },
         userId,
         userRole

@@ -18,18 +18,18 @@ import { getUserRoles } from '../../lib/casbin';
 
 export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
   .use(authGuardPlugin)
-  
+
   // =========================================================================
   // QUEUE & DASHBOARD
   // =========================================================================
-  
+
   .get(
     '/queue',
     async ({ query, user }) => {
       const roles = await getUserRoles(user.id);
-      const activeRole = roles.includes('UPA') ? 'UPA' : 
-                         roles.includes('ADMIN') ? 'ADMIN' : 
-                         roles.includes('SUPERADMIN') ? 'SUPERADMIN' : roles[0];
+      const activeRole = roles.includes('UPA') ? 'UPA' :
+        roles.includes('ADMIN') ? 'ADMIN' :
+          roles.includes('SUPERADMIN') ? 'SUPERADMIN' : roles[0];
 
       const params = {
         page: query.page ? parseInt(query.page) : 1,
@@ -62,7 +62,7 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
     async ({ query, user }) => {
       const roles = await getUserRoles(user.id);
       const activeRole = roles.includes('UPA') ? 'UPA' : roles[0];
-      
+
       const nomorSurat = (query as any).nomorSurat as string;
       if (!nomorSurat) {
         return { success: false, error: 'Parameter nomorSurat wajib diisi' };
@@ -171,7 +171,8 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
       return legalisasiService.applyStempel(
         {
           documentId: params.documentId,
-          sealImageUrl: body?.sealImageUrl
+          sealImageUrl: body?.sealImageUrl,
+          sealTargetRole: body?.sealTargetRole
         },
         user.id,
         activeRole
@@ -262,11 +263,11 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
       }
     }
   )
-  
+
   // =========================================================================
   // PDF PROXY - Serve PDF files directly to avoid signed URL issues
   // =========================================================================
-  
+
   .get(
     '/document/:documentId/pdf',
     async ({ params, user, set }) => {
@@ -274,15 +275,15 @@ export const legalisasiRoute = new Elysia({ prefix: '/legalisasi' })
       const activeRole = roles.includes('UPA') ? 'UPA' : roles[0];
 
       const result = await legalisasiService.getDocumentPdf(params.documentId, user.id, activeRole);
-      
+
       if (!result.success) {
         set.status = result.code || 404;
         return { success: false, error: result.error };
       }
-      
+
       set.headers['Content-Type'] = 'application/pdf';
       set.headers['Content-Disposition'] = `inline; filename="${result.filename}"`;
-      
+
       return result.data;
     },
     {

@@ -300,6 +300,7 @@ model LetterDocument {
   qrCodeUrl          String?
   legalisasiStatus   LegalisasiStatus    @default(PENDING)
   sealImageUrl       String?
+  sealTargetRole     String?           // Role pejabat yang dipilih UPA untuk menerima stempel
   barcodeData        String?
   readyToDistribute  Boolean             @default(false)
   verificationToken  String?             @unique // Short token untuk QR Code verification (8-10 karakter)

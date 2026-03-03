@@ -146,8 +146,8 @@ class LegalisasiController {
     }
 
     const { documentId } = ctx.params as { documentId: string };
-    const body = ctx.body as { 
-      nomorSurat: string; 
+    const body = ctx.body as {
+      nomorSurat: string;
       tanggalSurat: string;
       position?: {
         x: number;
@@ -192,12 +192,13 @@ class LegalisasiController {
     }
 
     const { documentId } = ctx.params as { documentId: string };
-    const body = ctx.body as { sealImageUrl?: string } | undefined;
+    const body = ctx.body as { sealImageUrl?: string; sealTargetRole?: string } | undefined;
 
     const result = await legalisasiService.applyStempel(
       {
         documentId,
-        sealImageUrl: body?.sealImageUrl
+        sealImageUrl: body?.sealImageUrl,
+        sealTargetRole: body?.sealTargetRole
       },
       user.id,
       user.role

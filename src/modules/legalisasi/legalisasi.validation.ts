@@ -84,6 +84,9 @@ export const applyStempelSchema = t.Object({
   sealImageUrl: t.Optional(t.String({
     description: 'URL gambar stempel custom (opsional, akan pakai default jika tidak ada)'
   })),
+  sealTargetRole: t.Optional(t.String({
+    description: 'Role pejabat yang dipilih UPA untuk menerima stempel'
+  })),
   position: t.Optional(t.Object({
     x: t.Number(),
     y: t.Number(),

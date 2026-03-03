@@ -27,6 +27,7 @@ export interface AssignNumberInput {
 export interface ApplyStempelInput {
   documentId: string;
   sealImageUrl: string;
+  sealTargetRole?: string; // Role pejabat yang dipilih UPA untuk menerima stempel
   fileUrl?: string; // Generated PDF URL with stempel embedded
 }
 
@@ -374,6 +375,7 @@ class LegalisasiRepository {
         where: { id: input.documentId },
         data: {
           sealImageUrl: input.sealImageUrl,
+          sealTargetRole: input.sealTargetRole || null,
           legalisasiStatus: LegalisasiStatus.STEMPEL_DIBERIKAN,
           ...(input.fileUrl && { fileUrl: input.fileUrl }),
           updatedAt: new Date()

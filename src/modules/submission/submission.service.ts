@@ -331,6 +331,7 @@ export class SubmissionService {
                 signatureUrl: signedSignatureUrl || null, // URL of the actual signature image (signed)
                 signedAt: sig.signedAt,
                 order: sig.order,
+                status: sig.status, // PENDING | SIGNED | REJECTED
                 // Position data for signature placement on PDF
                 positionX: sig.positionX,
                 positionY: sig.positionY,
@@ -348,6 +349,7 @@ export class SubmissionService {
             isSigned: doc.isSigned,
             fileUrl: signedFileUrl,
             sealImageUrl: signedSealImageUrl || null, // Stempel URL
+            sealTargetRole: doc.sealTargetRole || null, // Role pejabat yang dipilih UPA untuk stempel
             qrCodeUrl: signedQrCodeUrl || null, // QR Code URL
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
