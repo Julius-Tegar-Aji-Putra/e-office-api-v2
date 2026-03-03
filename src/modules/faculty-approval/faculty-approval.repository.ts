@@ -5,6 +5,7 @@
 
 import { prisma } from '../../db';
 import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '../../generated/prisma/client';
+import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
 // TYPES
@@ -153,7 +154,7 @@ class FacultyApprovalRepository {
           fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
           toStatus: nextStatus as LetterStatus,
           targetRole: nextRole,
-          notes: input.notes || `Diverifikasi oleh ${actorRole}`,
+          notes: input.notes || `Diverifikasi oleh ${formatRoleForLog(actorRole)}`,
           metadata: input.nextTargets ? { nextTargets: input.nextTargets } as any : undefined
         }
       });

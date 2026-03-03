@@ -5,6 +5,7 @@
 
 import { prisma } from '../../db';
 import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '../../generated/prisma/client';
+import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
 // CONSTANTS
@@ -14,7 +15,7 @@ import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '.
  * All document types that are considered "Surat Hasil"
  */
 export const SURAT_HASIL_TYPES = [
-  DocumentType.SURAT_TUGAS, 
+  DocumentType.SURAT_TUGAS,
   DocumentType.SURAT_KEPUTUSAN,
   DocumentType.SURAT_PENGANTAR,
   DocumentType.SURAT_TUGAS_TABEL
@@ -343,7 +344,7 @@ class HasilRepository {
    */
   async updateDraft(input: UpdateDraftInput, actorId: string, actorRole: string) {
     const isOverwrite = input.mode === 'overwrite';
-    
+
     return prisma.$transaction(async (tx) => {
       // Get existing document first
       const existingDoc = await tx.letterDocument.findUnique({
@@ -398,12 +399,12 @@ class HasilRepository {
           // Patch mode: Sync signatures (delete removed, update existing, add new)
           const existingRoles = existingDoc.signatures.map(s => s.signerRole);
           const newRoles = input.signatories.map(s => normalizeSignerRole(s.signerRole));
-          
+
           // Delete signatures that are no longer in the list
           const rolesToDelete = existingRoles.filter(r => !newRoles.includes(r));
           if (rolesToDelete.length > 0) {
             await tx.documentSignature.deleteMany({
-              where: { 
+              where: {
                 documentId: input.documentId,
                 signerRole: { in: rolesToDelete }
               }
@@ -415,7 +416,7 @@ class HasilRepository {
         for (const sig of input.signatories) {
           const normalizedRole = normalizeSignerRole(sig.signerRole);
           const existingSig = existingDoc.signatures.find(s => s.signerRole === normalizedRole);
-          
+
           if (existingSig && !isOverwrite) {
             // Update existing signature
             await tx.documentSignature.update({
@@ -463,7 +464,7 @@ class HasilRepository {
       // Return updated document with signatures
       return tx.letterDocument.findUnique({
         where: { id: input.documentId },
-        include: { 
+        include: {
           letterInstance: true,
           signatures: { orderBy: { order: 'asc' } }
         }
@@ -487,7 +488,7 @@ class HasilRepository {
         where: { id: letterId },
         select: { submissionValues: true, category: true }
       });
-      
+
       // Determine next verifier based on category and targetSupervisor
       let nextRole: string;
       if (actorRole === 'STAF_AKADEMIK' && category !== 'UMUM') {
@@ -497,7 +498,7 @@ class HasilRepository {
       } else {
         // For UMUM category, use targetSupervisor from param or submissionValues
         const storedTarget = (existingLetter?.submissionValues as any)?.targetSupervisor;
-        nextRole = targetSupervisor || storedTarget || 
+        nextRole = targetSupervisor || storedTarget ||
           (actorRole === 'STAF_AKADEMIK' ? 'SUPERVISOR_AKADEMIK' : 'SUPERVISOR_SUMBER_DAYA');
       }
 
@@ -574,7 +575,7 @@ class HasilRepository {
           fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
           toStatus: LetterStatus.FAKULTAS_VERIFICATION,
           targetRole: nextRole,
-          notes: notes || 'Draft diverifikasi Supervisor, diteruskan ke Manajer TU'
+          notes: notes || 'Draft diverifikasi Supervisor, diteruskan ke Manajer Tata Usaha'
         }
       });
 
@@ -623,9 +624,9 @@ class HasilRepository {
 
       // Determine next role based on category hierarchy (BUKAN berdasarkan target tanda tangan)
       const category = (letter.category || letter.letterType.category) as LetterCategory;
-      
+
       let nextRole: string;
-      
+
       // Flow SELALU urut sesuai hierarki:
       // AKADEMIK: MTU -> Wadek 1 -> Dekan
       // SUMBER_DAYA: MTU -> Wadek 2 -> Dekan
@@ -662,7 +663,7 @@ class HasilRepository {
           fromStatus: LetterStatus.FAKULTAS_VERIFICATION,
           toStatus: LetterStatus.FAKULTAS_SIGNING,
           targetRole: nextRole,
-          notes: notes || `Draft diverifikasi Manajer TU, diteruskan ke ${nextRole}`
+          notes: notes || `Draft diverifikasi Manajer Tata Usaha, diteruskan ke ${formatRoleForLog(nextRole)}`
         }
       });
 
@@ -758,7 +759,7 @@ class HasilRepository {
 
       // Normalize actor role for comparison
       const normalizedActorRole = normalizeSignerRole(actorRole);
-      
+
       // Find the document that has a pending signature for this role
       // (can't just use documents[0] because there might be multiple documents)
       let targetDocument = null;
@@ -774,7 +775,7 @@ class HasilRepository {
           break;
         }
       }
-      
+
       // Debug: Log signature states
       console.log('[signDocument] Looking for signature:', {
         letterId,
@@ -810,7 +811,7 @@ class HasilRepository {
       // Get category untuk determine next role berdasarkan hierarki
       // Safe navigation untuk backward compatibility dengan data lama
       const category = (letter.category || letter.letterType?.category || 'UMUM') as LetterCategory;
-      
+
       console.log('[signDocument] DEBUG CATEGORY:', {
         letterId,
         letterCategory: letter.category,
@@ -818,21 +819,21 @@ class HasilRepository {
         finalCategory: category,
         currentSigner: normalizedActorRole
       });
-      
+
       // Determine next role based on CATEGORY HIERARCHY, bukan berdasarkan daftar signature!
       // AKADEMIK: ... → Wadek 1 → Dekan
       // SUMBER_DAYA: ... → Wadek 2 → Dekan
       // UMUM: ... → Wadek 2 → Wadek 1 → Dekan
-      
+
       let nextStatus: LetterStatus;
       let nextRole: string;
-      
+
       // Check apakah current signer adalah Dekan (final signer)
       if (normalizedActorRole === 'DEKAN') {
         // Dekan sudah sign, semua selesai → UPA
         nextStatus = LetterStatus.UPA_NUMBERING;
         nextRole = 'UPA';
-        
+
         // Mark document as signed
         await tx.letterDocument.update({
           where: { id: document.id },
@@ -841,7 +842,7 @@ class HasilRepository {
       } else {
         // Tentukan next role berdasarkan hierarki kategori
         nextStatus = LetterStatus.FAKULTAS_SIGNING;
-        
+
         switch (category) {
           case 'AKADEMIK':
             // Flow: Wadek 1 → Dekan
@@ -851,7 +852,7 @@ class HasilRepository {
               nextRole = 'WADEK_1'; // Fallback
             }
             break;
-            
+
           case 'SUMBER_DAYA':
             // Flow: Wadek 2 → Dekan
             if (normalizedActorRole === 'WADEK_2') {
@@ -860,7 +861,7 @@ class HasilRepository {
               nextRole = 'WADEK_2'; // Fallback
             }
             break;
-            
+
           case 'UMUM':
           default:
             // Flow: Wadek 2 → Wadek 1 → Dekan
@@ -874,7 +875,7 @@ class HasilRepository {
             break;
         }
       }
-      
+
       console.log('[signDocument] Routing based on hierarchy:', {
         category,
         currentSigner: normalizedActorRole,
@@ -919,7 +920,7 @@ class HasilRepository {
       // First, we need a letter type for staff-created letters
       // Look for or create a generic letter type for staff direct creation
       let letterType = await tx.letterType.findFirst({
-        where: { 
+        where: {
           code: `STAFF_DIRECT_${category}`,
           deletedAt: null
         }
@@ -945,7 +946,7 @@ class HasilRepository {
         ...(content as object),
         ...(targetSupervisor ? { targetSupervisor } : {})
       };
-      
+
       const letterInstance = await tx.letterInstance.create({
         data: {
           letterTypeId: letterType.id,
@@ -996,7 +997,7 @@ class HasilRepository {
           action: LogAction.DRAFT_CREATE,
           fromStatus: null,
           toStatus: LetterStatus.FAKULTAS_DRAFTING,
-          notes: `Surat ${DOCUMENT_TYPE_LABELS[documentType as DocumentType]} dibuat langsung oleh staf`
+          notes: `${documentType === DocumentType.SURAT_TUGAS_TABEL ? DOCUMENT_TYPE_LABELS[DocumentType.SURAT_TUGAS] : DOCUMENT_TYPE_LABELS[documentType as DocumentType]} dibuat langsung oleh staf`
         }
       });
 
@@ -1049,7 +1050,7 @@ class HasilRepository {
       // Determine next role based on category hierarchy
       let nextRole: string;
       let nextStatus: LetterStatus;
-      
+
       switch (category) {
         case 'AKADEMIK':
           // Flow: Wadek 1 -> Dekan -> UPA
@@ -1064,7 +1065,7 @@ class HasilRepository {
             throw new Error('Flow tidak valid untuk kategori AKADEMIK');
           }
           break;
-          
+
         case 'SUMBER_DAYA':
           // Flow: Wadek 2 -> Dekan -> UPA
           if (normalizedActorRole === 'WADEK_2') {
@@ -1078,7 +1079,7 @@ class HasilRepository {
             throw new Error('Flow tidak valid untuk kategori SUMBER_DAYA');
           }
           break;
-          
+
         case 'UMUM':
         default:
           // Flow: Wadek 2 -> Wadek 1 -> Dekan -> UPA
@@ -1116,7 +1117,7 @@ class HasilRepository {
           fromStatus: LetterStatus.FAKULTAS_SIGNING,
           toStatus: nextStatus,
           targetRole: nextRole,
-          notes: notes || `Diverifikasi oleh ${actorRole}, diteruskan ke ${nextRole}`
+          notes: notes || `Diverifikasi oleh ${formatRoleForLog(actorRole)}, diteruskan ke ${formatRoleForLog(nextRole)}`
         }
       });
 

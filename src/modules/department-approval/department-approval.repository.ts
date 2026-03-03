@@ -6,6 +6,7 @@
 
 import { prisma } from '../../db';
 import { Prisma, LetterStatus, LogAction, DocumentType, SignatureType } from '../../generated/prisma/client';
+import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -525,7 +526,7 @@ class DepartmentApprovalRepository {
     actorRole: string
   ) {
     const { letterInstanceId, content, tembusan, signatories } = input;
-    
+
     // Extract nomorSurat, tanggalSurat, perihal from content to store in separate columns
     const contentObj = content as Record<string, unknown> || {};
     const nomorSurat = contentObj.nomorSurat as string || null;
@@ -744,15 +745,15 @@ class DepartmentApprovalRepository {
           fromStatus: LetterStatus.SURAT_PENGANTAR_REVIEW,
           toStatus: newStatus,
           targetRole: nextRole,
-          notes: `Ditandatangani oleh ${signerName} (${actorRole})`
+          notes: `Ditandatangani oleh ${signerName} (${formatRoleForLog(actorRole)})`
         }
       });
 
       // Save signature if requested
       if (saveSignature && signatureUrl) {
         // Determine signature type based on format
-        const signatureType = signatureUrl.startsWith('data:') 
-          ? SignatureType.HANDWRITING 
+        const signatureType = signatureUrl.startsWith('data:')
+          ? SignatureType.HANDWRITING
           : SignatureType.UPLOAD;
 
         try {

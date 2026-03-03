@@ -9,11 +9,11 @@
  * 4. COMPLETED: Siap didistribusikan
  */
 
-import type { 
-  LetterStatus, 
-  LetterCategory, 
+import type {
+  LetterStatus,
+  LetterCategory,
   DocumentType,
-  LegalisasiStatus 
+  LegalisasiStatus
 } from '../../generated/prisma/enums';
 
 // ============================================================================
@@ -22,7 +22,7 @@ import type {
 
 /**
  * Format nomor surat standar Undip
- * Contoh: 001/UN7.5/TU/I/2026
+ * Contoh: 001/UN7.5/ST/I/2026
  */
 export interface NomorSuratFormat {
   nomor: string;        // 001 (sequence)
@@ -321,7 +321,7 @@ export function toRoman(num: number): string {
  */
 export function generateNomorSuggestion(
   lastNomor: string | null,
-  jenisKode: string = 'TU',
+  jenisKode: string = 'ST',
   kodeUnit: string = 'UN7.5'
 ): string {
   const now = new Date();
@@ -348,7 +348,7 @@ export function generateNomorSuggestion(
 /**
  * Validate nomor surat format
  * Acceptable formats:
- * - XXX/UN7.5/TU/I/2026  (3 segment)
+ * - XXX/UN7.5/ST/I/2026  (3 segment)
  * - 001/UN7.5.1/HK/XII/2026 (with sub-unit)
  * - 050/UN7.5/SK/2026 (without month)
  */
@@ -356,11 +356,11 @@ export function validateNomorFormat(nomor: string): { valid: boolean; error?: st
   // More flexible pattern: sequence/unit-code/type-code[/month-roman]/year
   // Allow optional month roman numeral
   const pattern = /^\d{1,4}\/[A-Z0-9.]+\/[A-Z]{2,4}(\/[IVX]{1,4})?\/\d{4}$/;
-  
+
   if (!pattern.test(nomor)) {
     return {
       valid: false,
-      error: 'Format nomor surat tidak valid. Contoh: 001/UN7.5/TU/I/2026 atau 050/UN7.5/SK/2026',
+      error: 'Format nomor surat tidak valid. Contoh: 001/UN7.5/ST/I/2026 atau 050/UN7.5/SK/2026',
     };
   }
   return { valid: true };
@@ -413,8 +413,8 @@ export function getDisplayStatus(
     case 'UPA_STAMPING':
       return 'Menunggu Stempel';
     case 'UPA_FINALIZING':
-      return legalisasiStatus === 'QR_GENERATED' 
-        ? 'Siap Finalisasi' 
+      return legalisasiStatus === 'QR_GENERATED'
+        ? 'Siap Finalisasi'
         : 'Generate QR Code';
     case 'COMPLETED':
       return 'Selesai';

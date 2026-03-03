@@ -10,6 +10,7 @@ import {
   LetterStatus,
   Prisma,
 } from '../../generated/prisma/client';
+import { formatRoleForLog } from '../../shared/constants/roles';
 
 
 // ============================================================================
@@ -179,7 +180,7 @@ class SigningRepository {
       } else if (nextPendingSigner) {
         // Move to next signer
         const nextSignerRole = normalizeSignerRole(nextPendingSigner.signerRole);
-        
+
         // Update the signature record if role needs normalization
         if (nextPendingSigner.signerRole !== nextSignerRole) {
           await tx.documentSignature.update({
@@ -204,11 +205,11 @@ class SigningRepository {
           actorId,
           actorRole,
           action: LogAction.SIGN,
-          notes: allSigned 
+          notes: allSigned
             ? `Dokumen selesai ditandatangani, semua tanda tangan lengkap`
-            : nextPendingSigner 
-              ? `Dokumen ditandatangani oleh ${actorRole}, diteruskan ke ${normalizeSignerRole(nextPendingSigner.signerRole)}`
-              : `Dokumen ditandatangani oleh ${actorRole}`,
+            : nextPendingSigner
+              ? `Dokumen ditandatangani oleh ${formatRoleForLog(actorRole)}, diteruskan ke ${formatRoleForLog(normalizeSignerRole(nextPendingSigner.signerRole))}`
+              : `Dokumen ditandatangani oleh ${formatRoleForLog(actorRole)}`,
         },
       });
 

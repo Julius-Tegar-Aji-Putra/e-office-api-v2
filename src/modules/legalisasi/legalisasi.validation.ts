@@ -65,9 +65,9 @@ export const documentTypeParamSchema = t.Object({
 // ============================================================================
 
 export const assignNumberSchema = t.Object({
-  nomorSurat: t.String({ 
+  nomorSurat: t.String({
     minLength: 1,
-    description: 'Nomor surat resmi (format: XXX/UN7.5/TU/I/2026)'
+    description: 'Nomor surat resmi (format: XXX/UN7.5/ST/I/2026)'
   }),
   tanggalSurat: t.String({
     description: 'Tanggal surat (YYYY-MM-DD)'

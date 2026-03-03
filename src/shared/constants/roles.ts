@@ -20,7 +20,7 @@ export const ROLES = {
   STAF_AKADEMIK: 'STAF_AKADEMIK',
   STAF_SUMBER_DAYA: 'STAF_SUMBER_DAYA',
   UPA: 'UPA',
-  
+
   // Aliases for compatibility
   KETUA_PRODI: 'KAPRODI',
   KETUA_DEPARTEMEN: 'KADEP',
@@ -29,6 +29,38 @@ export const ROLES = {
 } as const;
 
 export type RoleName = typeof ROLES[keyof typeof ROLES];
+
+/**
+ * Role formatted display names for logs
+ */
+export const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  [ROLES.DEKAN]: 'Dekan',
+  [ROLES.WADEK_1]: 'Wakil Dekan I',
+  [ROLES.WADEK_2]: 'Wakil Dekan II',
+  [ROLES.MANAJER_TU]: 'Manajer Tata Usaha',
+  [ROLES.SUPERVISOR_AKADEMIK]: 'Supervisor Akademik',
+  [ROLES.SUPERVISOR_SUMBER_DAYA]: 'Supervisor Sumber Daya',
+  [ROLES.STAF_AKADEMIK]: 'Staf Akademik',
+  [ROLES.STAF_SUMBER_DAYA]: 'Staf Sumber Daya',
+  [ROLES.KAPRODI]: 'Ketua Program Studi',
+  [ROLES.KADEP]: 'Ketua Departemen',
+  [ROLES.ADMIN_PRODI]: 'Admin Prodi',
+  [ROLES.ADMIN_FAKULTAS]: 'Admin Fakultas',
+  [ROLES.UPA]: 'Unit Pelaksana Akademik',
+  [ROLES.MAHASISWA]: 'Mahasiswa',
+  [ROLES.DOSEN]: 'Dosen',
+  [ROLES.SUPERADMIN]: 'Superadmin',
+};
+
+export function formatRoleForLog(role: string): string {
+  if (!role) return '';
+  if (ROLE_DISPLAY_NAMES[role]) return ROLE_DISPLAY_NAMES[role];
+  const upperRole = role.toUpperCase();
+  if (ROLE_DISPLAY_NAMES[upperRole]) return ROLE_DISPLAY_NAMES[upperRole];
+
+  // Custom fallback to replace underscores if it's not mapped
+  return role.replace(/_/g, ' ');
+}
 
 /**
  * Role Hierarchy Levels
@@ -300,14 +332,14 @@ export function getNextVerifier(currentRole: string, category: 'AKADEMIK' | 'SUM
     };
     return umurNextMap[currentRole] || null;
   }
-  
+
   const flow = getVerificationFlow(category);
   const currentIndex = flow.indexOf(currentRole as any);
-  
+
   if (currentIndex === -1 || currentIndex === flow.length - 1) {
     return null;
   }
-  
+
   return flow[currentIndex + 1];
 }
 
@@ -348,7 +380,7 @@ export function getReturnTargets(currentRole: string, category: 'AKADEMIK' | 'SU
   };
 
   const targets = allTargets[category] || allTargets.UMUM;
-  
+
   // Hierarki untuk filter (hanya bisa kembalikan ke role di bawah)
   const hierarchy: Record<string, number> = {
     [ROLES.STAF_AKADEMIK]: 1,
@@ -362,7 +394,7 @@ export function getReturnTargets(currentRole: string, category: 'AKADEMIK' | 'SU
   };
 
   const currentLevel = hierarchy[currentRole] || 0;
-  
+
   // Filter: hanya role di bawah current role
   return targets.filter(role => {
     const roleLevel = hierarchy[role] || 0;

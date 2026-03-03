@@ -9,7 +9,8 @@
  */
 
 import { prisma } from '../../db';
-import { Prisma, LetterStatus, LogAction, LetterCategory } from '../../generated/prisma/client';
+import { Prisma, LetterStatus, LogAction, LetterCategory, DocumentType } from '../../generated/prisma/client';
+import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
 // TYPES
@@ -179,8 +180,8 @@ class FacultyDispositionRepository {
         letterInstanceId: letterId,
         action: {
           in: [
-            LogAction.DISPOSITION, 
-            LogAction.RETURN, 
+            LogAction.DISPOSITION,
+            LogAction.RETURN,
             LogAction.STATUS_CHANGE,
             LogAction.APPROVE,
             LogAction.VERIFY
@@ -283,7 +284,7 @@ class FacultyDispositionRepository {
           fromStatus,
           toStatus: LetterStatus.FAKULTAS_DISPOSITION,
           targetRole: input.targetRole,
-          notes: input.notes || `Disposisi ke ${input.targetRole}`
+          notes: input.notes || `Disposisi ke ${formatRoleForLog(input.targetRole)}`
         }
       });
 
@@ -428,7 +429,7 @@ class FacultyDispositionRepository {
           fromStatus: LetterStatus.FAKULTAS_DISPOSITION,
           toStatus: LetterStatus.SURAT_DIBUAT,
           targetRole: staffRole,
-          notes: notes || `Disposisi ke ${staffRole} untuk drafting`
+          notes: notes || `Disposisi ke ${formatRoleForLog(staffRole)} untuk drafting`
         }
       });
 
