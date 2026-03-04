@@ -88,6 +88,8 @@ interface TembusanDetail extends TembusanInboxItem {
     userId?: string;
     name: string;
     description?: string;
+    email?: string;
+    role?: string;
   }>;
   // Stempel/seal info
   sealImageUrl?: string | null;
@@ -418,6 +420,9 @@ class TembusanServiceV2 {
                   mahasiswa: {
                     select: { nim: true },
                   },
+                  pegawai: {
+                    select: { jabatan: true },
+                  },
                 },
               },
             },
@@ -538,8 +543,48 @@ class TembusanServiceV2 {
         })
       );
 
-      // Parse tembusan data from document
-      const tembusanList = parseTembusanData(document.tembusan);
+      // Parse tembusan data from document and enrich with real user data
+      let processedTembusan: any[] = [];
+      if (document.tembusan && Array.isArray(document.tembusan)) {
+        processedTembusan = await Promise.all(
+          document.tembusan.map(async (item: any) => {
+            if (typeof item === 'string') return { name: item };
+            if (!item.userId) return item;
+
+            if (item.userId === '__PENGAJU__') {
+              const pengajuRole = document.letterInstance.createdBy.pegawai?.jabatan || 'Mahasiswa';
+              return {
+                ...item,
+                name: document.letterInstance.createdBy.name,
+                email: document.letterInstance.createdBy.email,
+                role: `${pengajuRole} (Pengaju Surat)`
+              };
+            }
+
+            try {
+              const tUser = await prisma.user.findUnique({
+                where: { id: item.userId },
+                include: { pegawai: true, mahasiswa: { include: { programStudi: true } } }
+              });
+              if (tUser) {
+                const role = tUser.pegawai?.jabatan ||
+                  (tUser.mahasiswa ? `Mahasiswa - ${tUser.mahasiswa.programStudi?.name || ''}` : null) ||
+                  item.role || item.description || 'Unknown Role';
+                return {
+                  ...item,
+                  name: tUser.name,
+                  email: tUser.email,
+                  role: role,
+                  description: role
+                };
+              }
+            } catch (e) {
+              console.error('Failed to resolve tembusan user', e);
+            }
+            return item;
+          })
+        );
+      }
 
       // Parse content as JSON (form data for frontend template rendering)
       let contentData: Record<string, unknown> | null = null;
@@ -580,10 +625,12 @@ class TembusanServiceV2 {
         qrCodeUrl: document.qrCodeUrl,
         attachmentUrls: signedAttachmentUrls as unknown[] | null,
         signaturesFull,
-        tembusanList: tembusanList.map(t => ({
+        tembusanList: processedTembusan.map(t => ({
           userId: t.userId || undefined,
           name: t.name,
           description: t.description || undefined,
+          email: t.email || undefined,
+          role: t.role || undefined,
         })),
         sealImageUrl: document.sealImageUrl,
       };

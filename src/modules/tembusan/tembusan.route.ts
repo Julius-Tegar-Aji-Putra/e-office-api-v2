@@ -13,7 +13,7 @@ import { authGuardPlugin } from '../../middlewares/auth';
 
 export const tembusanRoute = new Elysia({ prefix: '/api/tembusan' })
   .use(authGuardPlugin)
-  
+
   /**
    * GET /api/tembusan/inbox
    * Get daftar surat yang diterima sebagai tembusan

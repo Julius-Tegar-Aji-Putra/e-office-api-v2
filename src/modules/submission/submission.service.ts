@@ -340,6 +340,48 @@ export class SubmissionService {
             })
           );
 
+          // Enhance tembusan to include email and real role
+          let processedTembusan = doc.tembusan || null;
+          if (doc.tembusan && Array.isArray(doc.tembusan)) {
+            processedTembusan = await Promise.all(
+              doc.tembusan.map(async (item: any) => {
+                if (typeof item === 'string') return item;
+                if (!item.userId) return item;
+
+                if (item.userId === '__PENGAJU__') {
+                  const pengajuRole = submission.createdBy.pegawai?.jabatan || 'Mahasiswa';
+                  return {
+                    ...item,
+                    name: submission.createdBy.name,
+                    email: submission.createdBy.email,
+                    role: `${pengajuRole} (Pengaju Surat)`
+                  };
+                }
+
+                try {
+                  const tUser = await prisma.user.findUnique({
+                    where: { id: item.userId },
+                    include: { pegawai: true, mahasiswa: { include: { programStudi: true } } }
+                  });
+                  if (tUser) {
+                    const role = tUser.pegawai?.jabatan ||
+                      (tUser.mahasiswa ? `Mahasiswa - ${tUser.mahasiswa.programStudi?.name || ''}` : null) ||
+                      item.role || item.description || 'Unknown Role';
+                    return {
+                      ...item,
+                      name: tUser.name,
+                      email: tUser.email,
+                      role: role
+                    };
+                  }
+                } catch (e) {
+                  console.error('Failed to resolve tembusan user', e);
+                }
+                return item;
+              })
+            );
+          }
+
           return {
             id: doc.id,
             type: doc.type,
@@ -353,7 +395,7 @@ export class SubmissionService {
             qrCodeUrl: signedQrCodeUrl || null, // QR Code URL
             content: doc.content || null, // Form data untuk generate preview
             contentHtml: doc.contentHtml || null, // HTML content jika sudah di-generate
-            tembusan: doc.tembusan || null, // Tembusan recipients dari draft
+            tembusan: processedTembusan, // Tembusan recipients dari draft, enriched with email/role
             attachmentUrls: signedAttachmentUrls, // Lampiran PDF/JPG/PNG dari staf/supervisor (signed URLs)
             signatures: signaturesWithSignedUrls,
           };
