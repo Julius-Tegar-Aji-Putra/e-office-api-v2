@@ -1,12 +1,10 @@
-
 {
   "name": "e-office-api-v2",
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun x tsc && bun build ./src/index.ts --outdir ./dist --target bun && bun x prisma generate",
+    "build": "bun x prisma generate && bun x tsc && bun build ./src/index.ts --outdir ./dist --target bun",
     "start": "NODE_ENV=production bun run ./src/index.ts",
-
     "lint": "bun x @biomejs/biome check src",
     "lint:fix": "bun lint --write"
   },
@@ -36,7 +34,6 @@
     "minio": "^8.0.6",
     "nanoid": "^5.1.6",
     "pdf-lib": "^1.17.1",
-
     "qrcode": "^1.5.4",
     "react-hook-form": "^7.71.1",
     "sharp": "^0.34.5",
