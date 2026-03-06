@@ -12,6 +12,7 @@ export interface AdminUserListItem {
   unitKerja: string | null;
   identifier: string | null; // NIM atau NIP
   jabatan: string | null;
+  isActive: boolean;
 }
 
 export interface AdminUserDetail {
@@ -89,6 +90,7 @@ export interface UpdateUserDTO {
 export interface AdminUserFilter {
   search?: string;
   role?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface AdminUserPagination {

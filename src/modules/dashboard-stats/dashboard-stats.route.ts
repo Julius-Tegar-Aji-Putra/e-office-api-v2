@@ -30,6 +30,9 @@ export const dashboardStatsRoutes = new Elysia({ prefix: '/admin/dashboard' })
 
       const usersByRole = await prisma.userRole.groupBy({
         by: ['roleId'],
+        where: {
+          user: { deletedAt: null },
+        },
         _count: { roleId: true },
       });
 

@@ -58,6 +58,7 @@ export const adminManagementService = {
         unitKerja,
         identifier,
         jabatan,
+        isActive: !user.deletedAt,
       };
     });
 
@@ -130,6 +131,9 @@ export const adminManagementService = {
    * Create user with transaction (User + Account + Profile + UserRole)
    */
   async createUser(dto: CreateUserDTO) {
+    // Force lowercase email
+    dto.email = dto.email.toLowerCase().trim();
+
     // === VALIDATION ===
 
     // 1. Check email uniqueness
@@ -297,6 +301,11 @@ export const adminManagementService = {
    * Update user
    */
   async updateUser(id: string, dto: UpdateUserDTO) {
+    // Force lowercase email if provided
+    if (dto.email) {
+      dto.email = dto.email.toLowerCase().trim();
+    }
+
     const existingUser = await adminManagementRepository.findById(id);
     if (!existingUser) {
       throw new Error('User tidak ditemukan');
@@ -395,9 +404,11 @@ export const adminManagementService = {
           data: { userId: id, roleId: newRoleRecord.id },
         });
 
-        // Update Casbin
-        if (currentRole) await removeRoleFromUser(id, currentRole);
-        await assignRoleToUser(id, dto.role);
+        // Update Casbin (only for active users)
+        if (existingUser.deletedAt === null) {
+          if (currentRole) await removeRoleFromUser(id, currentRole);
+          await assignRoleToUser(id, dto.role);
+        }
       }
 
       // 3. Update or create profile based on role
@@ -528,6 +539,62 @@ export const adminManagementService = {
 
     await adminManagementRepository.softDeleteUser(id);
     return { id, message: 'User berhasil dihapus' };
+  },
+
+  /**
+   * Reactivate a soft-deleted user
+   */
+  async reactivateUser(id: string) {
+    const user = await adminManagementRepository.findById(id);
+    if (!user) throw new Error('User tidak ditemukan');
+    if (!user.deletedAt) throw new Error('User sudah aktif');
+
+    const role = user.userRoles[0]?.role?.name;
+    if (!role) throw new Error('User tidak memiliki role');
+
+    // Single-holder validation
+    if ((SINGLE_HOLDER_ROLES as readonly string[]).includes(role)) {
+      const existing = await adminManagementRepository.isRoleOccupied(role, id);
+      if (existing) {
+        throw new Error(
+          `Tidak dapat mengaktifkan akun. Role ${role} sudah diisi oleh ${existing.user.name}. Hanya boleh 1 user aktif untuk role ini.`
+        );
+      }
+    }
+
+    // KADEP single per department
+    if (role === 'KADEP') {
+      const departemenId = user.pegawai?.departemenId;
+      if (departemenId) {
+        const existing = await adminManagementRepository.isKadepOccupied(departemenId, id);
+        if (existing) {
+          throw new Error(
+            `Tidak dapat mengaktifkan akun. Departemen ini sudah memiliki Ketua Departemen: ${existing.user.name}`
+          );
+        }
+      }
+    }
+
+    // KAPRODI validation
+    if (role === 'KAPRODI') {
+      const programStudiId = user.pegawai?.programStudiId;
+      if (programStudiId) {
+        const existing = await adminManagementRepository.isKaprodiOccupied(programStudiId, id);
+        if (existing) {
+          throw new Error(
+            `Tidak dapat mengaktifkan akun. Prodi ini sudah memiliki Kaprodi: ${existing.user.name}`
+          );
+        }
+      }
+    }
+
+    // Reactivate user
+    await adminManagementRepository.reactivateUser(id);
+
+    // Re-add Casbin role
+    await assignRoleToUser(id, role);
+
+    return { id, message: 'User berhasil diaktifkan kembali' };
   },
 
   /**

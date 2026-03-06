@@ -266,7 +266,7 @@ class DepartmentApprovalService {
       content: {
         // Empty template - will be filled by Admin Prodi
         perihal: letter.submissionValues && typeof letter.submissionValues === 'object'
-          ? (letter.submissionValues as any).keperluan || ''
+          ? (letter.submissionValues as any).judulAcara || ''
           : '',
         body: '',
         lampiran: '-'

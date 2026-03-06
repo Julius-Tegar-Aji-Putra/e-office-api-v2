@@ -44,4 +44,5 @@ export const userQuerySchema = t.Object({
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 10 })),
   search: t.Optional(t.String()),
   role: t.Optional(t.String()),
+  status: t.Optional(t.String()),
 });

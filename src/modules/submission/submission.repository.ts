@@ -393,9 +393,13 @@ export class SubmissionRepository {
           },
         },
         {
-          submissionValues: {
-            path: ['keperluan'],
-            string_contains: filter.search,
+          documents: {
+            some: { perihal: { contains: filter.search, mode: 'insensitive' } },
+          },
+        },
+        {
+          documents: {
+            some: { nomorSurat: { contains: filter.search, mode: 'insensitive' } },
           },
         },
       ];

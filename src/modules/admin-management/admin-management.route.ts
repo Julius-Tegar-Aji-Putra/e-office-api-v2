@@ -35,6 +35,7 @@ export const adminManagementRoutes = new Elysia({ prefix: '/admin' })
         {
           search: query.search,
           role: query.role,
+          status: (query.status as 'active' | 'inactive') || 'active',
         },
         {
           page: query.page || 1,
@@ -183,6 +184,30 @@ export const adminManagementRoutes = new Elysia({ prefix: '/admin' })
     detail: {
       summary: 'Reset user password (Admin)',
       description: 'Reset password user ke default',
+      tags: ['Admin Management'],
+    },
+  })
+
+  // ========== REACTIVATE USER ==========
+  .post('/users/:id/reactivate', async ({ params }) => {
+    try {
+      const result = await adminManagementService.reactivateUser(params.id);
+      return {
+        success: true,
+        message: result.message,
+        data: { id: result.id },
+      };
+    } catch (error) {
+      throw new AppError(
+        error instanceof Error ? error.message : 'Gagal mengaktifkan user',
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+  }, {
+    params: userIdParamSchema,
+    detail: {
+      summary: 'Reactivate user (Admin)',
+      description: 'Mengaktifkan kembali user yang sudah di-soft-delete',
       tags: ['Admin Management'],
     },
   })

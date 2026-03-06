@@ -5,7 +5,7 @@ import { db } from "@backend/db/index.ts";
 
 export default new Elysia().use(authGuardPlugin).get(
 	"/",
-	async ({ user }) => {
+	async ({ user, set }) => {
 		// Get user roles from Casbin
 		const roles = await getUserRoles(user.id);
 		const primaryRole = roles[0] || null;
@@ -35,6 +35,15 @@ export default new Elysia().use(authGuardPlugin).get(
 				},
 			},
 		});
+
+		// Block inactive (soft-deleted) users
+		if (userDetails?.deletedAt) {
+			set.status = 403;
+			return {
+				error: 'ACCOUNT_INACTIVE',
+				message: 'Akun Anda telah dinonaktifkan. Silakan hubungi Super Admin.',
+			};
+		}
 
 		return {
 			id: user.id,

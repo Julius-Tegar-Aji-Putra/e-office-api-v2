@@ -118,7 +118,9 @@ class DepartmentApprovalRepository {
       },
       ...(search && {
         OR: [
-          { submissionValues: { path: ['keperluan'], string_contains: search } },
+          { documents: { some: { perihal: { contains: search, mode: 'insensitive' } } } },
+          { submissionValues: { path: ['judulAcara'], string_contains: search } },
+          { documents: { some: { nomorSurat: { contains: search, mode: 'insensitive' } } } },
           { createdBy: { name: { contains: search, mode: 'insensitive' } } }
         ]
       })
@@ -188,7 +190,9 @@ class DepartmentApprovalRepository {
       },
       ...(search && {
         OR: [
-          { submissionValues: { path: ['keperluan'], string_contains: search } },
+          { documents: { some: { perihal: { contains: search, mode: 'insensitive' } } } },
+          { submissionValues: { path: ['judulAcara'], string_contains: search } },
+          { documents: { some: { nomorSurat: { contains: search, mode: 'insensitive' } } } },
           { createdBy: { name: { contains: search, mode: 'insensitive' } } }
         ]
       })

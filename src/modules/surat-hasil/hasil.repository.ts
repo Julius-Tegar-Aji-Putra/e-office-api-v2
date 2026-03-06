@@ -162,6 +162,9 @@ class HasilRepository {
       currentActiveRole: staffRole,
       ...(search && {
         OR: [
+          { documents: { some: { perihal: { contains: search, mode: 'insensitive' } } } },
+          { submissionValues: { path: ['judulAcara'], string_contains: search } },
+          { documents: { some: { nomorSurat: { contains: search, mode: 'insensitive' } } } },
           { createdBy: { name: { contains: search, mode: 'insensitive' } } }
         ]
       })

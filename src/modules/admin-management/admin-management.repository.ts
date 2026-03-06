@@ -14,9 +14,14 @@ export const adminManagementRepository = {
     filter: AdminUserFilter,
     pagination: AdminUserPagination
   ) {
-    const where: any = {
-      deletedAt: null,
-    };
+    const where: any = {};
+
+    // Filter by status (active/inactive)
+    if (filter.status === 'inactive') {
+      where.deletedAt = { not: null };
+    } else {
+      where.deletedAt = null;
+    }
 
     // Search by name or email
     if (filter.search) {
@@ -260,6 +265,26 @@ export const adminManagementRepository = {
       prisma.pegawai.updateMany({
         where: { userId: id },
         data: { deletedAt: now },
+      }),
+    ]);
+  },
+
+  /**
+   * Reactivate (un-soft-delete) user
+   */
+  async reactivateUser(id: string) {
+    return prisma.$transaction([
+      prisma.user.update({
+        where: { id },
+        data: { deletedAt: null },
+      }),
+      prisma.mahasiswa.updateMany({
+        where: { userId: id },
+        data: { deletedAt: null },
+      }),
+      prisma.pegawai.updateMany({
+        where: { userId: id },
+        data: { deletedAt: null },
       }),
     ]);
   },

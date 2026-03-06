@@ -605,6 +605,8 @@ async function getDashboardPengaju(
   if (filters.search) {
     where.OR = [
       { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
+      { submissionValues: { path: ['judulAcara'], string_contains: filters.search } },
+      { documents: { some: { nomorSurat: { contains: filters.search, mode: 'insensitive' } } } },
     ];
   }
 
@@ -645,7 +647,7 @@ async function getDashboardPengaju(
     const hasilDoc = item.documents.find((d: any) => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
     return {
       id: item.id,
-      judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code, hasilDoc?.type),
       tanggalSurat: item.createdAt,
@@ -806,6 +808,8 @@ async function getDashboardDepartemen(
     const searchCondition = {
       OR: [
         { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
+        { submissionValues: { path: ['judulAcara'], string_contains: filters.search } },
+        { documents: { some: { nomorSurat: { contains: filters.search, mode: 'insensitive' } } } },
         { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
       ]
     };
@@ -856,7 +860,7 @@ async function getDashboardDepartemen(
     return {
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
-      judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      judulSurat: hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
       tipeSurat: getTipeSurat(item.letterType?.code, hasilDoc?.type),
       tanggalSurat: item.createdAt,
@@ -1112,6 +1116,8 @@ async function getDashboardFakultas(
       {
         OR: [
           { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
+          { submissionValues: { path: ['judulAcara'], string_contains: filters.search } },
+          { documents: { some: { nomorSurat: { contains: filters.search, mode: 'insensitive' } } } },
           { createdBy: { name: { contains: filters.search, mode: 'insensitive' } } },
         ],
       },
@@ -1294,7 +1300,6 @@ async function getDashboardFakultas(
   let mappedItems: DashboardItem[] = allItems.map((item) => {
     const pengantarDoc = item.documents.find(d => d.type === 'SURAT_PENGANTAR');
     const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
-    const doc = type === 'masuk' ? pengantarDoc : (hasilDoc || pengantarDoc);
 
     // Untuk Surat Masuk: jika surat keluar (SK/ST) sudah dibuat, 
     // status di tabel surat masuk menjadi "SELESAI" karena proses sudah berlanjut ke surat keluar
@@ -1303,12 +1308,17 @@ async function getDashboardFakultas(
       displayStatus = 'SELESAI';
     }
 
+    // Judul surat: prioritas SK/ST perihal > judulAcara dari submission > pengantar perihal
+    const judulSurat = type === 'keluar'
+      ? (hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || pengantarDoc?.perihal || '-')
+      : ((item.submissionValues as any)?.judulAcara || hasilDoc?.perihal || '-');
+
     return {
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
-      judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      judulSurat,
       nomorSurat: hasilDoc?.nomorSurat || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
+      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || pengantarDoc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
@@ -1341,19 +1351,23 @@ async function getDashboardFakultas(
   const mapItemsBeforeFilter: DashboardItem[] = allItems.map((item) => {
     const pengantarDoc = item.documents.find(d => d.type === 'SURAT_PENGANTAR');
     const hasilDoc = item.documents.find(d => d.type === 'SURAT_KEPUTUSAN' || d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL');
-    const doc = type === 'masuk' ? pengantarDoc : (hasilDoc || pengantarDoc);
 
     let displayStatus = getDisplayStatusForRole(item.status, user.role, item.currentActiveRole);
     if (type === 'masuk' && hasilDoc) {
       displayStatus = 'SELESAI';
     }
 
+    // Judul surat: sama dengan mapping di atas
+    const judulSurat = type === 'keluar'
+      ? (hasilDoc?.perihal || (item.submissionValues as any)?.judulAcara || pengantarDoc?.perihal || '-')
+      : ((item.submissionValues as any)?.judulAcara || hasilDoc?.perihal || '-');
+
     return {
       id: item.id,
       namaPengaju: item.createdBy?.name || '-',
-      judulSurat: doc?.perihal || (item.submissionValues as any)?.judulAcara || '-',
+      judulSurat,
       nomorSurat: hasilDoc?.nomorSurat || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || doc)?.type),
+      tipeSurat: getTipeSurat(item.letterType?.code, (hasilDoc || pengantarDoc)?.type),
       jenisSurat: item.category || item.letterType?.category || '-',
       tanggalSurat: item.createdAt,
       status: item.status,
@@ -1412,6 +1426,7 @@ async function getDashboardUPA(
     where.OR = [
       { documents: { some: { perihal: { contains: filters.search, mode: 'insensitive' } } } },
       { documents: { some: { nomorSurat: { contains: filters.search, mode: 'insensitive' } } } },
+      { submissionValues: { path: ['judulAcara'], string_contains: filters.search } },
     ];
   }
 
@@ -1705,8 +1720,8 @@ export default new Elysia()
       id: log.id,
       action: log.action,
       notes: log.notes,
-      letterTitle: log.letterInstance?.documents[0]?.perihal ||
-        (log.letterInstance?.submissionValues as any)?.judulAcara || '-',
+      letterTitle: (log.letterInstance?.submissionValues as any)?.judulAcara ||
+        log.letterInstance?.documents[0]?.perihal || '-',
       documentType: log.letterInstance?.letterType?.name,
       actorName: log.actor?.name,
       timestamp: log.createdAt,
