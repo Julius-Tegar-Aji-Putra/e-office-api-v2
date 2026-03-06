@@ -986,6 +986,8 @@ export class SubmissionService {
     const hasSuratPengantarContent = !!suratPengantarDoc?.content;
     const hasSuratPengantarFile = !!(suratPengantarDoc as any)?.fileUrl;
     const isSuratPengantarDocReady = hasSuratPengantarContent || hasSuratPengantarFile;
+    // Signed = dokumen sudah ditandatangani (sebelum di-redraft oleh Admin Prodi setelah dikembalikan)
+    const suratPengantarIsSigned = !!(suratPengantarDoc as any)?.isSigned;
 
     // Pre-draft mode: SEMUA ROLE jika dokumen belum ready dan status sudah melewati verifikasi
     // - Status SUBMITTED/KAPRODI_REVIEW: selalu pre-draft (belum ada proses drafting)
@@ -1061,7 +1063,12 @@ export class SubmissionService {
 
     // Admin Prodi can draft when status is SURAT_PENGANTAR_DRAFT
     const canDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';
-    const canSubmitDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT';
+    // Admin Prodi can submit for TTD only when:
+    // 1. Status is SURAT_PENGANTAR_DRAFT
+    // 2. Draft document exists with content
+    // 3. Document is NOT already signed (isSigned=true means letter was returned – needs re-draft first)
+    const canSubmitDraft = isAdminProdi && status === 'SURAT_PENGANTAR_DRAFT' &&
+      isSuratPengantarDocReady && !suratPengantarIsSigned;
 
     // Kaprodi/Kadep can sign when status is SURAT_PENGANTAR_REVIEW and it's their turn
     // Must check viewerRole matches the current active role to prevent showing button after signing

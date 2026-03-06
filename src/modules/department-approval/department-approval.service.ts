@@ -511,7 +511,16 @@ class DepartmentApprovalService {
 
       // Admin Prodi can draft when status = SURAT_PENGANTAR_DRAFT
       canDraft: isAdminProdi && letter.status === LetterStatus.SURAT_PENGANTAR_DRAFT,
-      canSubmitDraft: isAdminProdi && letter.status === LetterStatus.SURAT_PENGANTAR_DRAFT,
+      // Admin Prodi can submit for TTD only when draft exists and is NOT already signed
+      // (isSigned=true means letter was returned from Faculty – needs re-draft first)
+      canSubmitDraft: (() => {
+        if (!isAdminProdi || letter.status !== LetterStatus.SURAT_PENGANTAR_DRAFT) return false;
+        const pengantarDoc = letter.documents?.find((d: any) => d.type === 'SURAT_PENGANTAR');
+        if (!pengantarDoc) return false;
+        const hasContent = !!(pengantarDoc as any).content || !!(pengantarDoc as any).fileUrl;
+        const isSigned = !!(pengantarDoc as any).isSigned;
+        return hasContent && !isSigned;
+      })(),
 
       // Kaprodi/Kadep can sign when status = SURAT_PENGANTAR_REVIEW and it's their turn
       canSign: (isKaprodi || isKadep) &&

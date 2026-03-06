@@ -561,6 +561,9 @@ class DepartmentApprovalRepository {
           nomorSurat: nomorSurat,
           tanggalSurat: tanggalSurat,
           perihal: perihal,
+          // Reset signed state when Admin Prodi re-drafts (e.g. after letter returned from Faculty)
+          isSigned: false,
+          fileUrl: null,
           updatedAt: new Date()
         }
       });

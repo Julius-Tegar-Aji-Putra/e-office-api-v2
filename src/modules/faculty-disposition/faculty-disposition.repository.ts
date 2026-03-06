@@ -348,11 +348,11 @@ class FacultyDispositionRepository {
       let newStatus: LetterStatus;
       let newActiveRole: string | null = input.targetRole;
 
-      // PERBAIKAN: Jika dikembalikan ke Admin Prodi, surat berhenti (DEAD END)
+      // PERBAIKAN: Jika dikembalikan ke Admin Prodi, kembali ke tahap draft
       if (input.targetRole === 'ADMIN_PRODI') {
-        // Surat selesai/rejected - dikembalikan ke prodi tanpa tindak lanjut
-        newStatus = LetterStatus.COMPLETED;
-        newActiveRole = null; // Tidak ada yang perlu action lagi
+        // Surat dikembalikan ke admin prodi untuk diperbaiki -> SURAT_PENGANTAR_DRAFT
+        newStatus = LetterStatus.SURAT_PENGANTAR_DRAFT;
+        newActiveRole = 'ADMIN_PRODI'; // Admin prodi bisa action
       } else if (input.targetRole === 'ADMIN_FAKULTAS') {
         // Dikembalikan ke Admin Fakultas - masih bisa lanjut
         newStatus = LetterStatus.FAKULTAS_RECEIVED;
@@ -367,9 +367,6 @@ class FacultyDispositionRepository {
           status: newStatus,
           currentActiveRole: newActiveRole,
           currentActiveUserId: input.targetUserId || null,
-          ...(input.targetRole === 'ADMIN_PRODI' && {
-            completedAt: new Date() // Mark as completed
-          }),
           updatedAt: new Date()
         }
       });
@@ -388,7 +385,7 @@ class FacultyDispositionRepository {
           metadata: {
             returnReason: input.reason,
             returnedTo: input.targetRole,
-            isDeadEnd: input.targetRole === 'ADMIN_PRODI'
+            isDeadEnd: false
           }
         }
       });
