@@ -259,11 +259,12 @@ model LetterTemplate {
 }
 
 model LetterInstance {
-  id                String             @id @default(cuid())
-  submissionValues  Json
-  status            LetterStatus       @default(SUBMITTED)
-  currentActiveRole String?
-  priority          Priority           @default(NORMAL)
+  id                  String             @id @default(cuid())
+  submissionValues    Json
+  status              LetterStatus       @default(SUBMITTED)
+  currentActiveRole   String?
+  currentActiveUserId String?
+  priority            Priority           @default(NORMAL)
   signatureConfig   Json?
   contentHtml       String?
   letterTypeId      String
@@ -283,6 +284,7 @@ model LetterInstance {
   @@index([letterTypeId])
   @@index([createdById])
   @@index([currentActiveRole])
+  @@index([currentActiveUserId])
   @@map("letter_instance")
 }
 

@@ -189,7 +189,8 @@ class FacultyDispositionService {
           input.targetRole,
           userId,
           userRole,
-          input.notes
+          input.notes,
+          input.targetUserId
         );
         return { success: true, data: result };
       }
@@ -245,7 +246,8 @@ class FacultyDispositionService {
           input.targetRole,
           userId,
           userRole,
-          input.notes
+          input.notes,
+          input.targetUserId
         );
         return { success: true, data: result };
       }

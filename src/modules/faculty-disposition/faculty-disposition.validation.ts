@@ -46,6 +46,7 @@ export const categorizeBodySchema = t.Object({
 
 export const forwardBodySchema = t.Object({
   targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
+  targetUserId: t.Optional(t.String({ minLength: 1 })),
   notes: t.Optional(t.String())
 });
 
@@ -55,5 +56,6 @@ export const completeBodySchema = t.Object({
 
 export const returnBodySchema = t.Object({
   targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
+  targetUserId: t.Optional(t.String({ minLength: 1 })),
   reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' })
 });

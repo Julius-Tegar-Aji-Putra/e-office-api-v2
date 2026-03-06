@@ -77,7 +77,7 @@ class FacultyDispositionController {
    */
   async forwardLetter(
     letterId: string,
-    body: { targetRole: string; notes?: string },
+    body: { targetRole: string; targetUserId?: string; notes?: string },
     userId: string,
     userRole: string
   ) {
@@ -85,12 +85,12 @@ class FacultyDispositionController {
     // Pejabat pakai createDisposition (terikat hierarchy)
     const result = userRole === 'ADMIN_FAKULTAS'
       ? await facultyDispositionService.forwardLetter(
-          { letterId, targetRole: body.targetRole, notes: body.notes },
+          { letterId, targetRole: body.targetRole, targetUserId: body.targetUserId, notes: body.notes },
           userId,
           userRole
         )
       : await facultyDispositionService.createDisposition(
-          { letterId, targetRole: body.targetRole, notes: body.notes },
+          { letterId, targetRole: body.targetRole, targetUserId: body.targetUserId, notes: body.notes },
           userId,
           userRole
         );
@@ -134,12 +134,12 @@ class FacultyDispositionController {
    */
   async returnLetter(
     letterId: string,
-    body: { reason: string; targetRole: string },
+    body: { reason: string; targetRole: string; targetUserId?: string },
     userId: string,
     userRole: string
   ) {
     const result = await facultyDispositionService.returnLetter(
-      { letterId, reason: body.reason, targetRole: body.targetRole },
+      { letterId, reason: body.reason, targetRole: body.targetRole, targetUserId: body.targetUserId },
       userId,
       userRole
     );

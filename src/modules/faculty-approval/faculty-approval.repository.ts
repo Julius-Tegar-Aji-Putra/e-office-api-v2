@@ -38,6 +38,7 @@ export interface SignInput {
 export interface ReturnInput {
   letterId: string;
   targetRole: string;
+  targetUserId?: string;
   reason: string;
 }
 
@@ -266,11 +267,14 @@ class FacultyApprovalRepository {
         newStatus = LetterStatus.FAKULTAS_VERIFICATION;
       }
 
+      const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(input.targetRole);
+
       const letter = await tx.letterInstance.update({
         where: { id: input.letterId },
         data: {
           status: newStatus,
           currentActiveRole: input.targetRole,
+          currentActiveUserId: (isStafTarget && input.targetUserId) ? input.targetUserId : null,
           updatedAt: new Date()
         }
       });

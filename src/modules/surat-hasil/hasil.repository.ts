@@ -153,13 +153,15 @@ class HasilRepository {
    * 
    * PERBAIKAN: Include status SURAT_DIBUAT (belum draft) dan FAKULTAS_DRAFTING (sedang draft)
    */
-  async getLettersForDrafting(staffRole: string, params: HasilListParams) {
+  async getLettersForDrafting(staffRole: string, params: HasilListParams, staffUserId?: string) {
     const { page = 1, limit = 10, search } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.LetterInstanceWhereInput = {
       status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
       currentActiveRole: staffRole,
+      // Staff-specific filtering: HANYA tampilkan surat yang EKSPLISIT ditugaskan ke user ini
+      ...(staffUserId ? { currentActiveUserId: staffUserId } : {}),
       ...(search && {
         OR: [
           { documents: { some: { perihal: { contains: search, mode: 'insensitive' } } } },
@@ -685,7 +687,8 @@ class HasilRepository {
     actorRole: string,
     reason: string,
     targetRole: string,
-    targetStatus?: LetterStatus
+    targetStatus?: LetterStatus,
+    targetUserId?: string
   ) {
     return prisma.$transaction(async (tx) => {
       const letter = await tx.letterInstance.findUnique({
@@ -706,6 +709,7 @@ class HasilRepository {
         data: {
           status: finalStatus,
           currentActiveRole: targetRole,
+          currentActiveUserId: (isStafTarget && targetUserId) ? targetUserId : null,
           updatedAt: new Date()
         }
       });
@@ -957,6 +961,7 @@ class HasilRepository {
           submissionValues: submissionValues as any,
           status: LetterStatus.FAKULTAS_DRAFTING,
           currentActiveRole: actorRole,
+          currentActiveUserId: actorId,
           category: category as LetterCategory,
           priority: 'NORMAL'
         }

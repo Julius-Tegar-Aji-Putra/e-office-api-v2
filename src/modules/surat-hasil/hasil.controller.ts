@@ -271,7 +271,7 @@ class HasilController {
    */
   async returnForRevision(
     letterId: string,
-    body: { reason: string; targetStaff?: string },
+    body: { reason: string; targetStaff?: string; targetUserId?: string },
     userId: string,
     userRole: string
   ) {
@@ -281,7 +281,8 @@ class HasilController {
         userId,
         userRole,
         body.reason,
-        body.targetStaff
+        body.targetStaff,
+        body.targetUserId
       );
       return successResponse('Draft dikembalikan untuk revisi', { letter: result });
     } catch (error: unknown) {

@@ -446,6 +446,90 @@ async function main() {
     }
   });
 
+  // --- DOSEN (Matematika) ---
+  const dosenMath = await createUser({
+    name: 'Dr. Widowati, S.Si., M.Si.',
+    email: 'widowati@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '196902141994032002',
+      jabatan: 'Dosen',
+      noHp: '081234567011',
+      deptCode: 'MATH',
+      prodiCode: 'S1-MATH'
+    }
+  });
+
+  // --- DOSEN (Biologi) ---
+  const dosenBio = await createUser({
+    name: 'Dr. Agung Suprihadi, S.Si., M.Si.',
+    email: 'agung.suprihadi@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '197106151999031002',
+      jabatan: 'Dosen',
+      noHp: '081234567012',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIO'
+    }
+  });
+
+  // --- DOSEN (Bioteknologi) ---
+  const dosenBiotek = await createUser({
+    name: 'Dr. Endang Kusdiyantini, DEA.',
+    email: 'endang.kusdiyantini@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '196205171988032001',
+      jabatan: 'Dosen',
+      noHp: '081234567013',
+      deptCode: 'BIO',
+      prodiCode: 'S1-BIOTEK'
+    }
+  });
+
+  // --- DOSEN (Fisika) ---
+  const dosenFis = await createUser({
+    name: 'Dr. Ainie Khuriati R.S., S.Si., M.Si.',
+    email: 'ainie.khuriati@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '196807111994032001',
+      jabatan: 'Dosen',
+      noHp: '081234567014',
+      deptCode: 'FIS',
+      prodiCode: 'S1-FIS'
+    }
+  });
+
+  // --- DOSEN (Kimia) ---
+  const dosenKim = await createUser({
+    name: 'Dr. Khairul Anam, S.Si., M.Si.',
+    email: 'khairul.anam@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '197308221999031002',
+      jabatan: 'Dosen',
+      noHp: '081234567015',
+      deptCode: 'KIM',
+      prodiCode: 'S1-KIM'
+    }
+  });
+
+  // --- DOSEN (Statistika) ---
+  const dosenStat = await createUser({
+    name: 'Dr. Mustafid, M.Eng.',
+    email: 'mustafid@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '196303221988031002',
+      jabatan: 'Dosen',
+      noHp: '081234567016',
+      deptCode: 'STAT',
+      prodiCode: 'S1-STAT'
+    }
+  });
+
   // --- KETUA PRODI (KAPRODI) - 7 accounts for prodi with hasKaprodi=true ---
   const kaprodiS2Math = await createUser({
     name: 'Dr. Lucia Ratnasari, S.Si., M.Si.',
@@ -882,6 +966,18 @@ async function main() {
     roleName: ROLES.STAF_SUMBER_DAYA,
     profile: {
       nip: '199105152017032001',
+      jabatan: 'Staf Sumber Daya',
+      deptCode: 'FSM',
+      prodiCode: 'FAKULTAS'
+    }
+  });
+
+  const stafSumberDaya2 = await createUser({
+    name: 'Sari Dewi, A.Md.',
+    email: 'staf.sumberdaya2@fsm.undip.ac.id',
+    roleName: ROLES.STAF_SUMBER_DAYA,
+    profile: {
+      nip: '199405202019032001',
       jabatan: 'Staf Sumber Daya',
       deptCode: 'FSM',
       prodiCode: 'FAKULTAS'

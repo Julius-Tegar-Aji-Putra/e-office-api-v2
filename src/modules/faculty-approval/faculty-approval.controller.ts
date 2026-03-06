@@ -109,13 +109,13 @@ class FacultyApprovalController {
    */
   async returnDocument(
     letterId: string,
-    body: { targetRole: string; reason: string },
+    body: { targetRole: string; reason: string; targetUserId?: string },
     userId: string,
     userRole: string
   ) {
     try {
       const result = await facultyApprovalService.returnDocument(
-        { letterId, targetRole: body.targetRole, reason: body.reason },
+        { letterId, targetRole: body.targetRole, reason: body.reason, targetUserId: body.targetUserId },
         userId,
         userRole
       );

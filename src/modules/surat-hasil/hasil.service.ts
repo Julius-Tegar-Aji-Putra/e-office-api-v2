@@ -237,7 +237,7 @@ class HasilService {
       throw new AppError('Anda bukan staf', HTTP_STATUS.FORBIDDEN);
     }
 
-    return hasilRepository.getLettersForDrafting(staffRole, params);
+    return hasilRepository.getLettersForDrafting(staffRole, params, userId);
   }
 
   /**
@@ -772,7 +772,8 @@ class HasilService {
     userId: string,
     userRole: string,
     reason: string,
-    targetStaffParam?: string
+    targetStaffParam?: string,
+    targetUserId?: string
   ) {
     const letter = await hasilRepository.getLetterById(letterId);
 
@@ -843,7 +844,7 @@ class HasilService {
     const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(targetRole);
     const targetStatus = isStafTarget ? LetterStatus.FAKULTAS_DRAFTING : LetterStatus.FAKULTAS_VERIFICATION;
 
-    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetRole, targetStatus);
+    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetRole, targetStatus, targetUserId);
   }
 
   /**

@@ -56,7 +56,8 @@ export const signBodySchema = t.Object({
 
 export const returnBodySchema = t.Object({
   targetRole: t.String({ minLength: 1, error: 'Target role wajib diisi' }),
-  reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' })
+  reason: t.String({ minLength: 1, error: 'Alasan pengembalian wajib diisi' }),
+  targetUserId: t.Optional(t.String({ minLength: 1 }))
 });
 
 export const updateDraftBodySchema = t.Object({

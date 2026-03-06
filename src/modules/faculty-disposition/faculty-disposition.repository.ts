@@ -27,12 +27,14 @@ export interface DispositionListParams {
 export interface DispositionInput {
   letterId: string;
   targetRole: string;
+  targetUserId?: string;
   notes?: string;
 }
 
 export interface ReturnInput {
   letterId: string;
   targetRole: string;
+  targetUserId?: string;
   reason: string;
 }
 
@@ -271,6 +273,7 @@ class FacultyDispositionRepository {
         data: {
           status: LetterStatus.FAKULTAS_DISPOSITION,
           currentActiveRole: input.targetRole,
+          currentActiveUserId: input.targetUserId || null,
           updatedAt: new Date()
         }
       });
@@ -363,6 +366,7 @@ class FacultyDispositionRepository {
         data: {
           status: newStatus,
           currentActiveRole: newActiveRole,
+          currentActiveUserId: input.targetUserId || null,
           ...(input.targetRole === 'ADMIN_PRODI' && {
             completedAt: new Date() // Mark as completed
           }),
@@ -406,7 +410,8 @@ class FacultyDispositionRepository {
     staffRole: string,
     actorId: string,
     actorRole: string,
-    notes?: string
+    notes?: string,
+    targetUserId?: string
   ) {
     return prisma.$transaction(async (tx) => {
       // Update status ke SURAT_DIBUAT (penutup Surat Masuk)
@@ -415,6 +420,7 @@ class FacultyDispositionRepository {
         data: {
           status: LetterStatus.SURAT_DIBUAT,
           currentActiveRole: staffRole,
+          currentActiveUserId: targetUserId || null,
           updatedAt: new Date()
         }
       });

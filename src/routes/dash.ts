@@ -972,6 +972,7 @@ async function getDashboardFakultas(
         },
       ];
     } else if (isPejabatOrBelow) {
+      const isStaffRole = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(user.role as any);
       // Pejabat/Supervisor/Staf - tampilkan surat yang aktif DAN yang sudah diproses
       where.OR = [
         // Surat yang sedang aktif untuk role ini
@@ -986,6 +987,8 @@ async function getDashboardFakultas(
             ],
           },
           currentActiveRole: user.role,
+          // Staff: HANYA tampilkan surat yang EKSPLISIT ditugaskan ke user ini
+          ...(isStaffRole ? { currentActiveUserId: user.id } : {}),
           // FIX: Hanya tampilkan surat masuk (BUKAN staff-created)
           letterType: {
             code: { not: { startsWith: 'STAFF_DIRECT_' } }
@@ -995,7 +998,9 @@ async function getDashboardFakultas(
         {
           logs: {
             some: {
-              actorRole: user.role,
+              ...(isStaffRole
+                ? { actorId: user.id } // Staff: hanya surat yang pernah MEREKA tangani
+                : { actorRole: user.role }),
               action: { in: [LogAction.DISPOSITION, LogAction.APPROVE, LogAction.VERIFY, LogAction.SIGN, LogAction.DRAFT_CREATE, LogAction.DRAFT_UPDATE, LogAction.SUBMIT] },
             },
           },
@@ -1029,6 +1034,7 @@ async function getDashboardFakultas(
         },
       ];
     } else if (isPejabatOrBelow) {
+      const isStaffRoleKeluar = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(user.role as any);
       where.OR = [
         // Surat keluar yang aktif untuk role ini
         {
@@ -1045,6 +1051,8 @@ async function getDashboardFakultas(
             ],
           },
           currentActiveRole: user.role,
+          // Staff: HANYA tampilkan surat yang EKSPLISIT ditugaskan ke user ini
+          ...(isStaffRoleKeluar ? { currentActiveUserId: user.id } : {}),
           // FIX: Hanya tampilkan surat yang:
           // 1. Dibuat langsung oleh staff (STAFF_DIRECT_*), ATAU
           // 2. Sudah memiliki dokumen SK/ST (berarti sudah di-draft)
@@ -1067,7 +1075,9 @@ async function getDashboardFakultas(
         {
           logs: {
             some: {
-              actorRole: user.role,
+              ...(isStaffRoleKeluar
+                ? { actorId: user.id } // Staff: hanya surat yang pernah MEREKA tangani
+                : { actorRole: user.role }),
               action: { in: [LogAction.DISPOSITION, LogAction.APPROVE, LogAction.VERIFY, LogAction.SIGN, LogAction.DRAFT_CREATE, LogAction.DRAFT_UPDATE, LogAction.SUBMIT] },
             },
           },
@@ -1144,10 +1154,21 @@ async function getDashboardFakultas(
         ],
       };
     } else if (isPejabatOrBelow) {
+      const isStaffCount = [ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(user.role as any);
+      const staffUserFilter = isStaffCount
+        ? { currentActiveUserId: user.id }
+        : {};
       return {
         OR: [
-          { status: { in: statusList }, currentActiveRole: user.role },
-          { status: { in: statusList }, logs: { some: { actorRole: user.role } } },
+          { status: { in: statusList }, currentActiveRole: user.role, ...staffUserFilter },
+          {
+            status: { in: statusList },
+            logs: {
+              some: isStaffCount
+                ? { actorId: user.id }
+                : { actorRole: user.role },
+            },
+          },
         ],
       };
     }
@@ -1196,6 +1217,7 @@ async function getDashboardFakultas(
       return {
         status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
         currentActiveRole: user.role,
+        currentActiveUserId: user.id,
         letterType: { code: { not: { startsWith: 'STAFF_DIRECT_' } } },
         ...noHasilDocCondition,
       };
@@ -1228,9 +1250,13 @@ async function getDashboardFakultas(
       return {
         status: { in: [LetterStatus.SURAT_DIBUAT, LetterStatus.FAKULTAS_DRAFTING] },
         currentActiveRole: user.role,
-        OR: [
-          { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
-          { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+        currentActiveUserId: user.id,
+        AND: [
+          // Harus punya dokumen hasil atau staff-created
+          { OR: [
+            { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
+            { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+          ] },
         ],
       };
     }

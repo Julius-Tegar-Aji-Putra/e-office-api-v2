@@ -116,7 +116,9 @@ export const returnRevisionBodySchema = t.Object({
     t.Literal('WADEK_1'),
     t.Literal('WADEK_2'),
     t.Literal('DEKAN')
-  ]))
+  ])),
+  // Specific user ID for staff-specific assignment
+  targetUserId: t.Optional(t.String({ minLength: 1 }))
 });
 
 // Upload attachments schema (Staff/Supervisor only)
