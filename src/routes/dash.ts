@@ -1253,10 +1253,12 @@ async function getDashboardFakultas(
         currentActiveUserId: user.id,
         AND: [
           // Harus punya dokumen hasil atau staff-created
-          { OR: [
-            { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
-            { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
-          ] },
+          {
+            OR: [
+              { letterType: { code: { startsWith: 'STAFF_DIRECT_' } } },
+              { documents: { some: { type: { in: ['SURAT_KEPUTUSAN', 'SURAT_TUGAS', 'SURAT_TUGAS_TABEL'] as any } } } },
+            ]
+          },
         ],
       };
     }
@@ -1714,6 +1716,86 @@ export default new Elysia()
       tags: ['Dashboard'],
       summary: 'Get dashboard statistics',
       description: 'Mengambil statistik dashboard',
+    },
+  })
+
+  /**
+   * GET /dash/unread
+   * Mendapatkan jumlah surat yang perlu ditindaklanjuti untuk badge sidebar
+   */
+  .get('/unread', async ({ user }) => {
+    const roles = await getUserRoles(user.id);
+    const primaryRole = roles[0] || ROLES.MAHASISWA;
+
+    if (primaryRole === ROLES.MAHASISWA || primaryRole === ROLES.DOSEN) {
+      return { success: true, data: { count: 0 } };
+    }
+
+    const userDetails = await db.user.findUnique({
+      where: { id: user.id },
+      include: {
+        mahasiswa: {
+          select: {
+            departemenId: true,
+            programStudiId: true,
+            programStudi: { select: { departemenId: true } },
+          }
+        },
+        pegawai: {
+          select: {
+            programStudiId: true,
+            programStudi: { select: { departemenId: true } },
+          }
+        },
+      },
+    });
+
+    const dashboardUser: DashboardUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: primaryRole,
+      departemenId: userDetails?.mahasiswa?.programStudi?.departemenId || userDetails?.pegawai?.programStudi?.departemenId,
+      programStudiId: userDetails?.mahasiswa?.programStudiId || userDetails?.pegawai?.programStudiId,
+    };
+
+    const filters: DashboardFilters = { page: '1', limit: '1', type: 'masuk' };
+    let count = 0;
+
+    try {
+      if ([ROLES.KAPRODI, ROLES.ADMIN_PRODI, ROLES.KADEP].includes(primaryRole as any)) {
+        const result = await getDashboardDepartemen(dashboardUser, filters);
+        count = result.statistics.waiting || 0;
+      }
+      else if ([
+        ROLES.ADMIN_FAKULTAS, ROLES.DEKAN, ROLES.WADEK_1, ROLES.WADEK_2,
+        ROLES.MANAJER_TU, ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA,
+        ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA
+      ].includes(primaryRole as any)) {
+        const result = await getDashboardFakultas(dashboardUser, filters);
+        // Fakultus merangkum surat masuk + surat keluar
+        const masukWaiting = result.tabs?.find(t => t.key === 'masuk')?.waitingCount || 0;
+        const keluarWaiting = result.tabs?.find(t => t.key === 'keluar')?.waitingCount || 0;
+        count = masukWaiting + keluarWaiting;
+      }
+      else if (primaryRole === ROLES.UPA) {
+        const result = await getDashboardUPA(dashboardUser, filters);
+        count = result.statistics.waiting || 0;
+      }
+    } catch (error) {
+      console.error('Failed to get unread count:', error);
+    }
+
+    return {
+      success: true,
+      message: 'Berhasil mengambil jumlah unread',
+      data: { count },
+    };
+  }, {
+    detail: {
+      tags: ['Dashboard'],
+      summary: 'Get dashboard unread count',
+      description: 'Mengambil jumlah surat yang menunggu tindakan user ini',
     },
   })
 
