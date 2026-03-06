@@ -536,10 +536,10 @@ function getActionsForItem(role: string, status: LetterStatus, currentActiveRole
 
 function getTipeSurat(letterTypeCode?: string, documentType?: string): string {
   // If document type is available, use it directly (most reliable)
+  // Only map SK/ST types - SURAT_PENGANTAR is just a cover letter, not the actual letter type
   if (documentType) {
     if (documentType === 'SURAT_KEPUTUSAN') return 'Surat Keputusan';
     if (documentType === 'SURAT_TUGAS' || documentType === 'SURAT_TUGAS_TABEL') return 'Surat Tugas';
-    if (documentType === 'SURAT_PENGANTAR') return 'Surat Pengantar';
   }
 
   if (!letterTypeCode) return '-';
@@ -647,7 +647,7 @@ async function getDashboardPengaju(
       id: item.id,
       judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
+      tipeSurat: getTipeSurat(item.letterType?.code, hasilDoc?.type),
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),
@@ -858,7 +858,7 @@ async function getDashboardDepartemen(
       namaPengaju: item.createdBy?.name || '-',
       judulSurat: item.documents[0]?.perihal || (item.submissionValues as any)?.judulAcara || '-',
       nomorSurat: hasilDoc?.nomorSurat || '-',
-      tipeSurat: getTipeSurat(item.letterType?.code, item.documents[0]?.type),
+      tipeSurat: getTipeSurat(item.letterType?.code, hasilDoc?.type),
       tanggalSurat: item.createdAt,
       status: item.status,
       displayStatus: getDisplayStatusForRole(item.status, user.role, item.currentActiveRole),

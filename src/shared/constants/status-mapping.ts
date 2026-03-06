@@ -18,6 +18,7 @@ export const DISPLAY_STATUS = {
   MENUNGGU_ANDA: 'MENUNGGU ANDA',
   MENUNGGU_DIVERIFIKASI: 'MENUNGGU DIVERIFIKASI',
   MENUNGGU_DITANDATANGANI: 'MENUNGGU DITANDATANGANI',
+  SURAT_DIBUAT: 'SURAT DIBUAT',
 } as const;
 
 export type DisplayStatus = typeof DISPLAY_STATUS[keyof typeof DISPLAY_STATUS];
@@ -50,11 +51,14 @@ export function getDisplayStatus(
 
   // KETUA PRODI
   if (viewerRole === ROLES.KAPRODI) {
-    if (dbStatus === LetterStatus.SUBMITTED && isMyTurn) {
+    if (dbStatus === LetterStatus.SUBMITTED || dbStatus === LetterStatus.KAPRODI_REVIEW) {
       return DISPLAY_STATUS.MENUNGGU_DIVERIFIKASI;
     }
     if (dbStatus === LetterStatus.SURAT_PENGANTAR_REVIEW && isMyTurn) {
       return DISPLAY_STATUS.MENUNGGU_DITANDATANGANI;
+    }
+    if (dbStatus === LetterStatus.SURAT_DIBUAT) {
+      return DISPLAY_STATUS.SURAT_DIBUAT;
     }
     if (dbStatus === LetterStatus.COMPLETED) {
       return DISPLAY_STATUS.SELESAI;
@@ -70,8 +74,11 @@ export function getDisplayStatus(
 
   // ADMIN PRODI
   if (viewerRole === ROLES.ADMIN_PRODI) {
-    if (dbStatus === LetterStatus.SURAT_PENGANTAR_DRAFT && isMyTurn) {
+    if (dbStatus === LetterStatus.SURAT_PENGANTAR_DRAFT) {
       return DISPLAY_STATUS.MENUNGGU_ANDA;
+    }
+    if (dbStatus === LetterStatus.SURAT_DIBUAT) {
+      return DISPLAY_STATUS.SURAT_DIBUAT;
     }
     if (dbStatus === LetterStatus.COMPLETED) {
       return DISPLAY_STATUS.SELESAI;
@@ -84,11 +91,22 @@ export function getDisplayStatus(
 
   // KETUA DEPARTEMEN
   if (viewerRole === ROLES.KADEP) {
+    // KADEP approval untuk prodi tanpa Kaprodi
+    if (dbStatus === LetterStatus.SUBMITTED && isMyTurn) {
+      return DISPLAY_STATUS.MENUNGGU_DIVERIFIKASI;
+    }
+    // KADEP signing surat pengantar
     if (dbStatus === LetterStatus.SURAT_PENGANTAR_REVIEW && isMyTurn) {
       return DISPLAY_STATUS.MENUNGGU_DITANDATANGANI;
     }
+    if (dbStatus === LetterStatus.SURAT_DIBUAT) {
+      return DISPLAY_STATUS.SURAT_DIBUAT;
+    }
     if (dbStatus === LetterStatus.COMPLETED) {
       return DISPLAY_STATUS.SELESAI;
+    }
+    if (dbStatus === LetterStatus.REJECTED) {
+      return DISPLAY_STATUS.DITOLAK;
     }
     if (dbStatus === LetterStatus.CANCELLED) {
       return DISPLAY_STATUS.DIKEMBALIKAN_KE_PENGAJU;
@@ -98,7 +116,7 @@ export function getDisplayStatus(
 
   // ADMIN FAKULTAS
   if (viewerRole === ROLES.ADMIN_FAKULTAS) {
-    if (dbStatus === LetterStatus.FAKULTAS_RECEIVED && isMyTurn) {
+    if (dbStatus === LetterStatus.SURAT_PENGANTAR_SIGNED || dbStatus === LetterStatus.FAKULTAS_RECEIVED) {
       return DISPLAY_STATUS.MENUNGGU_ANDA;
     }
     if (dbStatus === LetterStatus.COMPLETED) {
@@ -129,7 +147,9 @@ export function getDisplayStatus(
   // SUPERVISOR
   if ([ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA].includes(viewerRole as any)) {
     if ((dbStatus === LetterStatus.FAKULTAS_DISPOSITION ||
-         dbStatus === LetterStatus.FAKULTAS_VERIFICATION) && isMyTurn) {
+         dbStatus === LetterStatus.FAKULTAS_VERIFICATION ||
+         dbStatus === LetterStatus.SURAT_DIBUAT ||
+         dbStatus === LetterStatus.FAKULTAS_DRAFTING) && isMyTurn) {
       return DISPLAY_STATUS.MENUNGGU_ANDA;
     }
     if (dbStatus === LetterStatus.COMPLETED) {
@@ -143,7 +163,7 @@ export function getDisplayStatus(
 
   // STAF
   if ([ROLES.STAF_AKADEMIK, ROLES.STAF_SUMBER_DAYA].includes(viewerRole as any)) {
-    if (dbStatus === LetterStatus.FAKULTAS_DRAFTING && isMyTurn) {
+    if ((dbStatus === LetterStatus.SURAT_DIBUAT || dbStatus === LetterStatus.FAKULTAS_DRAFTING) && isMyTurn) {
       return DISPLAY_STATUS.MENUNGGU_ANDA;
     }
     if (dbStatus === LetterStatus.COMPLETED) {
@@ -184,6 +204,8 @@ export function getStatusColor(status: DisplayStatus): string {
     case DISPLAY_STATUS.MENUNGGU_ANDA:
     case DISPLAY_STATUS.MENUNGGU_DIVERIFIKASI:
     case DISPLAY_STATUS.MENUNGGU_DITANDATANGANI:
+      return 'blue';
+    case DISPLAY_STATUS.SURAT_DIBUAT:
       return 'blue';
     case DISPLAY_STATUS.DIPROSES:
     default:
