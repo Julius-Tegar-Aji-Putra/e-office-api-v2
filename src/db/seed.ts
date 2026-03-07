@@ -1,7 +1,7 @@
 import { PrismaClient } from '../generated/prisma/client';
-import { 
-  LetterCategory, 
-  LetterStatus, 
+import {
+  LetterCategory,
+  LetterStatus,
   DocumentType,
   LogAction,
   Priority,
@@ -45,7 +45,7 @@ async function main() {
   // 1. CLEANUP DATABASE
   // ====================================================================
   console.log('🧹 Cleaning up database...');
-  
+
   const deleteTables = [
     prisma.letterLog.deleteMany(),
     prisma.documentSignature.deleteMany(),
@@ -75,16 +75,16 @@ async function main() {
   // 2. CREATE ROLES 
   // ====================================================================
   console.log('📋 Creating Roles...');
-  
+
   const roleList = Object.values(ROLES);
   const roleMap = new Map<string, string>();
 
   for (const roleName of roleList) {
-    const role = await prisma.role.create({ 
-      data: { 
+    const role = await prisma.role.create({
+      data: {
         name: roleName,
         description: getRoleDescription(roleName)
-      } 
+      }
     });
     roleMap.set(roleName, role.id);
     console.log(`   ✓ ${roleName}`);
@@ -94,7 +94,7 @@ async function main() {
   // 3. CREATE PERMISSIONS
   // ====================================================================
   console.log('\n🔐 Creating Permissions...');
-  
+
   const permissions = [
     // Letter permissions
     { resource: 'letter', action: 'create' },
@@ -124,7 +124,7 @@ async function main() {
   // 4. CREATE ACADEMIC STRUCTURE (Departemen & Prodi)
   // ====================================================================
   console.log('\n🏫 Creating Academic Structure...');
-  
+
   // -- Departemen FSM --
   const deptMap = new Map<string, string>();
   const departments = [
@@ -180,7 +180,7 @@ async function main() {
   // 5. CREATE USERS (Lengkap sesuai skenario)
   // ====================================================================
   console.log('\n👥 Creating Users...');
-  
+
   interface CreateUserParams {
     name: string;
     email: string;
@@ -360,6 +360,20 @@ async function main() {
     }
   });
 
+  // Fisika - Profesi (Mahasiswa S2 / Profesi)
+  const mhsProfFm = await createUser({
+    name: 'Fikri Maulana',
+    email: 'fikri.maulana@students.undip.ac.id',
+    roleName: ROLES.MAHASISWA,
+    profile: {
+      nim: '24030321130001',
+      tahunMasuk: '2024',
+      noHp: '081234567023',
+      deptCode: 'FIS',
+      prodiCode: 'PROF-FM'
+    }
+  });
+
   // Kimia - S1 Kimia (ke KADEP)
   const mhsKimS1 = await createUser({
     name: 'Fitri Rahmawati',
@@ -430,7 +444,7 @@ async function main() {
     }
   });
 
-  console.log('   ✓ Created 12 MAHASISWA accounts from various departments');
+  console.log('   ✓ Created 13 MAHASISWA accounts from various departments');
 
   // --- DOSEN (Informatika) ---
   const dosenIf = await createUser({
@@ -529,6 +543,74 @@ async function main() {
       prodiCode: 'S1-STAT'
     }
   });
+
+  // --- DOSEN TAMBAHAN UNTUK S2/PROFESI ---
+  const dosenS2Bio = await createUser({
+    name: 'Dr. Sri Darwati, S.Si., M.Si.',
+    email: 'sri.darwati@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '196805141996032001',
+      jabatan: 'Dosen',
+      noHp: '081234567017',
+      deptCode: 'BIO',
+      prodiCode: 'S2-BIO'
+    }
+  });
+
+  const dosenS2Fis = await createUser({
+    name: 'Prof. Dr. Suryono, S.Si., M.Si.',
+    email: 'suryono@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '197003151998021001',
+      jabatan: 'Dosen',
+      noHp: '081234567018',
+      deptCode: 'FIS',
+      prodiCode: 'S2-FIS'
+    }
+  });
+
+  const dosenProfFm = await createUser({
+    name: 'Pandji Triadyaksa, S.Si., M.Sc.',
+    email: 'pandji.triadyaksa@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '198103102005011002',
+      jabatan: 'Dosen',
+      noHp: '081234567019',
+      deptCode: 'FIS',
+      prodiCode: 'PROF-FM'
+    }
+  });
+
+  const dosenS2Kim = await createUser({
+    name: 'Dr. Retno Ariadi Lusiana, S.Si., M.Si.',
+    email: 'retno.ariadi@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '197205161998022001',
+      jabatan: 'Dosen',
+      noHp: '081234567020',
+      deptCode: 'KIM',
+      prodiCode: 'S2-KIM'
+    }
+  });
+
+  const dosenS2Math = await createUser({
+    name: 'Dr. Farikhin, S.Si., M.Si.',
+    email: 'farikhin@lecturer.undip.ac.id',
+    roleName: ROLES.DOSEN,
+    profile: {
+      nip: '197412151999031001',
+      jabatan: 'Dosen',
+      noHp: '081234567021',
+      deptCode: 'MATH',
+      prodiCode: 'S2-MATH'
+    }
+  });
+
+  console.log('   ✓ Created 12 DOSEN accounts from all programs');
 
   // --- KETUA PRODI (KAPRODI) - 7 accounts for prodi with hasKaprodi=true ---
   const kaprodiS2Math = await createUser({
@@ -1000,7 +1082,7 @@ async function main() {
   // 6. CREATE LETTER TYPES & TEMPLATES
   // ====================================================================
   console.log('\n📄 Creating Letter Types & Templates...');
-  
+
   // Type 1: Surat Tugas
   const typeST = await prisma.letterType.create({
     data: {
