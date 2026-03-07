@@ -615,18 +615,29 @@ class DepartmentApprovalRepository {
     actorRole: string
   ) {
     return prisma.$transaction(async (tx) => {
-      // Get first signatory (usually KAPRODI)
+      // Get signatures to determine the logical first signatory
       const document = await tx.letterDocument.findFirst({
         where: {
           letterInstanceId: letterId,
           type: DocumentType.SURAT_PENGANTAR
         },
         include: {
-          signatures: { orderBy: { order: 'asc' }, take: 1 }
+          signatures: true
         }
       });
 
-      const firstSignerRole = document?.signatures[0]?.signerRole ?? 'KAPRODI';
+      let firstSignerRole = 'KAPRODI';
+      if (document && document.signatures.length > 0) {
+        const hasKaprodi = document.signatures.some(s => s.signerRole === 'KAPRODI');
+        const hasKadep = document.signatures.some(s => s.signerRole === 'KADEP');
+        if (hasKaprodi) {
+          firstSignerRole = 'KAPRODI';
+        } else if (hasKadep) {
+          firstSignerRole = 'KADEP';
+        } else {
+          firstSignerRole = document.signatures[0].signerRole;
+        }
+      }
 
       const letter = await tx.letterInstance.update({
         where: { id: letterId },
@@ -682,46 +693,69 @@ class DepartmentApprovalRepository {
         throw new Error('Document not found');
       }
 
-      // Find current signer's index
-      const currentIndex = document.signatures.findIndex(s => s.signerRole === actorRole);
-      if (currentIndex === -1) {
+      // Create logical signature sequence independent of visual order
+      const hasKaprodi = document.signatures.some(s => s.signerRole === 'KAPRODI');
+      const hasKadep = document.signatures.some(s => s.signerRole === 'KADEP');
+
+      const logicalSequence: string[] = [];
+      if (hasKaprodi) logicalSequence.push('KAPRODI');
+      if (hasKadep) logicalSequence.push('KADEP');
+
+      // Fallback if there are other roles (shouldn't happen in standard flow, but just in case)
+      document.signatures.forEach(s => {
+        if (s.signerRole !== 'KAPRODI' && s.signerRole !== 'KADEP' && !logicalSequence.includes(s.signerRole)) {
+          logicalSequence.push(s.signerRole);
+        }
+      });
+
+      // Find current signer's logical index
+      const logicalCurrentIndex = logicalSequence.indexOf(actorRole);
+      if (logicalCurrentIndex === -1) {
         throw new Error('Anda tidak terdaftar sebagai penandatangan surat ini');
       }
 
-      // PENTING: Cek apakah semua signature sebelumnya sudah ditandatangani
-      // Kaprodi harus ttd dulu sebelum Kadep bisa ttd
-      for (let i = 0; i < currentIndex; i++) {
-        const prevSigner = document.signatures[i];
-        if (!prevSigner.signatureUrl || !prevSigner.signedAt) {
-          throw new Error(`${prevSigner.signerRole} harus menandatangani terlebih dahulu sebelum Anda`);
+      // Find the actual signature record to update
+      const currentSig = document.signatures.find(s => s.signerRole === actorRole);
+      if (!currentSig) {
+        throw new Error('Anda tidak terdaftar sebagai penandatangan surat ini');
+      }
+
+      // PENTING: Cek apakah semua signature logis sebelumnya sudah ditandatangani
+      // Kaprodi harus ttd dulu sebelum Kadep bisa ttd, terlepas dari visual order
+      for (let i = 0; i < logicalCurrentIndex; i++) {
+        const prevRole = logicalSequence[i];
+        const prevSigner = document.signatures.find(s => s.signerRole === prevRole);
+        if (prevSigner && (!prevSigner.signatureUrl || !prevSigner.signedAt)) {
+          const roleDisplay = prevRole === 'KAPRODI' ? 'Ketua Program Studi' : prevRole === 'KADEP' ? 'Ketua Departemen' : prevRole;
+          throw new Error(`${roleDisplay} harus menandatangani terlebih dahulu sebelum Anda`);
         }
       }
 
       // Update signature
-      const currentSig = document.signatures[currentIndex];
-      if (currentSig) {
-        await tx.documentSignature.update({
-          where: { id: currentSig.id },
-          data: {
-            signerId: actorId,
-            signerName,
-            signerNip,
-            signatureUrl,
-            signedAt: new Date()
-          }
-        });
-      }
+      await tx.documentSignature.update({
+        where: { id: currentSig.id },
+        data: {
+          signerId: actorId,
+          signerName,
+          signerNip,
+          signatureUrl,
+          signedAt: new Date()
+        }
+      });
 
-      // Check next signer
-      const nextSigner = document.signatures[currentIndex + 1];
+      // Check next logical signer
+      const nextRoleInSequence = logicalSequence[logicalCurrentIndex + 1];
+      const nextSigner = nextRoleInSequence
+        ? document.signatures.find(s => s.signerRole === nextRoleInSequence)
+        : null;
 
       let newStatus: LetterStatus;
       let nextRole: string | null;
 
-      if (nextSigner && !nextSigner.signatureUrl) {
+      if (nextSigner && (!nextSigner.signatureUrl || !nextSigner.signedAt)) {
         // More signatures needed
         newStatus = LetterStatus.SURAT_PENGANTAR_REVIEW;
-        nextRole = nextSigner.signerRole;
+        nextRole = nextRoleInSequence;
       } else {
         // All signed -> move to fakultas
         newStatus = LetterStatus.SURAT_PENGANTAR_SIGNED;
