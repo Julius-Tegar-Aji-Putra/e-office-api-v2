@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '../../db';
-import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '../../generated/prisma/client';
+import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory, SignatureStatus } from '../../generated/prisma/client';
 import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
@@ -252,22 +252,88 @@ class FacultyApprovalRepository {
 
   /**
    * Return document to lower role
+   * 
+   * PENTING: Saat surat dikembalikan, tanda tangan dari role yang level
+   * hierarkinya >= targetRole akan dihapus (perlu diulangi).
+   * 
+   * Contoh UMUM:
+   * - Dekan return ke Wadek 1 → clear TTD Wadek 1
+   * - Dekan return ke Wadek 2 → clear TTD Wadek 2 + Wadek 1
+   * - Wadek 1 return ke Wadek 2 → clear TTD Wadek 2
    */
   async returnDocument(
     input: ReturnInput,
     actorId: string,
-    actorRole: string
+    actorRole: string,
+    rolesToClearSignatures: string[] = [],
+    statusOverride?: LetterStatus
   ) {
     return prisma.$transaction(async (tx) => {
       // Determine new status
       let newStatus: LetterStatus;
-      if (['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(input.targetRole)) {
+      if (statusOverride) {
+        newStatus = statusOverride;
+      } else if (['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(input.targetRole)) {
         newStatus = LetterStatus.FAKULTAS_DRAFTING;
       } else {
         newStatus = LetterStatus.FAKULTAS_VERIFICATION;
       }
 
       const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(input.targetRole);
+
+      // ====================================================================
+      // Clear signatures dari role yang perlu mengulang tanda tangan
+      // ====================================================================
+      if (rolesToClearSignatures.length > 0) {
+        // Get all SK/ST documents for this letter
+        const documents = await tx.letterDocument.findMany({
+          where: {
+            letterInstanceId: input.letterId,
+            type: { in: [DocumentType.SURAT_TUGAS, DocumentType.SURAT_TUGAS_TABEL, DocumentType.SURAT_KEPUTUSAN] }
+          },
+          include: { signatures: true }
+        });
+
+        // Normalize helper for comparing roles
+        const norm = (r: string): string => {
+          const MAP: Record<string, string> = {
+            'Dekan': 'DEKAN', 'dekan': 'DEKAN',
+            'Wakil Dekan I': 'WADEK_1', 'Wakil Dekan 1': 'WADEK_1',
+            'Wakil Dekan II': 'WADEK_2', 'Wakil Dekan 2': 'WADEK_2',
+            'DEKAN': 'DEKAN', 'WADEK_1': 'WADEK_1', 'WADEK_2': 'WADEK_2',
+          };
+          return MAP[r] || r.toUpperCase().replace(/\s+/g, '_');
+        };
+
+        for (const doc of documents) {
+          // Find signatures that need to be cleared
+          // Compare normalized roles since DB may store different formats
+          const sigsToClear = doc.signatures.filter(
+            s => rolesToClearSignatures.includes(norm(s.signerRole)) && (s.signatureUrl || s.status === 'SIGNED')
+          );
+
+          // Reset each matching signature
+          for (const sig of sigsToClear) {
+            await tx.documentSignature.update({
+              where: { id: sig.id },
+              data: {
+                signatureUrl: null,
+                signedAt: null,
+                status: SignatureStatus.PENDING,
+                notes: `Tanda tangan di-reset karena surat dikembalikan ke ${input.targetRole.replace(/_/g, ' ')} oleh ${actorRole.replace(/_/g, ' ')}`
+              }
+            });
+          }
+
+          // If any signatures were cleared, also reset document isSigned flag
+          if (sigsToClear.length > 0) {
+            await tx.letterDocument.update({
+              where: { id: doc.id },
+              data: { isSigned: false }
+            });
+          }
+        }
+      }
 
       const letter = await tx.letterInstance.update({
         where: { id: input.letterId },
@@ -289,7 +355,10 @@ class FacultyApprovalRepository {
           toStatus: newStatus,
           targetRole: input.targetRole,
           notes: input.reason,
-          metadata: { returnReason: input.reason }
+          metadata: {
+            returnReason: input.reason,
+            clearedSignatureRoles: rolesToClearSignatures.length > 0 ? rolesToClearSignatures : undefined
+          }
         }
       });
 

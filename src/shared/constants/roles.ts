@@ -519,3 +519,49 @@ export function getDispositionTargetsForRole(
   if (!roleTargets) return [];
   return [...(roleTargets[category] || [])];
 }
+
+/**
+ * Hierarchy level untuk menentukan signature mana yang perlu di-clear
+ * saat surat dikembalikan (return).
+ *
+ * ATURAN:
+ * Saat surat dikembalikan ke targetRole, semua tanda tangan dari role
+ * yang level hierarkinya >= targetRole harus dihapus (perlu diulangi).
+ *
+ * Contoh UMUM:
+ * - Dekan return ke Wadek 1 → clear Wadek 1 (level 5) saja
+ * - Dekan return ke Wadek 2 → clear Wadek 2 (level 4) + Wadek 1 (level 5)
+ * - Wadek 1 return ke Wadek 2 → clear Wadek 2 (level 4)
+ */
+const SIGNATURE_HIERARCHY: Record<string, number> = {
+  [ROLES.STAF_AKADEMIK]: 1,
+  [ROLES.STAF_SUMBER_DAYA]: 1,
+  [ROLES.SUPERVISOR_AKADEMIK]: 2,
+  [ROLES.SUPERVISOR_SUMBER_DAYA]: 2,
+  [ROLES.MANAJER_TU]: 3,
+  [ROLES.WADEK_2]: 4,
+  [ROLES.WADEK_1]: 5,
+  [ROLES.DEKAN]: 6,
+};
+
+/**
+ * Get list of signer roles whose signatures should be cleared
+ * when a letter is returned to targetRole.
+ *
+ * Logic: return all roles in the verification flow for the given category
+ * whose hierarchy level >= targetRole's level.
+ * Only roles that can actually sign (SIGNATORY_ROLES) are returned.
+ */
+export function getRolesToClearSignatures(
+  targetRole: string,
+  category: 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+): string[] {
+  const flow = getFullVerificationFlow(category);
+  const targetLevel = SIGNATURE_HIERARCHY[targetRole] || 0;
+
+  // Return signatory roles in the flow that are at or above the target level
+  return [...flow].filter(role => {
+    const roleLevel = SIGNATURE_HIERARCHY[role] || 0;
+    return roleLevel >= targetLevel && (SIGNATORY_ROLES as readonly string[]).includes(role);
+  });
+}

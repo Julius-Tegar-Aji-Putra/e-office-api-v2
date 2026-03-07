@@ -5,7 +5,7 @@
 
 import { hasilRepository, HasilListParams, CreateDraftInput, UpdateDraftInput, CreateStaffSuratInput, SURAT_HASIL_TYPES } from './hasil.repository';
 import { LetterStatus, DocumentType, LetterCategory, Prisma, SignatureType } from '../../generated/prisma/client';
-import { ROLES, STAF_ROLES, SUPERVISOR_ROLES, getReturnTargets, getFullVerificationFlow } from '../../shared/constants/roles';
+import { ROLES, STAF_ROLES, SUPERVISOR_ROLES, SIGNATORY_ROLES, getReturnTargets, getFullVerificationFlow, getRolesToClearSignatures } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
 import { MinioService } from '../../shared/services/minio.service';
@@ -840,11 +840,33 @@ class HasilService {
     }
 
     // Determine target status based on target role
-    // Staf -> DRAFTING, others -> VERIFICATION
+    // Staf -> DRAFTING, others -> check if target is signer
     const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(targetRole);
-    const targetStatus = isStafTarget ? LetterStatus.FAKULTAS_DRAFTING : LetterStatus.FAKULTAS_VERIFICATION;
+    let targetStatus: LetterStatus;
+    if (isStafTarget) {
+      targetStatus = LetterStatus.FAKULTAS_DRAFTING;
+    } else if ((SIGNATORY_ROLES as readonly string[]).includes(targetRole)) {
+      // Check if target role is actually a signer for this document
+      const skstDoc = letter.documents?.find(
+        (d: { type: string }) => isSuratHasilType(d.type)
+      ) as { signatures?: Array<{ signerRole: string; signatureUrl?: string | null }> } | undefined;
+      const isTargetASigner = skstDoc?.signatures?.some(
+        (s: { signerRole: string; signatureUrl?: string | null }) =>
+          normalizeRole(s.signerRole) === targetRole
+      );
+      // After clearing, the signer won't have signatureUrl, so they need SIGNING status
+      targetStatus = isTargetASigner ? LetterStatus.FAKULTAS_SIGNING : LetterStatus.FAKULTAS_VERIFICATION;
+    } else {
+      targetStatus = LetterStatus.FAKULTAS_VERIFICATION;
+    }
 
-    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetRole, targetStatus, targetUserId);
+    // Determine which signer roles need their signatures cleared
+    const rolesToClear = getRolesToClearSignatures(
+      targetRole,
+      category as 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+    );
+
+    return hasilRepository.returnForRevision(letterId, userId, userRole, reason, targetRole, targetStatus, targetUserId, rolesToClear);
   }
 
   /**

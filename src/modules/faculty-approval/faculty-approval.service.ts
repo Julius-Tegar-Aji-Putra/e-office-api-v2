@@ -12,7 +12,8 @@ import {
   getVerificationFlow,
   getNextVerifier,
   getReturnTargets,
-  getFullVerificationFlow
+  getFullVerificationFlow,
+  getRolesToClearSignatures
 } from '../../shared/constants/roles';
 import { AppError } from '../../shared/utils/errors';
 import { HTTP_STATUS } from '../../shared/constants/http';
@@ -158,13 +159,13 @@ class FacultyApprovalService {
     // Determine status: jika next role adalah SIGNATORY → FAKULTAS_SIGNING
     // Tapi cek dulu apakah next role memang ada di daftar penandatangan
     let nextStatus: LetterStatus = LetterStatus.FAKULTAS_VERIFICATION;
-    
+
     if ((SIGNATORY_ROLES as readonly string[]).includes(nextRole)) {
       // Check if next role is actually a signer for this document
       const isNextRoleASigner = skstDoc?.signatures.some(
         s => normalizeRole(s.signerRole) === nextRole
       );
-      
+
       if (isNextRoleASigner) {
         nextStatus = LetterStatus.FAKULTAS_SIGNING;
       }
@@ -238,7 +239,7 @@ class FacultyApprovalService {
 
     // Validate that at least one signature format is provided
     if ((!input.signatureData || input.signatureData.trim() === '') &&
-        (!input.signatureUrl || input.signatureUrl.trim() === '')) {
+      (!input.signatureUrl || input.signatureUrl.trim() === '')) {
       throw new AppError('Data tanda tangan (base64 atau URL) wajib diisi', HTTP_STATUS.BAD_REQUEST);
     }
 
@@ -257,20 +258,20 @@ class FacultyApprovalService {
     if (input.signatureData && input.signatureData.trim() !== '') {
       try {
         const minio = new MinioService();
-        
+
         // Parse base64 data
         const matches = input.signatureData.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
         if (!matches) {
           throw new AppError('Format tanda tangan tidak valid', HTTP_STATUS.BAD_REQUEST);
         }
-        
+
         const mimeType = matches[1];
         const base64Data = matches[2];
         const buffer = Buffer.from(base64Data, 'base64');
-        
+
         // Create file name for upload
         const fileName = `signature-${userRole}-${Date.now()}.${mimeType}`;
-        
+
         // Upload to MinIO
         const uploadResult = await minio.uploadFile(
           buffer,
@@ -278,7 +279,7 @@ class FacultyApprovalService {
           `image/${mimeType}`,
           `signatures/${userId}`
         );
-        
+
         // PERBAIKAN: Store storage path, NOT presigned URL (presigned URLs expire!)
         finalSignatureUrl = uploadResult.path;
 
@@ -333,17 +334,17 @@ class FacultyApprovalService {
       // MASIH ADA YANG BELUM TTD
       // Tetap ikuti hierarki: cari next role berdasarkan kategori
       const nextVerifier = getNextVerifier(normalizedUserRole, category);
-      
+
       if (nextVerifier) {
         nextRole = nextVerifier;
-        
+
         // Check if next role is a signer
         const isNextRoleASigner = skstDoc.signatures.some(
           s => normalizeRole(s.signerRole) === nextVerifier && !s.signatureUrl
         );
-        
-        nextStatus = isNextRoleASigner 
-          ? LetterStatus.FAKULTAS_SIGNING 
+
+        nextStatus = isNextRoleASigner
+          ? LetterStatus.FAKULTAS_SIGNING
           : LetterStatus.FAKULTAS_VERIFICATION;
       } else {
         // Tidak ada next role di hierarki, tapi masih ada yang belum TTD?
@@ -391,14 +392,32 @@ class FacultyApprovalService {
     }
 
     // Validate target is lower in hierarchy
-    const category = letter.letterType.category as LetterCategory;
+    const category = (letter.category || letter.letterType.category) as LetterCategory;
     const validTargets = getReturnTargets(userRole, category);
 
     if (!validTargets.includes(input.targetRole)) {
       throw new AppError('Target pengembalian tidak valid', HTTP_STATUS.BAD_REQUEST);
     }
 
-    return facultyApprovalRepository.returnDocument(input, userId, userRole);
+    // Determine which signer roles need their signatures cleared
+    const rolesToClear = getRolesToClearSignatures(
+      input.targetRole,
+      category as 'AKADEMIK' | 'SUMBER_DAYA' | 'UMUM'
+    );
+
+    // Determine correct status: if target role is a signer, set SIGNING
+    const skstDoc = letter.documents.find(
+      d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
+    );
+    const isTargetASigner = (SIGNATORY_ROLES as readonly string[]).includes(input.targetRole) &&
+      skstDoc?.signatures.some(
+        s => normalizeRole(s.signerRole) === normalizeRole(input.targetRole)
+      );
+    const targetStatus = isTargetASigner
+      ? LetterStatus.FAKULTAS_SIGNING
+      : undefined; // let repository decide default
+
+    return facultyApprovalRepository.returnDocument(input, userId, userRole, rolesToClear, targetStatus);
   }
 
   /**
@@ -447,7 +466,7 @@ class FacultyApprovalService {
     // Find the user's role that matches currentActiveRole
     const currentRole = userRoles.find(r => normalizeRole(r) === normalizeRole(letter.currentActiveRole || ''));
     const isCurrentRole = !!currentRole;
-    
+
     const isPejabat = userRoles.some(r => (PEJABAT_ROLES as readonly string[]).includes(r));
     const supervisorRoles: string[] = [ROLES.SUPERVISOR_AKADEMIK, ROLES.SUPERVISOR_SUMBER_DAYA];
     const isSupervisor = userRoles.some(r => supervisorRoles.includes(r));
@@ -459,9 +478,9 @@ class FacultyApprovalService {
     const skstDoc = letter.documents.find(
       d => d.type === 'SURAT_TUGAS' || d.type === 'SURAT_TUGAS_TABEL' || d.type === 'SURAT_KEPUTUSAN'
     );
-    
+
     // PENTING: Check if ANY of user's roles is a signer
-    const userSignerRole = userRoles.find(role => 
+    const userSignerRole = userRoles.find(role =>
       skstDoc?.signatures.some(
         s => normalizeRole(s.signerRole) === normalizeRole(role) && !s.signatureUrl
       )

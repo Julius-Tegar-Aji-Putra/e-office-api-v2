@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '../../db';
-import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory } from '../../generated/prisma/client';
+import { Prisma, LetterStatus, LogAction, DocumentType, LetterCategory, SignatureStatus } from '../../generated/prisma/client';
 import { formatRoleForLog } from '../../shared/constants/roles';
 
 // ============================================================================
@@ -688,7 +688,8 @@ class HasilRepository {
     reason: string,
     targetRole: string,
     targetStatus?: LetterStatus,
-    targetUserId?: string
+    targetUserId?: string,
+    rolesToClearSignatures: string[] = []
   ) {
     return prisma.$transaction(async (tx) => {
       const letter = await tx.letterInstance.findUnique({
@@ -703,6 +704,48 @@ class HasilRepository {
       // Determine status based on target role if not provided
       const isStafTarget = ['STAF_AKADEMIK', 'STAF_SUMBER_DAYA'].includes(targetRole);
       const finalStatus = targetStatus || (isStafTarget ? LetterStatus.FAKULTAS_DRAFTING : LetterStatus.FAKULTAS_VERIFICATION);
+
+      // ====================================================================
+      // Clear signatures dari role yang perlu mengulang tanda tangan
+      // ====================================================================
+      if (rolesToClearSignatures.length > 0) {
+        const documents = await tx.letterDocument.findMany({
+          where: {
+            letterInstanceId: letterId,
+            type: { in: SURAT_HASIL_TYPES as unknown as DocumentType[] }
+          },
+          include: { signatures: true }
+        });
+
+        for (const doc of documents) {
+          // Find signatures that need to be cleared
+          // Compare with normalizeSignerRole since DB may store different formats
+          const sigsToClear = doc.signatures.filter(
+            s => rolesToClearSignatures.includes(normalizeSignerRole(s.signerRole)) && (s.signatureUrl || s.status === 'SIGNED')
+          );
+
+          // Reset each matching signature
+          for (const sig of sigsToClear) {
+            await tx.documentSignature.update({
+              where: { id: sig.id },
+              data: {
+                signatureUrl: null,
+                signedAt: null,
+                status: SignatureStatus.PENDING,
+                notes: `Tanda tangan di-reset karena surat dikembalikan ke ${targetRole.replace(/_/g, ' ')} oleh ${actorRole.replace(/_/g, ' ')}`
+              }
+            });
+          }
+
+          // If any signatures were cleared, also reset document isSigned flag
+          if (sigsToClear.length > 0) {
+            await tx.letterDocument.update({
+              where: { id: doc.id },
+              data: { isSigned: false }
+            });
+          }
+        }
+      }
 
       const updated = await tx.letterInstance.update({
         where: { id: letterId },
@@ -723,7 +766,11 @@ class HasilRepository {
           fromStatus: letter.status,
           toStatus: finalStatus,
           targetRole: targetRole,
-          notes: reason
+          notes: reason,
+          metadata: {
+            returnReason: reason,
+            clearedSignatureRoles: rolesToClearSignatures.length > 0 ? rolesToClearSignatures : undefined
+          }
         }
       });
 
