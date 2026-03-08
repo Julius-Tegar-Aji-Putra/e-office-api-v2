@@ -64,6 +64,7 @@ interface TembusanDetail extends TembusanInboxItem {
     id: string;
     name: string;
     code: string;
+    category?: string;
   };
   // Document type for frontend template selection
   documentType: 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' | 'SURAT_TUGAS_TABEL' | 'SURAT_PENGANTAR';
@@ -618,6 +619,7 @@ class TembusanServiceV2 {
           id: document.letterInstance.letterType.id,
           name: document.letterInstance.letterType.name,
           code: document.letterInstance.letterType.code,
+          category: document.letterInstance.category || document.letterInstance.letterType.category,
         },
         content: contentData,
         submissionValues: document.letterInstance.submissionValues as Record<string, unknown>,

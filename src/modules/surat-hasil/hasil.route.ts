@@ -19,7 +19,7 @@ import {
   createStaffSuratBodySchema,
   uploadAttachmentsBodySchema
 } from './hasil.validation';
-import { STAF_ROLES, PEJABAT_ROLES } from '../../shared/constants/roles';
+import { STAF_ROLES, PEJABAT_ROLES, ROLES } from '../../shared/constants/roles';
 import { authGuardPlugin } from '../../middlewares/auth';
 import { getUserRoles } from '../../lib/casbin';
 
@@ -36,7 +36,14 @@ export const hasilRoutes = new Elysia({ prefix: '/surat-hasil' })
 
   .post('/create', async ({ body, user }) => {
     const roles = await getUserRoles(user.id);
-    const staffRole = roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
+    // Pick the staff role matching the requested category to avoid mismatch
+    // when user has multiple staff roles
+    const categoryStaffRole = body.category === 'AKADEMIK' ? ROLES.STAF_AKADEMIK
+      : body.category === 'SUMBER_DAYA' ? ROLES.STAF_SUMBER_DAYA
+      : null;
+    const staffRole = (categoryStaffRole && roles.includes(categoryStaffRole))
+      ? categoryStaffRole
+      : roles.find(r => (STAF_ROLES as readonly string[]).includes(r)) || roles[0];
     return hasilController.createStaffSurat(body, user.id, staffRole);
   }, {
     body: createStaffSuratBodySchema,

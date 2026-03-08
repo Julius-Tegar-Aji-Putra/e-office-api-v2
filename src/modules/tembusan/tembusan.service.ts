@@ -60,6 +60,7 @@ interface TembusanDetail extends TembusanInboxItem {
     id: string;
     name: string;
     code: string;
+    category: string;
   };
   submissionValues: Record<string, unknown>;
   contentHtml?: string | null;
@@ -184,12 +185,12 @@ class TembusanService {
         where.OR = [
           { nomorSurat: { contains: search, mode: 'insensitive' } },
           { perihal: { contains: search, mode: 'insensitive' } },
-          { 
-            letterInstance: { 
-              createdBy: { 
-                name: { contains: search, mode: 'insensitive' } 
-              } 
-            } 
+          {
+            letterInstance: {
+              createdBy: {
+                name: { contains: search, mode: 'insensitive' }
+              }
+            }
           },
         ];
       }
@@ -367,6 +368,7 @@ class TembusanService {
           id: document.letterInstance.letterType.id,
           name: document.letterInstance.letterType.name,
           code: document.letterInstance.letterType.code,
+          category: document.letterInstance.category || document.letterInstance.letterType.category,
         },
         submissionValues: document.letterInstance.submissionValues as Record<string, unknown>,
         contentHtml: typeof document.content === 'string' ? document.content : null,
