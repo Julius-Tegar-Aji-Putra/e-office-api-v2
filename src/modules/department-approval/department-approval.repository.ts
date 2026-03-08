@@ -13,6 +13,30 @@ import { formatRoleForLog } from '../../shared/constants/roles';
 // ============================================================================
 
 /**
+ * Parse Indonesian date string (e.g. "5 Mei 2026") into a JavaScript Date.
+ * Falls back to native Date parsing for ISO strings.
+ */
+const parseIndonesianDate = (dateStr: string): Date | null => {
+  const indonesianMonths: Record<string, number> = {
+    'januari': 0, 'februari': 1, 'maret': 2, 'april': 3, 'mei': 4, 'juni': 5,
+    'juli': 6, 'agustus': 7, 'september': 8, 'oktober': 9, 'november': 10, 'desember': 11
+  };
+  const parts = dateStr.trim().split(' ');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = indonesianMonths[parts[1].toLowerCase()];
+    const year = parseInt(parts[2], 10);
+    if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) return date;
+    }
+  }
+  // Fallback to native Date parsing (ISO strings, etc.)
+  const nativeDate = new Date(dateStr);
+  return isNaN(nativeDate.getTime()) ? null : nativeDate;
+};
+
+/**
  * Normalize signer role to uppercase constant format
  * Handles both display text (e.g., "Dekan") and role constants (e.g., "DEKAN")
  */
@@ -534,7 +558,8 @@ class DepartmentApprovalRepository {
     // Extract nomorSurat, tanggalSurat, perihal from content to store in separate columns
     const contentObj = content as Record<string, unknown> || {};
     const nomorSurat = contentObj.nomorSurat as string || null;
-    const tanggalSurat = contentObj.tanggalSurat ? new Date(contentObj.tanggalSurat as string) : null;
+    // Use parseIndonesianDate to handle Indonesian-formatted strings like "5 Mei 2026"
+    const tanggalSurat = contentObj.tanggalSurat ? parseIndonesianDate(contentObj.tanggalSurat as string) : null;
     const perihal = contentObj.perihal as string || null;
 
     return prisma.$transaction(async (tx) => {
