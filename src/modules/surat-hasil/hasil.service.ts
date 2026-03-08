@@ -103,14 +103,29 @@ function validateSuratTugasTabelContent(content: Record<string, unknown>): void 
       throw new AppError(`Data Pelaksana baris ${rowNum}: Nama tidak boleh mengandung angka!`, HTTP_STATUS.BAD_REQUEST);
     }
 
-    // Validate NIM - must be 14 digits
-    const nim = pelaksana.nim || '';
-    if (!nim.trim()) {
-      throw new AppError(`Data Pelaksana baris ${rowNum}: NIM harus diisi!`, HTTP_STATUS.BAD_REQUEST);
+    // Validate Column 2 based on its label (NIM/NIP logic)
+    const nimLabelStr = (content.nimLabel as string)?.toUpperCase() || 'NIM';
+    const nimVal = pelaksana.nim || '';
+    if (!nimVal.trim()) {
+      const colLabel = content.nimLabel || 'Kolom ke-2';
+      throw new AppError(`Data Pelaksana baris ${rowNum}: ${colLabel} harus diisi!`, HTTP_STATUS.BAD_REQUEST);
     }
-    if (!/^\d{14}$/.test(nim.trim())) {
-      throw new AppError(`Data Pelaksana baris ${rowNum}: NIM harus 14 digit angka!`, HTTP_STATUS.BAD_REQUEST);
+
+    const nimLabelDisplay = (content.nimLabel as string) || 'NIM';
+    if (nimLabelStr === 'NIM') {
+      if (!/^\d{14}$/.test(nimVal.trim())) {
+        throw new AppError(`Data Pelaksana baris ${rowNum}: ${nimLabelDisplay} harus 14 digit angka!`, HTTP_STATUS.BAD_REQUEST);
+      }
+    } else if (nimLabelStr === 'NIP') {
+      if (!/^\d{18}$/.test(nimVal.trim())) {
+        throw new AppError(`Data Pelaksana baris ${rowNum}: ${nimLabelDisplay} harus 18 digit angka!`, HTTP_STATUS.BAD_REQUEST);
+      }
+    } else if (nimLabelStr === 'NIM/NIP' || nimLabelStr === 'NIP/NIM') {
+      if (!/^\d{14}$/.test(nimVal.trim()) && !/^\d{18}$/.test(nimVal.trim())) {
+        throw new AppError(`Data Pelaksana baris ${rowNum}: ${nimLabelDisplay} harus 14 digit (NIM) atau 18 digit (NIP)!`, HTTP_STATUS.BAD_REQUEST);
+      }
     }
+    // Label lain (custom): hanya wajib tidak kosong (sudah dicek di atas)
 
     // Validate prodi - min 5 chars
     const prodi = pelaksana.prodi || '';
