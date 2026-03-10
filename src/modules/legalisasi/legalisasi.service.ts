@@ -358,7 +358,10 @@ class LegalisasiService {
         return { success: false, error: 'Document not found', code: 404 };
       }
 
-      if (document.letterInstance.status !== LetterStatus.UPA_NUMBERING) {
+      if (
+        document.letterInstance.status !== LetterStatus.UPA_NUMBERING &&
+        document.letterInstance.status !== LetterStatus.UPA_FINALIZING
+      ) {
         return {
           success: false,
           error: `Cannot assign number. Current status: ${document.letterInstance.status}`,
@@ -574,10 +577,6 @@ class LegalisasiService {
         return { success: false, error: 'Nomor surat belum diberikan', code: 400 };
       }
 
-      if (!document.sealImageUrl) {
-        return { success: false, error: 'Stempel belum dibubuhkan', code: 400 };
-      }
-
       if (!document.barcodeData || !document.qrCodeUrl) {
         return { success: false, error: 'QR Code belum di-generate', code: 400 };
       }
@@ -781,17 +780,13 @@ class LegalisasiService {
   ): LegalisasiPermissions {
     return {
       canPenomoran: letterStatus === LetterStatus.UPA_NUMBERING,
-      canStempel: letterStatus === LetterStatus.UPA_STAMPING,
-      canGenerateQR: letterStatus === LetterStatus.UPA_FINALIZING &&
-        legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
-      canFinalize: letterStatus === LetterStatus.UPA_FINALIZING &&
-        legalisasiStatus === LegalisasiStatus.QR_GENERATED,
+      canStempel: false, // Feature removed
+      canGenerateQR: letterStatus === LetterStatus.UPA_FINALIZING,
+      canFinalize: letterStatus === LetterStatus.UPA_FINALIZING,
       showPenomoranForm: letterStatus === LetterStatus.UPA_NUMBERING,
-      showStempelButton: letterStatus === LetterStatus.UPA_STAMPING,
-      showQRButton: letterStatus === LetterStatus.UPA_FINALIZING &&
-        legalisasiStatus === LegalisasiStatus.STEMPEL_DIBERIKAN,
-      showFinalizeButton: letterStatus === LetterStatus.UPA_FINALIZING &&
-        legalisasiStatus === LegalisasiStatus.QR_GENERATED
+      showStempelButton: false, // Feature removed
+      showQRButton: letterStatus === LetterStatus.UPA_FINALIZING,
+      showFinalizeButton: letterStatus === LetterStatus.UPA_FINALIZING
     };
   }
 

@@ -324,11 +324,11 @@ class LegalisasiRepository {
         }
       });
 
-      // Update letter instance status to STAMPING
+      // Update letter instance status to FINALIZING directly (skip stamping)
       await tx.letterInstance.update({
         where: { id: document.letterInstanceId },
         data: {
-          status: LetterStatus.UPA_STAMPING,
+          status: LetterStatus.UPA_FINALIZING,
           updatedAt: new Date()
         }
       });
@@ -340,8 +340,8 @@ class LegalisasiRepository {
           actorId,
           actorRole,
           action: LogAction.ASSIGN_NUMBER,
-          fromStatus: LetterStatus.UPA_NUMBERING,
-          toStatus: LetterStatus.UPA_STAMPING,
+          fromStatus: document.letterInstance.status,
+          toStatus: LetterStatus.UPA_FINALIZING,
           notes: `Nomor surat: ${input.nomorSurat}`,
           metadata: {
             nomorSurat: input.nomorSurat,
