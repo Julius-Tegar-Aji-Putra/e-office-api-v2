@@ -65,4 +65,66 @@ export default new Elysia().use(authGuardPlugin).get(
 			description: 'Mengambil data user yang sedang login beserta role dan profil',
 		},
 	},
+)
+.post(
+	"/profile",
+	async ({ user, body, set }) => {
+		const roles = await getUserRoles(user.id);
+		const isMahasiswa = roles.includes("MAHASISWA");
+		const isPegawai = roles.includes("DOSEN") || roles.includes("STAF_AKADEMIK") || roles.includes("SUPERVISOR");
+
+		const { nim, nip, jabatan, noHp, departemenId, programStudiId, tahunMasuk } = body as any;
+
+		if (isMahasiswa) {
+			await db.mahasiswa.upsert({
+				where: { userId: user.id },
+				update: {
+					nim,
+					noHp,
+					departemenId,
+					programStudiId,
+					tahunMasuk: tahunMasuk || new Date().getFullYear().toString(),
+				},
+				create: {
+					userId: user.id,
+					nim,
+					noHp,
+					departemenId,
+					programStudiId,
+					tahunMasuk: tahunMasuk || new Date().getFullYear().toString(),
+				},
+			});
+		} else if (isPegawai) {
+			await db.pegawai.upsert({
+				where: { userId: user.id },
+				update: {
+					nip,
+					noHp,
+					jabatan: jabatan || roles[0],
+					departemenId,
+					programStudiId,
+				},
+				create: {
+					userId: user.id,
+					nip,
+					noHp,
+					jabatan: jabatan || roles[0],
+					departemenId,
+					programStudiId,
+				},
+			});
+		} else {
+			set.status = 400;
+			return { message: "User role does not support profile details" };
+		}
+
+		return { success: true, message: "Profil berhasil diperbarui" };
+	},
+	{
+		detail: {
+			tags: ['User'],
+			summary: 'Update current user profile',
+			description: 'Memperbarui data profil Mahasiswa atau Pegawai',
+		},
+	}
 );

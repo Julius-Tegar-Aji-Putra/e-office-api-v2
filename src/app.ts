@@ -11,6 +11,7 @@ import { serverTiming } from '@elysiajs/server-timing';
 import { env } from './config/env';
 import { routes } from './routes';
 import { auth } from './lib/auth';
+import { prisma } from './db';
 import './types'; // Import global type declarations
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -128,6 +129,43 @@ const app = new Elysia()
       set.status = 404;
       return { error: 'Logo not found' };
     }
+  })
+  .get('/api/auth/get-session', async ({ request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+
+    if (session?.user) {
+      const userRoles = await prisma.userRole.findMany({
+        where: { userId: session.user.id },
+        include: { role: true },
+      });
+      const roles = userRoles.map((ur) => ur.role.name);
+
+      const isProd = env.NODE_ENV === 'production';
+      const response = new Response(
+        JSON.stringify({ ...session, user: { ...session.user, roles } }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      response.headers.append(
+        'Set-Cookie',
+        `user_roles=${roles.join(',')}; Path=/; HttpOnly; SameSite=Lax;${ isProd ? ' Secure;' : '' }`
+      );
+      return response;
+    }
+
+    return new Response(
+      JSON.stringify({ session: null, user: null, requiresLogin: true }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Set-Cookie': [
+            'e-office.session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+            'e-office.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+            'user_roles=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
+          ].join(', '),
+        },
+      }
+    );
   })
 
   // ==========================================

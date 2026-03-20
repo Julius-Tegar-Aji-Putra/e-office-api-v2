@@ -30,6 +30,8 @@ import meRoutes from './routes/me';
 // Import Better Auth routes
 import betterAuthRoutes from './routes/public/auth';
 
+import { ssoRoutes } from './routes/public/auth/sso';
+
 // Import Public Verification routes
 import verificationRoute from './routes/public/verification';
 
@@ -130,6 +132,7 @@ export function createPublicRoutes() {
   return new Elysia()
     // Better Auth routes (handles sign-up, sign-in, sign-out, etc.)
     .use(betterAuthRoutes)
+    .use(ssoRoutes)
     // Public verification routes (no auth required)
     .use(verificationRoute);
 }

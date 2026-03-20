@@ -61,6 +61,7 @@ export const auth = betterAuth({
         ...localIps.map(ip => `http://${ip}:${frontendPort}`),
 
         // 4. (Opsional tapi sangat aman) Daftarkan URL frontend server secara eksplisit
-        process.env.BETTER_AUTH_TRUSTED_ORIGINS || "http://10.137.58.124:20091"
+        process.env.BETTER_AUTH_TRUSTED_ORIGINS || "http://10.137.58.124:20091",
+        "https://apps-fsm.undip.ac.id"
     ],
 });
