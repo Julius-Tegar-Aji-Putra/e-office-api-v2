@@ -2,6 +2,9 @@ import { authGuardPlugin } from "@backend/middlewares/auth.ts";
 import { Elysia } from "elysia";
 import { getUserRoles } from "@backend/lib/casbin.ts";
 import { db } from "@backend/db/index.ts";
+import { MinioService } from "@backend/shared/services/minio.service.ts";
+
+const minio = new MinioService();
 
 export default new Elysia().use(authGuardPlugin).get(
 	"/",
@@ -45,11 +48,21 @@ export default new Elysia().use(authGuardPlugin).get(
 			};
 		}
 
+		// Resolve avatar storage path to presigned URL
+		let imageUrl = user.image;
+		if (user.image && !user.image.startsWith('http')) {
+			try {
+				imageUrl = await minio.getFileUrl(user.image);
+			} catch (err) {
+				console.error('Failed to get avatar URL:', err);
+			}
+		}
+
 		return {
 			id: user.id,
 			name: user.name,
 			email: user.email,
-			image: user.image,
+			image: imageUrl,
 			emailVerified: user.emailVerified,
 			role: primaryRole,
 			roles: roles,

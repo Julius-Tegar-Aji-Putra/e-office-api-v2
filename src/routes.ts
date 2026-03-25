@@ -22,6 +22,7 @@ import { masterDataRoutes } from './modules/master-data/master-data.route';
 import { adminManagementRoutes } from './modules/admin-management/admin-management.route';
 import { departmentSettingsRoutes } from './modules/department-settings/department-settings.route';
 import { dashboardStatsRoutes } from './modules/dashboard-stats/dashboard-stats.route';
+import { profileRoutes } from './modules/profile/profile.route';
 
 // Import existing routes
 import dashRoutes from './routes/dash';
@@ -104,6 +105,9 @@ export function createApiRoutes() {
 
     // Module M: DASHBOARD STATS (Super Admin - Statistics)
     .group('/api', (api) => api.use(dashboardStatsRoutes))
+
+    // Module N: PROFILE (Self-service profile management)
+    .group('/api', (api) => api.use(profileRoutes))
 
     // =========================================================================
     // DASHBOARD ROUTES
